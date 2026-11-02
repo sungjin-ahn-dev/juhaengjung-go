@@ -455,7 +455,7 @@ export class Service {
     return {
       mode: ev.mode,
       route: s ? { distanceM: Math.round(s.baseRoute.distanceM), durationS: Math.round(s.baseRoute.durationS), viaNames: s.baseRoute.viaNames } : null,
-      items: ev.candidates.map((c) => this.candidateView(c)),
+      items: ev.candidates.map((c) => ({ ...this.candidateView(c), photo: this.d.store.get<Listing>("listings", c.listingId)?.photos[0] ?? null })),
     };
   }
 

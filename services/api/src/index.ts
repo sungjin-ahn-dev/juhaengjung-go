@@ -3,4 +3,4 @@ export { createBackend, createRouter, DEMO_SERVICE_CONFIG, type Backend, type Ba
 export { DemoClock, EventBus, ManualClock, MemoryStore, RealClock, maskName, type AppEvent, type Clock, type Store } from "./infra.ts";
 export { DEMO_START, PICKUP_PLACES, placeholderPhoto, seedDemo } from "./seed.ts";
 export { ApiError, messageFor, Service, type User } from "./service.ts";
-export { ApiCallError, createHttpClient, createLocalClient, type ApiClient } from "./client.ts";
+export { ApiCallError, createDirectClock, createHttpClient, createLocalClient, createSyncedClock, type ApiClient, type AppClock } from "./client.ts";

@@ -1,0 +1,157 @@
+/**
+ * Android 셸(apps/car-android) 브리지 — WebView에 주입된 window.PleosBridge가 실제 Pleos SDK를 부른다.
+ *   JS → Kotlin: PleosBridge.call(id, method, argsJson)
+ *   Kotlin → JS: window.__pleos.resolve(id, okJson) / reject(id, message) / emit(event, json)
+ * 메서드 이름은 ports.ts와 같다. Kotlin 쪽 구현: apps/car-android/app/src/main/java/.../PleosBridge.kt
+ */
+import type {
+  AccessType,
+  CarInfo,
+  CarPlatform,
+  CurrentLocationInfo,
+  DestinationInfo,
+  DrivingRestrictionPort,
+  NavigationStatus,
+  NaviListener,
+  NaviPort,
+  RequestWaypointInfo,
+  SdkLogEntry,
+  SeatValue,
+  TBTInfo,
+  TripInfo,
+  TurnSignalValue,
+  VehiclePort,
+  VoicePort,
+  WaypointIndex,
+  WaypointInfo,
+} from "./ports.ts";
+import type { RouteOption } from "@jhgo/core";
+
+interface NativeBridge {
+  call(id: string, method: string, argsJson: string): void;
+}
+
+declare global {
+  interface Window {
+    PleosBridge?: NativeBridge;
+    __pleos?: {
+      resolve(id: string, json: string): void;
+      reject(id: string, message: string): void;
+      emit(event: string, json: string): void;
+    };
+  }
+}
+
+export function hasNativeBridge(): boolean {
+  return typeof window !== "undefined" && !!window.PleosBridge;
+}
+
+export function createBridgePlatform(voice: VoicePort, now: () => number = () => Date.now()): CarPlatform {
+  const native = window.PleosBridge!;
+  const pending = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
+  const listeners = new Map<string, Set<(v: unknown) => void>>();
+  const logs = new Set<(e: SdkLogEntry) => void>();
+  let seq = 0;
+  let requiresDO = true;
+
+  const log = (dir: SdkLogEntry["dir"], api: string, text: string) => logs.forEach((l) => l({ at: now(), dir, api, text }));
+  const on = (event: string, fn: (v: unknown) => void) => {
+    let s = listeners.get(event);
+    if (!s) listeners.set(event, (s = new Set()));
+    s.add(fn);
+    return () => s!.delete(fn);
+  };
+  window.__pleos = {
+    resolve(id, json) {
+      pending.get(id)?.resolve(json ? JSON.parse(json) : null);
+      pending.delete(id);
+    },
+    reject(id, message) {
+      pending.get(id)?.reject(new Error(message));
+      pending.delete(id);
+    },
+    emit(event, json) {
+      const v = json ? JSON.parse(json) : null;
+      if (event === "restriction") requiresDO = !!v;
+      log("event", event.split(".")[0], `${event} ${json?.slice(0, 120) ?? ""}`);
+      listeners.get(event)?.forEach((f) => f(v));
+    },
+  };
+  function call<T>(method: string, args: unknown = {}): Promise<T> {
+    const id = `c${++seq}`;
+    log("call", method.split(".")[0], method);
+    return new Promise<T>((resolve, reject) => {
+      pending.set(id, { resolve: resolve as (v: unknown) => void, reject });
+      native.call(id, method, JSON.stringify(args));
+      setTimeout(() => {
+        if (pending.has(id)) {
+          pending.delete(id);
+          reject(new Error(`${method} 응답 없음`));
+        }
+      }, 8000);
+    });
+  }
+  const sub = <T>(method: string, event: string, cb: (v: T) => void, args: unknown = {}) => {
+    const off = on(event, (v) => cb(v as T));
+    call(method, args).catch(() => cb(null as T));
+    return off;
+  };
+
+  const navi: NaviPort = {
+    getNavigationStatus: () => call<NavigationStatus>("NaviHelper.getNavigationStatus"),
+    getDestinationInfo: () => call<DestinationInfo | null>("NaviHelper.getDestinationInfo"),
+    getCurrentLocationInfo: () => call<CurrentLocationInfo>("NaviHelper.getCurrentLocationInfo"),
+    getWaypointInfo: () => call<WaypointInfo[]>("NaviHelper.getWaypointInfo"),
+    getTBTInfo: () => call<TBTInfo[]>("NaviHelper.getTBTInfo"),
+    requestTrip: (req) => call<TripInfo>("NaviHelper.requestTrip", req),
+    addWaypoint: (req: RequestWaypointInfo) => call<void>("NaviHelper.addWaypoint", req),
+    removeWaypoint: (idx: WaypointIndex) => call<void>("NaviHelper.removeWaypoint", { idx }),
+    requestRoute: (dest) => call<void>("NaviHelper.requestRoute", dest),
+    requestRouteWithWaypoints: (dest, waypoints) => call<void>("NaviHelper.requestRouteWithWaypoints", { dest, waypoints }),
+    changeRouteOption: (o: RouteOption) => call<void>("NaviHelper.changeRouteOption", { option: o }),
+    cancelRoute: () => call<void>("NaviHelper.cancelRoute"),
+    addListener(l: NaviListener) {
+      const offs = [
+        on("NaviHelper.onNavigationStatus", (v) => l.onNavigationStatus?.(v as NavigationStatus)),
+        on("NaviHelper.onDestinationInfo", (v) => l.onDestinationInfo?.(v as DestinationInfo | null)),
+        on("NaviHelper.onCurrentLocationInfo", (v) => l.onCurrentLocationInfo?.(v as CurrentLocationInfo)),
+        on("NaviHelper.onWayPointInfo", (v) => l.onWayPointInfo?.(v as WaypointInfo[])),
+        on("NaviHelper.onWayPointArrived", (v) => l.onWayPointArrived?.(v as WaypointInfo)),
+        on("NaviHelper.onTBTInfo", (v) => l.onTBTInfo?.(v as TBTInfo[])),
+        on("NaviHelper.onTripInfo", (v) => l.onTripInfo?.(v as TripInfo)),
+        on("NaviHelper.onRouteOptionChanged", (v) => l.onRouteOptionChanged?.(v as RouteOption)),
+        on("NaviHelper.onError", (v) => l.onError?.(v as never)),
+        on("NaviHelper.onDestinationArrived", () => l.onDestinationArrived?.()),
+      ];
+      return () => offs.forEach((o) => o());
+    },
+  };
+
+  const vehicle: VehiclePort = {
+    carInfo: () => call<CarInfo>("Vehicle.getCarInfo"),
+    capabilities: () => call<Record<string, AccessType>>("Vehicle.capabilities"),
+    registerSeatOccupancy: (area: SeatValue[], cb) => sub("Vehicle.registerSeatOccupancy", "Vehicle.onSeatOccupancyUpdated", cb, { area }),
+    getEvBatteryStateOfCharge: () => call<number | null>("Vehicle.getEvBatteryStateOfCharge"),
+    registerEvBatteryStateOfCharge: (cb) => sub("Vehicle.registerEvBatteryStateOfCharge", "Vehicle.onEvBatteryStateOfChargeUpdated", cb),
+    getFuelRangeKm: () => call<number | null>("Vehicle.getFuelRangeKm"),
+    registerTurnSignalState: (cb) => sub<TurnSignalValue | null>("Vehicle.registerTurnSignalState", "Vehicle.onTurnSignalStateUpdated", cb),
+    registerSteeringWheelAngle: (cb) => sub("Vehicle.registerSteeringWheelAngle", "Vehicle.onSteeringWheelAngleUpdated", cb),
+    registerBrakePedalStatus: (cb) => sub("Vehicle.registerBrakePedalStatus", "Vehicle.onBrakePedalStatusUpdated", cb),
+    getOdometerKm: () => call<number | null>("Vehicle.getOdometerKm"),
+    registerTrunkOpen: (cb) => sub("Vehicle.registerTrunkOpen", "Vehicle.onTrunkOpenUpdated", cb),
+  };
+
+  const restriction: DrivingRestrictionPort = {
+    requiresDistractionOptimization: () => requiresDO,
+    subscribe(cb) {
+      const off = on("restriction", (v) => cb(!!v));
+      call<boolean>("CarUx.current").then((v) => {
+        requiresDO = !!v;
+        cb(requiresDO);
+      });
+      return off;
+    },
+  };
+
+  return { kind: "bridge", navi, vehicle, restriction, voice, onLog: (cb) => (logs.add(cb), () => logs.delete(cb)) };
+}

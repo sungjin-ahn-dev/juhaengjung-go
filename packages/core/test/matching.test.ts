@@ -109,12 +109,26 @@ describe("T3 우회 시간 = 현재→매물 + 매물→목적지 − 현재→�
     const ev = evaluate(
       input({
         ignoreWindow: true,
-        ctx: ctxAtStart({ tripChecks: { carseat: { distanceM: plain.distCurToListingM, etaS: plain.tCurToListingS + 300, checkedAt: FRI_1805 } } }),
+        ctx: ctxAtStart({ tripChecks: { carseat: { distanceM: plain.distCurToListingM, etaS: plain.tCurToListingS + 300, checkedAt: FRI_1805, pointIsExact: true } } }),
       }),
     );
     const c = ev.candidates.find((x) => x.listingId === "carseat")!;
     expect(c.usedTripCheck).toBe(true);
     expect(c.detourS - plain.detourS).toBeGreaterThanOrEqual(299);
+  });
+
+  it("대략 위치로 잰 requestTrip은 시간은 그대로 두고 도착 배터리 예측에만 쓴다", () => {
+    const plain = evaluate(input({ ignoreWindow: true })).candidates.find((c) => c.listingId === "carseat")!;
+    const ev = evaluate(
+      input({
+        ignoreWindow: true,
+        ctx: ctxAtStart({ tripChecks: { carseat: { distanceM: plain.distCurToListingM + 400, etaS: plain.tCurToListingS + 300, socAtDestPct: 52, checkedAt: FRI_1805 } } }),
+      }),
+    );
+    const c = ev.candidates.find((x) => x.listingId === "carseat")!;
+    expect(c.detourS).toBe(plain.detourS);
+    expect(c.usedTripCheck).toBe(false);
+    expect(c.energy.usedDefaultRate).toBe(false);
   });
 
   it("우회 시간이 GO 등급 최대치를 넘으면 제외", () => {

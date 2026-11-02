@@ -120,6 +120,8 @@ export interface TripCheck {
   socAtDestPct?: number | null;
   energyConsumption?: number | null;
   checkedAt: number;
+  /** 정확한 거래 지점으로 잰 값인가 — 수락 전에는 대략 위치(approxArea)로만 잴 수 있어 시간은 서버 계산을 쓴다 */
+  pointIsExact?: boolean;
 }
 
 export interface Trust {

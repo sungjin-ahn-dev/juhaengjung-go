@@ -231,7 +231,8 @@ export function evaluate(input: EvalInput): Evaluation {
     }
 
     const trip = ctx.tripChecks?.[l.id];
-    const cl = trip ? { t: trip.etaS, d: trip.distanceM } : legTime(router, ctx.location, point);
+    // requestTrip 시간·거리는 정확한 지점으로 잰 경우에만 쓴다(대략 위치로 잰 값은 도착 배터리 예측에만)
+    const cl = trip?.pointIsExact ? { t: trip.etaS, d: trip.distanceM } : legTime(router, ctx.location, point);
     const ld = mode === "route" ? legTime(router, point, dest!) : { t: 0, d: 0 };
 
     let detourS: number;
@@ -311,7 +312,7 @@ export function evaluate(input: EvalInput): Evaluation {
       exclusions,
       inWindow,
       speech: "",
-      usedTripCheck: !!trip,
+      usedTripCheck: !!trip?.pointIsExact,
     };
     c.speech = speechFor(c, mode);
     candidates.push(c);

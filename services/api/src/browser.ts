@@ -12,5 +12,5 @@ export function createLocalBackend(opts: { rate?: number } = {}) {
   };
 }
 
-export { createLocalClient, createHttpClient } from "./client.ts";
-export type { ApiClient } from "./client.ts";
+export { createLocalClient, createHttpClient, createSyncedClock, createDirectClock } from "./client.ts";
+export type { ApiClient, AppClock } from "./client.ts";

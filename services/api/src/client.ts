@@ -127,3 +127,46 @@ export function createLocalClient(b: LocalBackendLike, initialToken: string | nu
     },
   };
 }
+
+/** 서버 시계(시연에서는 가상 시계)를 따라가는 시계 */
+export interface AppClock {
+  now(): number;
+  rate(): number;
+  setRate?(rate: number): Promise<void>;
+  sync(): Promise<void>;
+}
+
+export function createSyncedClock(client: ApiClient): AppClock {
+  let base = { now: Date.now(), rate: 1, local: Date.now() };
+  const clock: AppClock = {
+    now: () => Math.round(base.now + (Date.now() - base.local) * base.rate),
+    rate: () => base.rate,
+    async sync() {
+      try {
+        const t0 = Date.now();
+        const c = await client.clock();
+        const t1 = Date.now();
+        base = { now: c.now + ((t1 - t0) / 2) * c.rate, rate: c.rate, local: t1 };
+      } catch {
+        /* 다음에 다시 */
+      }
+    },
+    async setRate(r: number) {
+      await client.call("POST", "/v1/demo/clock", { rate: r });
+      await clock.sync();
+    },
+  };
+  return clock;
+}
+
+/** 같은 페이지 백엔드의 시계를 그대로 쓰는 시계 */
+export function createDirectClock(c: { now(): number; rate(): number; setRate?(r: number): void }): AppClock {
+  return {
+    now: () => c.now(),
+    rate: () => c.rate(),
+    async setRate(r: number) {
+      c.setRate?.(r);
+    },
+    async sync() {},
+  };
+}
