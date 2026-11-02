@@ -73,13 +73,27 @@ export function createBridgePlatform(voice: VoicePort, now: () => number = () =>
     emit(event, json) {
       const v = json ? JSON.parse(json) : null;
       if (event === "restriction") requiresDO = !!v;
-      log("event", event.split(".")[0], `${event} ${json?.slice(0, 120) ?? ""}`);
+      if (shouldLog(event, v)) log("event", event.split(".")[0], `${event} ${json?.slice(0, 120) ?? ""}`);
       listeners.get(event)?.forEach((f) => f(v));
     },
   };
-  function call<T>(method: string, args: unknown = {}): Promise<T> {
+  // 자주 오는 이벤트(TBT·목적지·경유지 갱신·조향각)는 내용이 바뀔 때만, 그래도 30초에 한 번은 남긴다
+  const lastLogged = new Map<string, { key: string; at: number }>();
+  function shouldLog(event: string, v: unknown): boolean {
+    const keyOf = NOISY[event];
+    if (!keyOf) return true;
+    const key = keyOf(v);
+    const prev = lastLogged.get(event);
+    const t = Date.now();
+    if (prev && prev.key === key && t - prev.at < 30_000) return false;
+    lastLogged.set(event, { key, at: t });
+    return true;
+  }
+
+  function call<T>(method: string, args: unknown = {}, timeoutMs = 8000): Promise<T> {
     const id = `c${++seq}`;
-    log("call", method.split(".")[0], method);
+    // 1초마다 부르는 조회는 기록하지 않는다(로그가 조회로 덮이지 않게)
+    if (!QUIET.has(method)) log("call", method.split(".")[0], `${method}${describeArgs(args)}`);
     return new Promise<T>((resolve, reject) => {
       pending.set(id, { resolve: resolve as (v: unknown) => void, reject });
       native.call(id, method, JSON.stringify(args));
@@ -88,7 +102,7 @@ export function createBridgePlatform(voice: VoicePort, now: () => number = () =>
           pending.delete(id);
           reject(new Error(`${method} 응답 없음`));
         }
-      }, 8000);
+      }, timeoutMs);
     });
   }
   const sub = <T>(method: string, event: string, cb: (v: T) => void, args: unknown = {}) => {
@@ -153,5 +167,65 @@ export function createBridgePlatform(voice: VoicePort, now: () => number = () =>
     },
   };
 
-  return { kind: "bridge", navi, vehicle, restriction, voice, onLog: (cb) => (logs.add(cb), () => logs.delete(cb)) };
+  return { kind: "bridge", navi, vehicle, restriction, voice: createNativeVoice(call, voice), onLog: (cb) => (logs.add(cb), () => logs.delete(cb)) };
+}
+
+const NOISY: Record<string, (v: unknown) => string> = {
+  "NaviHelper.onTBTInfo": (v) => {
+    const t = (v as TBTInfo[] | null)?.[0];
+    return t ? `${t.type}|${t.description}` : "";
+  },
+  "NaviHelper.onDestinationInfo": (v) => (v as DestinationInfo | null)?.name ?? "",
+  "NaviHelper.onWayPointInfo": (v) => ((v as WaypointInfo[] | null) ?? []).map((w) => w.name).join(","),
+  "NaviHelper.onCurrentLocationInfo": () => "",
+  "Vehicle.onSteeringWheelAngleUpdated": (v) => String(Math.round(Number(v) / 10)),
+  "Vehicle.onEvBatteryStateOfChargeUpdated": (v) => String(v),
+};
+
+const QUIET = new Set([
+  "NaviHelper.getNavigationStatus",
+  "NaviHelper.getCurrentLocationInfo",
+  "NaviHelper.getDestinationInfo",
+  "NaviHelper.getWaypointInfo",
+  "Vehicle.getEvBatteryStateOfCharge",
+  "Vehicle.getFuelRangeKm",
+]);
+
+function describeArgs(args: unknown): string {
+  if (!args || typeof args !== "object" || Object.keys(args as object).length === 0) return "";
+  const a = args as Record<string, unknown>;
+  const name = a.poiName ?? a.text ?? a.option ?? a.idx;
+  return name ? `(${String(name).slice(0, 40)})` : "";
+}
+
+/**
+ * 음성: 셸이 Pleos TextToSpeech(ON_DEVICE)를 먼저, 안 되면 안드로이드 TTS를 쓴다(Kotlin 쪽 판단).
+ * 듣기는 안드로이드 SpeechRecognizer — Pleos SpeechToText는 사용 신청 준비 중.
+ * 셸이 음성을 못 쓰면 웹 음성(Web Speech API)으로 내려간다.
+ */
+function createNativeVoice(call: <T>(method: string, args?: unknown, timeoutMs?: number) => Promise<T>, fallback: VoicePort): VoicePort {
+  let caps = { tts: false, stt: false };
+  call<{ tts: boolean; stt: boolean }>("Voice.capabilities", {}, 6000)
+    .then((c) => (caps = { tts: !!c?.tts, stt: !!c?.stt }))
+    .catch(() => {});
+  return {
+    get tts() {
+      return caps.tts || fallback.tts;
+    },
+    get stt() {
+      return caps.stt || fallback.stt;
+    },
+    async speak(text) {
+      if (!caps.tts) return fallback.speak(text);
+      await call("Voice.speak", { text }, Math.min(30000, 4000 + text.length * 200)).catch(() => fallback.speak(text));
+    },
+    async listen(words, timeoutMs) {
+      if (!caps.stt) return fallback.listen(words, timeoutMs);
+      return call<string | null>("Voice.listen", { words, timeoutMs }, timeoutMs + 4000).catch(() => null);
+    },
+    stop() {
+      if (caps.tts) void call("Voice.stop").catch(() => {});
+      fallback.stop();
+    },
+  };
 }

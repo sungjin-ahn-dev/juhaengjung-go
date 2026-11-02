@@ -10,3 +10,4 @@ apps/car-android/build/
 apps/car-android/app/build/
 apps/car-android/local.properties
 .DS_Store
+apps/car-android/build_log.txt

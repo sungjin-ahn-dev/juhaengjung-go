@@ -245,11 +245,10 @@ export function SellerApp({ client, clock, embedded = false, storageKey = "jhgo.
               catalog={catalog}
               me={me}
               onDone={async (ok) => {
+                // 목록을 먼저 새로 받고 나서 닫는다 — '올렸어요'가 뜰 때 새 물건이 이미 목록에 있게
+                if (ok) await refresh().catch(() => {});
                 setComposing(false);
-                if (ok) {
-                  say("올렸어요. 지나가는 차에도 보여요");
-                  await refresh();
-                }
+                if (ok) say("올렸어요. 지나가는 차에도 보여요");
               }}
             />
           ) : tab === "items" ? (

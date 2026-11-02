@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-feature android:name="android.hardware.type.automotive" android:required="true" />
+
+    <!-- Pleos Vehicle SDK 2.3.2 — 공식 API 레퍼런스 @RequiresPermission (멀미예보·TripRoom API_MATRIX와 같음)
+         SteeringWheel.registerSteeringWheelAngle · Brake.registerBrakePedalStatus = CAR_DRIVE
+         TurnSignal.registerTurnSignalState = CAR_LIGHTS
+         Seat.registerSeatOccupancy = CAR_SEATS
+         EvBattery.getEvBatteryStateOfCharge · registerEvBatteryStateOfCharge = CAR_ENERGY -->
+    <uses-permission android:name="pleos.car.permission.CAR_DRIVE" />
+    <uses-permission android:name="pleos.car.permission.CAR_LIGHTS" />
+    <uses-permission android:name="pleos.car.permission.CAR_SEATS" />
+    <uses-permission android:name="pleos.car.permission.CAR_ENERGY" />
+    <!-- Pleos NaviHelper SDK 3.0.5: 조회(getDestinationInfo·getWaypointInfo·getTBTInfo·getCurrentLocationInfo·requestTrip) = NAVI_ROUTE,
+         경로 변경(addWaypoint·removeWaypoint·changeRouteOption·cancelRoute) = NAVI_ROUTE_SEARCH -->
+    <uses-permission android:name="pleos.car.permission.NAVI_ROUTE" />
+    <uses-permission android:name="pleos.car.permission.NAVI_ROUTE_SEARCH" />
+    <!-- Pleos TextToSpeech SDK 3.3.1 -->
+    <uses-permission android:name="pleos.car.permission.TTS_SERVICE" />
+</manifest>

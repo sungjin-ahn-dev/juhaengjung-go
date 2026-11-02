@@ -105,6 +105,8 @@ export interface CarState {
   navStatus: NavigationStatus;
   destination: DestinationInfo | null;
   waypoints: WaypointInfo[];
+  /** NaviHelper 현재 위치(실제 SDK 모드의 지도용) */
+  location: { lat: number; lng: number; heading: number } | null;
   tbt: TBTInfo | null;
   soc: number | null;
   fuelRangeKm: number | null;
@@ -141,6 +143,7 @@ const initialState: CarState = {
   restricted: false,
   navStatus: "INACTIVE",
   destination: null,
+  location: null,
   waypoints: [],
   tbt: null,
   soc: null,
@@ -207,6 +210,11 @@ export class CarController {
     this.set({ toasts: [...this.state.toasts.slice(-2), { id, text, kind }] });
     setTimeout(() => this.set({ toasts: this.state.toasts.filter((t) => t.id !== id) }), 5200);
   }
+  /** 시뮬레이터인지 실제 SDK(Android 셸)인지 */
+  get platformKind() {
+    return this.p.kind;
+  }
+
   private say(text: string) {
     this.set({ lastSpeech: text });
     if (!this.state.muted) void this.p.voice.speak(text);
@@ -327,7 +335,16 @@ export class CarController {
           this.set({ navStatus: s });
           if (s === "ROUTE_DRIVE" && this.driveStartOdo === null) void vehicle.getOdometerKm().then((o) => (this.driveStartOdo = o));
         },
-        onDestinationInfo: (d) => this.set({ destination: d }),
+        onDestinationInfo: (d) => {
+          const prev = this.state.destination;
+          this.set({ destination: d });
+          // 실제 차: 목적지는 Pleos 내비에서 정한다 → 새 목적지가 잡히면(정차 중) 출발 전 브리핑
+          const changed = d && (!prev || haversineM({ lat: prev.latitude, lng: prev.longitude }, { lat: d.latitude, lng: d.longitude }) > 100);
+          if (this.p.kind === "bridge" && changed && !this.state.restricted && this.state.screen === "map" && !this.state.trade) {
+            void this.p.vehicle.getOdometerKm().then((o) => (this.driveStartOdo = o));
+            this.open("briefing");
+          }
+        },
         onTBTInfo: (list) => {
           const t = list[0] ?? null;
           upd({ tbtDistanceM: t?.distance ?? null, tbtIsTurn: t ? !["TURN_STRAIGHT", "TURN_ARRIVE"].includes(t.type) : null });
@@ -391,7 +408,14 @@ export class CarController {
       vehicle.getEvBatteryStateOfCharge(),
       vehicle.getFuelRangeKm(),
     ]);
-    this.set({ navStatus, destination: dest, waypoints: wps, soc: soc ?? this.state.soc, fuelRangeKm: fuel });
+    this.set({
+      navStatus,
+      destination: dest,
+      waypoints: wps,
+      soc: soc ?? this.state.soc,
+      fuelRangeKm: fuel,
+      location: { lat: loc.latitude, lng: loc.longitude, heading: loc.heading ?? 0 },
+    });
     const now = this.clock.now();
     for (const [k, v] of Object.entries(this.tripChecks)) if (now - v.checkedAt > 3 * 60_000) delete this.tripChecks[k];
     return {
@@ -615,7 +639,16 @@ export class CarController {
   }
 
   /** 7 약속: 수락되면 경유지를 넣고, 다시 조회해 실제로 들어갔는지 확인한 뒤 확정을 알린다 */
+  /** 자동 수락이면 요청 응답과 실시간 알림이 둘 다 온다(늦게 올 수도 있다) → 거래마다 한 번만 경유지를 넣는다 */
+  private acceptHandled = new Set<string>();
+
   private async onAccepted(t: TradeView) {
+    if (this.acceptHandled.has(t.id)) return;
+    this.acceptHandled.add(t.id);
+    await this.applyAccepted(t);
+  }
+
+  private async applyAccepted(t: TradeView) {
     this.set({ trade: t });
     if (!t.pickupPoint) {
       const r = await this.api.call<{ trade: TradeView }>("GET", `/v1/buyer/trades/${t.id}`);
@@ -634,19 +667,33 @@ export class CarController {
       poiSubId: "",
       poiProvider: "",
     };
+    // 반영 확인은 호출 성공이 아니라 getWaypointInfo 재조회로 한다(한 번 더 기다려 본다)
+    const confirmed = async () => {
+      for (let i = 0; i < 2; i++) {
+        const list = await this.p.navi.getWaypointInfo();
+        this.set({ waypoints: list });
+        if (this.ourWaypoint(list, t)) return true;
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+      return false;
+    };
     let ok = false;
     try {
       const dest = await this.p.navi.getDestinationInfo();
       const parked = !this.p.restriction.requiresDistractionOptimization();
       if (parked && dest && t.source === "briefing") {
-        // 출발 전 브리핑에서 미리 고른 매물: 목적지와 경유지를 한 번에
-        await this.p.navi.requestRouteWithWaypoints({ latitude: dest.latitude, longitude: dest.longitude, name: dest.name }, [req]);
-      } else {
-        await this.p.navi.addWaypoint(req);
+        // 출발 전 브리핑에서 미리 고른 매물: 목적지와 경유지를 한 번에(안 되면 경유지 추가로)
+        try {
+          await this.p.navi.requestRouteWithWaypoints({ latitude: dest.latitude, longitude: dest.longitude, name: dest.name }, [req]);
+          ok = await confirmed();
+        } catch {
+          ok = false;
+        }
       }
-      const list = await this.p.navi.getWaypointInfo();
-      ok = !!this.ourWaypoint(list, t);
-      this.set({ waypoints: list });
+      if (!ok) {
+        await this.p.navi.addWaypoint(req);
+        ok = await confirmed();
+      }
     } catch {
       ok = false;
     }
@@ -660,7 +707,7 @@ export class CarController {
         this.toast("경유지 대신 판매자 지점을 잠시 목적지로 설정했어요", "info");
       } catch {
         this.toast("경로를 바꾸지 못했어요. 거래를 취소할게요", "warn");
-        await this.cancelTrade("경로 설정 실패");
+        await this.cancelTrade("차 내비가 경유지를 받지 못했어요", true);
         return;
       }
     }
@@ -723,7 +770,8 @@ export class CarController {
     this.toast(`내비 오류: ${code}`, "warn");
     // 19 오류 처리: 요청 중인 거래가 있고 경유지를 못 넣으면 취소
     const t = this.state.trade;
-    if (t && t.status === "requested") void this.cancelTrade(`내비 오류 ${code}`);
+    // requestTrip 실패(CAUSE_SEARCH_TRIP)는 알림 전 확인일 뿐이라 거래를 건드리지 않는다
+    if (t && t.status === "requested" && code !== "CAUSE_SEARCH_TRIP") void this.cancelTrade(`내비 오류 ${code}`, true);
   }
 
   // ───────── 현장 확인 · 마무리 ─────────
@@ -746,11 +794,12 @@ export class CarController {
     this.say("거래하지 않았어요. 대금은 전액 환불돼요.");
   }
 
-  async cancelTrade(reason = "구매자 취소") {
+  /** system: 차 쪽 실패로 앱이 대신 취소(구매자 신뢰도에 반영하지 않음) */
+  async cancelTrade(reason = "구매자 취소", system = false) {
     const t = this.state.trade;
     if (!t) return;
     try {
-      await this.api.call("POST", `/v1/buyer/trades/${t.id}/cancel`, { reason });
+      await this.api.call("POST", `/v1/buyer/trades/${t.id}/cancel`, { reason, system });
     } catch {
       /* 이미 끝난 거래 */
     }

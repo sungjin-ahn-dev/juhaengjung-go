@@ -128,6 +128,14 @@ describe("T13 정산·취소·노쇼·평가", () => {
     expect(r.effects.filter((e) => e.kind === "trust").length).toBe(2);
   });
 
+  it("차 쪽 실패(내비 오류·경유지 실패)로 앱이 대신 취소하면 수락 뒤라도 구매자 신뢰도에 반영하지 않는다(T19)", () => {
+    const r = applyTradeEvent(accepted(), { type: "BUYER_CANCEL", reason: "차 내비가 경유지를 받지 못했어요", system: true }, T0 + 1);
+    expect(r.trade.status).toBe("canceled");
+    expect(r.trade.payment.status).toBe("refunded");
+    expect(r.effects.some((e) => e.kind === "trust")).toBe(false);
+    expect(r.effects).toContainEqual({ kind: "listing", status: "active" });
+  });
+
   it("요청 단계 구매자 취소는 불이익 없음, 수락 뒤 취소는 신뢰도 반영 + 환불", () => {
     const early = applyTradeEvent(newTrade().trade, { type: "BUYER_CANCEL" }, T0 + 1);
     expect(early.effects.some((e) => e.kind === "trust")).toBe(false);

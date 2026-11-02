@@ -112,7 +112,8 @@ export type TradeEvent =
   | { type: "SELLER_HANDED" }
   | { type: "BUYER_RECEIVED" }
   | { type: "BUYER_DECLINE_MISMATCH"; reason: string; note?: string }
-  | { type: "BUYER_CANCEL"; reason?: string }
+  /** system: 차 쪽 실패(내비 오류·경유지 실패)로 앱이 대신 취소 — 구매자 신뢰도에 반영하지 않는다 */
+  | { type: "BUYER_CANCEL"; reason?: string; system?: boolean }
   | { type: "SELLER_CANCEL"; reason?: string }
   | { type: "TICK" }
   | { type: "RATE"; by: "buyer" | "seller"; stars: number };
@@ -314,7 +315,10 @@ export function applyTradeEvent(t: Trade, ev: TradeEvent, now: number, cfg: Trad
       need(t, ["requested", "accepted", "arrived"], "취소");
       const r = refund(t, now);
       const effects: Effect[] = [...r.effects, { kind: "notify", to: "seller", type: "trade.canceled", data: { by: "buyer", reason: ev.reason } }];
-      if (t.status !== "requested") effects.push({ kind: "trust", who: "buyer", field: "canceled" }, { kind: "listing", status: "active" });
+      if (t.status !== "requested") {
+        effects.push({ kind: "listing", status: "active" });
+        if (!ev.system) effects.push({ kind: "trust", who: "buyer", field: "canceled" });
+      }
       return { trade: { ...t, status: "canceled", canceledAt: now, canceledBy: "buyer", reason: ev.reason, payment: r.payment }, effects };
     }
     case "SELLER_CANCEL": {

@@ -217,7 +217,7 @@ export function createApp(svc: Service, opts: AppOptions) {
   buyerAction("arrived", () => ({ type: "ARRIVED" }));
   buyerAction("received", () => ({ type: "BUYER_RECEIVED" }));
   buyerAction("decline", (b) => ({ type: "BUYER_DECLINE_MISMATCH", reason: String(b.reason ?? "등록 정보와 달라요"), note: b.note as string | undefined }));
-  buyerAction("cancel", (b) => ({ type: "BUYER_CANCEL", reason: b.reason as string | undefined }));
+  buyerAction("cancel", (b) => ({ type: "BUYER_CANCEL", reason: b.reason as string | undefined, system: b.system === true }));
   buyerAction("rate", (b) => ({ type: "RATE", by: "buyer", stars: Number(b.stars ?? 5) }));
 
   // ── 주행 ──

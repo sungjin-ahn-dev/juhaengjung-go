@@ -47,6 +47,21 @@ const DESTS = [
 ];
 
 function DestinationSheet({ c, close }: { c: CarController; close: () => void }) {
+  if (c.platformKind === "bridge") {
+    return (
+      <div className="c-sheet" data-testid="sheet-destination">
+        <Head title="목적지는 내비에서" sub="Pleos 내비에서 목적지를 정하면 이 앱이 NaviHelper로 읽어 와요" onClose={close} />
+        <div className="c-sheet-body">
+          <p className="c-note">목적지가 잡히면 출발 전 브리핑이 열리고, 길 위의 관심 매물을 먼저 보여 드려요.</p>
+          <div className="c-big-actions" style={{ marginTop: 18 }}>
+            <button className="c-btn kraft" onClick={() => c.open("briefing")}>
+              지금 목적지로 브리핑 보기
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="c-sheet" data-testid="sheet-destination">
       <Head title="어디로 갈까요" sub="목적지를 정하면 길 위의 관심 매물을 먼저 보여 드려요" onClose={close} />

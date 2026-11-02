@@ -1,6 +1,7 @@
 /** 차량 화면(1280×720 기준, 창 크기에 맞춰 축소) */
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
-import type { CarController } from "../controller.ts";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { DEMO_NET, Graph, GraphRouter, pointAtAlong, projectOnPolyline, type Route } from "@jhgo/core";
+import type { CarController, CarState } from "../controller.ts";
 import type { SimCar } from "../pleos/sim.ts";
 import { GoPanel } from "./GoPanel.tsx";
 import { BatteryIcon, RailIcon, TurnIcon } from "./icons.tsx";
@@ -33,9 +34,41 @@ function useSimSnapshot(sim: SimCar | null): MapSnapshot | null {
   return snap;
 }
 
+/**
+ * 실제 SDK 모드의 지도: 차 위치는 NaviHelper 현재 위치. NaviHelper는 경로 선을 주지 않아서(API_MATRIX)
+ * 경로 선은 서버와 같은 경로 계산기로 그린 근사다. 목적지·경유지가 바뀌거나 300m 넘게 벗어나면 다시 그린다.
+ */
+function useBridgeSnapshot(s: CarState, enabled: boolean): MapSnapshot | null {
+  const router = useMemo(() => (enabled ? new GraphRouter(new Graph(DEMO_NET)) : null), [enabled]);
+  const cache = useRef<{ key: string; route: Route } | null>(null);
+  if (!enabled || !router || !s.location) return null;
+  const pos = { lat: s.location.lat, lng: s.location.lng };
+  const dest = s.destination ? { lat: s.destination.latitude, lng: s.destination.longitude, name: s.destination.name } : null;
+  const waypoints = s.waypoints.map((w) => ({ lat: w.latitude, lng: w.longitude, name: w.name }));
+  let route: Route | null = null;
+  let along = 0;
+  if (dest) {
+    const key = [dest, ...waypoints].map((p) => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`).join(";");
+    const c = cache.current;
+    const proj = c && c.key === key ? projectOnPolyline(c.route.line, pos, 0) : null;
+    if (c && proj && proj.distM < 300) {
+      route = c.route;
+      along = proj.alongM;
+    } else {
+      route = router.route([pos, ...waypoints, dest]);
+      if (route) cache.current = { key, route };
+    }
+  }
+  // 내비가 진행 방향을 0으로 주면(알 수 없음) 경로 방향을 쓴다
+  const heading = s.location.heading || (route ? pointAtAlong(route.line, along).headingDeg : 0);
+  return { route, s: along, position: pos, heading, waypoints, dest };
+}
+
 export function CarScreen({ c, sim, now }: { c: CarController; sim: SimCar | null; now: () => number }) {
   const s = useCar(c);
-  const snap = useSimSnapshot(sim);
+  const simSnap = useSimSnapshot(sim);
+  const bridgeSnap = useBridgeSnapshot(s, !sim);
+  const snap = sim ? simSnap : bridgeSnap;
   const wrap = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [zoom, setZoom] = useState(1);

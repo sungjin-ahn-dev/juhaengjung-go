@@ -911,3 +911,61 @@ select:focus-visible {
     max-height: none;
   }
 }
+
+/* 실제 SDK로 돌 때의 호출 기록 서랍 */
+.c-sdklog-toggle {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 50;
+  border: 1px solid #344257;
+  background: rgba(15, 21, 29, 0.85);
+  color: #c9d3df;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+}
+.c-sdklog {
+  position: fixed;
+  right: 12px;
+  bottom: 56px;
+  top: 12px;
+  width: min(520px, calc(100vw - 24px));
+  z-index: 50;
+  overflow: auto;
+  background: rgba(15, 21, 29, 0.96);
+  border: 1px solid #344257;
+  border-radius: 14px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #c9d3df;
+}
+.c-sdklog .call {
+  color: #8fc3ff;
+}
+.c-sdklog .event {
+  color: #9fe0b0;
+}
+
+/* 차 화면에서(Android 셸): 화면을 꽉 채우고, 16:9가 아니면 가운데 두고 남는 곳은 비운다 */
+.c-shell.device {
+  padding: 0;
+  gap: 0;
+  height: 100vh;
+  min-height: 0;
+  align-items: center;
+  overflow: hidden;
+}
+.c-shell.device .c-stage {
+  flex: none;
+  max-width: none;
+  width: min(100vw, calc(100vh * 16 / 9));
+}
+.c-shell.device .c-screen {
+  border-radius: 0;
+  box-shadow: none;
+}
+.c-shell.device .c-caption {
+  display: none;
+}
