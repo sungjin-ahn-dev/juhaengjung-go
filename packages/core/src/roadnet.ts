@@ -5,7 +5,7 @@
  * 그래서 서버는 RoutingProvider로 경로 선·구간 시간을 계산한다. 실제 서비스에서는 외부 길찾기 API
  * (카카오모빌리티·TMAP 등)를 같은 인터페이스로 붙이고, 시연·테스트는 이 파일의 GraphRouter(시연 지역 도로망)를 쓴다.
  */
-import { bearingDeg, haversineM, makePolyline, turnAngleDeg, type LatLng, type Polyline } from "./geo.ts";
+import { bearingDeg, haversineM, makePolyline, pointAtAlong, projectOnPolyline, turnAngleDeg, type LatLng, type Polyline } from "./geo.ts";
 
 export type RoadClass = "expressway" | "urban_expressway" | "arterial" | "local" | "access";
 
@@ -93,9 +93,22 @@ interface Adj {
   lenM: number;
 }
 
+/** 임의의 점을 가장 가까운 도로 구간 위로 붙인 결과 */
+interface Snap {
+  edge: RoadEdge;
+  line: Polyline;
+  /** 구간 시작(from) 노드에서 붙은 점까지 거리 */
+  alongM: number;
+  lenM: number;
+  point: LatLng;
+  /** 원래 점에서 도로까지 거리 */
+  distM: number;
+}
+
 export class Graph {
   readonly nodes = new Map<string, RoadNode>();
   readonly adj = new Map<string, Adj[]>();
+  readonly edgeLines = new Map<RoadEdge, Polyline>();
 
   constructor(readonly net: RoadNet) {
     for (const n of net.nodes) {
@@ -106,11 +119,23 @@ export class Graph {
       const a = this.nodes.get(e.from);
       const b = this.nodes.get(e.to);
       if (!a || !b) throw new Error(`도로망 오류: ${e.from}–${e.to}`);
-      const pts = [a, ...(e.shape ?? []), b];
-      const lenM = makePolyline(pts).cum[pts.length - 1];
+      const line = makePolyline([a, ...(e.shape ?? []), b]);
+      const lenM = line.cum[line.cum.length - 1];
+      this.edgeLines.set(e, line);
       this.adj.get(e.from)!.push({ to: e.to, edge: e, forward: true, lenM });
       this.adj.get(e.to)!.push({ to: e.from, edge: e, forward: false, lenM });
     }
+  }
+
+  /** 점을 가장 가까운 도로 구간 위에 붙인다(내비가 출발점을 도로에 맞추는 것과 같다) */
+  snap(p: LatLng): Snap {
+    let best: Snap | null = null;
+    for (const [edge, line] of this.edgeLines) {
+      const pr = projectOnPolyline(line, p, 0);
+      if (pr && (!best || pr.distM < best.distM)) best = { edge, line, alongM: pr.alongM, lenM: line.cum[line.cum.length - 1], point: pr.point, distM: pr.distM };
+    }
+    if (!best) throw new Error("도로망이 비어 있어요");
+    return best;
   }
 
   node(id: string): RoadNode {
@@ -135,28 +160,28 @@ export class Graph {
 
 const ACCESS_SPEED_KPH = 20;
 
-function edgeCostS(a: Adj, option: RouteOption): number {
-  const base = a.lenM / (a.edge.speedKph / 3.6);
-  if (option === "SHORT_DISTANCE") return a.lenM;
+/** 경로 선택용 비용(초, 짧은 거리 옵션은 m) — 실제 소요 시간은 구간 속도로 따로 잰다 */
+function edgeWeight(edge: RoadEdge, lenM: number, option: RouteOption): number {
+  if (option === "SHORT_DISTANCE") return lenM;
+  const base = lenM / (edge.speedKph / 3.6);
   if (option === "COMFORTABLE") {
     // 편안한 길: 골목(local)과 급한 길을 덜 쓰도록 가중
-    if (a.edge.cls === "local") return base * 1.5;
-    if (a.edge.cls === "expressway" || a.edge.cls === "urban_expressway") return base * 0.95;
+    if (edge.cls === "local") return base * 1.5;
+    if (edge.cls === "expressway" || edge.cls === "urban_expressway") return base * 0.95;
   }
   return base;
 }
 
-/** 시연 지역 도로망으로 경로를 계산한다(Dijkstra). */
+/** 시연 지역 도로망으로 경로를 계산한다(Dijkstra). 출발·도착점은 가장 가까운 도로 구간 위에 붙인다. */
 export class GraphRouter implements RoutingProvider {
   private cache = new Map<string, Route | null>();
   constructor(readonly graph: Graph) {}
 
-  private dijkstra(src: string, dst: string, option: RouteOption): Adj[] | null {
-    if (src === dst) return [];
-    const dist = new Map<string, number>([[src, 0]]);
+  /** 여러 출발 노드(초기 비용)에서 모든 노드까지 — 노드 수가 수십 개라 단순 선형 탐색으로 충분하다 */
+  private dijkstra(init: Map<string, number>, option: RouteOption) {
+    const dist = new Map(init);
     const prev = new Map<string, { from: string; via: Adj }>();
     const done = new Set<string>();
-    // 노드 수가 수십 개라 단순 선형 탐색으로 충분하다
     while (true) {
       let u: string | null = null;
       let ud = Infinity;
@@ -164,26 +189,17 @@ export class GraphRouter implements RoutingProvider {
         u = k;
         ud = v;
       }
-      if (u === null) return null;
-      if (u === dst) break;
+      if (u === null) break;
       done.add(u);
       for (const a of this.graph.adj.get(u) ?? []) {
-        const nd = ud + edgeCostS(a, option);
+        const nd = ud + edgeWeight(a.edge, a.lenM, option);
         if (nd < (dist.get(a.to) ?? Infinity)) {
           dist.set(a.to, nd);
           prev.set(a.to, { from: u, via: a });
         }
       }
     }
-    const path: Adj[] = [];
-    let cur = dst;
-    while (cur !== src) {
-      const p = prev.get(cur);
-      if (!p) return null;
-      path.unshift(p.via);
-      cur = p.from;
-    }
-    return path;
+    return { dist, prev };
   }
 
   route(points: LatLng[], option: RouteOption = "RECOMMENDED"): Route | null {
@@ -218,39 +234,88 @@ export class GraphRouter implements RoutingProvider {
       pts.push(p);
       nodeAt.push(nodeId);
     };
+    const addVia = (nodeId: string) => {
+      const n = this.graph.node(nodeId);
+      if (n.label !== false && !viaNames.includes(n.name)) viaNames.push(n.name);
+    };
+    /** 한 구간 위를 alongA → alongB로 따라간다(방향 무관) */
+    const walk = (edge: RoadEdge, line: Polyline, a: number, b: number, endNodeId: string | null) => {
+      const info = { name: edge.name, cls: edge.cls, speed: edge.speedKph };
+      const v = edge.speedKph / 3.6;
+      const chain: LatLng[] = [];
+      if (b >= a) {
+        for (let i = 0; i < line.points.length; i++) if (line.cum[i] > a && line.cum[i] < b) chain.push(line.points[i]);
+      } else {
+        for (let i = line.points.length - 1; i >= 0; i--) if (line.cum[i] < a && line.cum[i] > b) chain.push(line.points[i]);
+      }
+      chain.push(pointAtAlong(line, b).point);
+      let prevP = pointAtAlong(line, a).point;
+      for (let k = 0; k < chain.length; k++) {
+        const q = chain[k];
+        pushPoint(q, k === chain.length - 1 ? endNodeId : null, haversineM(prevP, q) / v, info);
+        prevP = q;
+      }
+    };
 
     for (let leg = 0; leg < points.length - 1; leg++) {
       const from = points[leg];
       const to = points[leg + 1];
-      const sn = this.graph.nearestNode(from).node;
-      const tn = this.graph.nearestNode(to).node;
+      const sa = this.graph.snap(from);
+      const sb = this.graph.snap(to);
       if (leg === 0) pushPoint(from, null, 0);
-      // 출발점 → 가장 가까운 노드
-      const accessIn = haversineM(from, sn);
-      pushPoint(sn, sn.id, accessIn / (ACCESS_SPEED_KPH / 3.6));
-      const path = this.dijkstra(sn.id, tn.id, option);
-      if (!path) return null;
-      let curId = sn.id;
-      for (const a of path) {
-        const e = a.edge;
-        const shape = e.shape ? (a.forward ? e.shape : [...e.shape].reverse()) : [];
-        const target = this.graph.node(a.to);
-        const chain = [...shape, target];
-        const total = a.lenM;
-        let prevP: LatLng = this.graph.node(curId);
-        for (let k = 0; k < chain.length; k++) {
-          const q = chain[k];
-          const d = haversineM(prevP, q);
-          const t = (total === 0 ? 0 : d) / (e.speedKph / 3.6);
-          pushPoint(q, k === chain.length - 1 ? target.id : null, t, { name: e.name, cls: e.cls, speed: e.speedKph });
-          prevP = q;
+      // 출발점 → 도로 위
+      pushPoint(sa.point, null, sa.distM / (ACCESS_SPEED_KPH / 3.6));
+
+      // 같은 구간 위라면 그 구간만 따라가는 길도 후보
+      const direct = sa.edge === sb.edge ? edgeWeight(sa.edge, Math.abs(sb.alongM - sa.alongM), option) : Infinity;
+      const init = new Map<string, number>();
+      const setMin = (k: string, v: number) => {
+        if (v < (init.get(k) ?? Infinity)) init.set(k, v);
+      };
+      setMin(sa.edge.from, edgeWeight(sa.edge, sa.alongM, option));
+      setMin(sa.edge.to, edgeWeight(sa.edge, sa.lenM - sa.alongM, option));
+      const { dist, prev } = this.dijkstra(init, option);
+      const endFrom = (dist.get(sb.edge.from) ?? Infinity) + edgeWeight(sb.edge, sb.alongM, option);
+      const endTo = (dist.get(sb.edge.to) ?? Infinity) + edgeWeight(sb.edge, sb.lenM - sb.alongM, option);
+      const best = Math.min(direct, endFrom, endTo);
+      if (!Number.isFinite(best)) return null;
+
+      if (best === direct) {
+        walk(sa.edge, sa.line, sa.alongM, sb.alongM, null);
+      } else {
+        const endNode = endFrom <= endTo ? sb.edge.from : sb.edge.to;
+        const path: Adj[] = [];
+        let cur = endNode;
+        while (prev.has(cur)) {
+          const p = prev.get(cur)!;
+          path.unshift(p.via);
+          cur = p.from;
         }
-        curId = a.to;
-        if (target.label !== false && !viaNames.includes(target.name)) viaNames.push(target.name);
+        const startNode = cur;
+        // 붙은 점 → 첫 노드(구간 일부)
+        const startAlong = startNode === sa.edge.from ? 0 : sa.lenM;
+        walk(sa.edge, sa.line, sa.alongM, startAlong, startNode);
+        if (Math.abs(startAlong - sa.alongM) > 30) addVia(startNode);
+        let curId = startNode;
+        for (const a of path) {
+          const e = a.edge;
+          const shape = e.shape ? (a.forward ? e.shape : [...e.shape].reverse()) : [];
+          const target = this.graph.node(a.to);
+          const chain = [...shape, target];
+          let prevP: LatLng = this.graph.node(curId);
+          for (let k = 0; k < chain.length; k++) {
+            const q = chain[k];
+            pushPoint(q, k === chain.length - 1 ? target.id : null, haversineM(prevP, q) / (e.speedKph / 3.6), { name: e.name, cls: e.cls, speed: e.speedKph });
+            prevP = q;
+          }
+          curId = a.to;
+          addVia(a.to);
+        }
+        // 마지막 노드 → 도착점이 붙은 곳(구간 일부)
+        walk(sb.edge, sb.line, endNode === sb.edge.from ? 0 : sb.lenM, sb.alongM, null);
       }
-      // 노드 → 도착점
-      const accessOut = haversineM(tn, to);
-      pushPoint(to, null, accessOut / (ACCESS_SPEED_KPH / 3.6));
+      // 도로 위 → 도착점
+      pushPoint(to, null, sb.distM / (ACCESS_SPEED_KPH / 3.6));
       if (leg < points.length - 2) viaIdx.push(pts.length - 1);
     }
 

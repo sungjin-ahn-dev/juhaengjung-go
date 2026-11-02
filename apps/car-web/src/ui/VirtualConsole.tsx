@@ -17,7 +17,7 @@ export function VirtualConsole({ sim, clock, onReset }: { sim: SimCar; clock: Ap
       setT((x) => x + 1);
       setRate(clock.rate());
     }, 300);
-    const off = sim.onLog((e) => setLogs((l) => [...l.slice(-80), e]));
+    const off = sim.onLog((e) => setLogs((l) => [...l.slice(-400), e]));
     return () => {
       clearInterval(id);
       off();

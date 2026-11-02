@@ -454,7 +454,16 @@ select:focus-visible {
   font-family: var(--font-sign);
   font-size: 30px;
 }
+.c-trade-title {
+  color: var(--muted);
+  font-size: 15px;
+  margin: 2px 0 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .c-trade-price {
+  white-space: nowrap;
   color: var(--muted);
   font-size: 16px;
 }
@@ -538,6 +547,15 @@ select:focus-visible {
   gap: 8px;
   z-index: 6;
   align-items: center;
+}
+/* 시트가 열려 있으면 시트 오른쪽 지도 영역 가운데에 띄운다 */
+.c-toasts.beside-sheet {
+  left: calc(796px + (100% - 796px) / 2);
+  top: 110px;
+}
+.c-toasts.beside-sheet .c-toast {
+  max-width: 420px;
+  border-radius: 16px;
 }
 .c-toast {
   background: #0f151d;

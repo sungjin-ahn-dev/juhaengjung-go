@@ -7,6 +7,7 @@ import {
   emptyPersonalization,
   estimateSize,
   isAvailableAt,
+  josa,
   keywordMatches,
   kstToMs,
   needsMeasuredSize,
@@ -47,7 +48,7 @@ describe("T14 개인화 — 서로 다른 날 두 번 지나쳐야 줄인다", (
     s = recordSkip(s, "camping_chair", "2026-11-06").state;
     s = recordSkip(s, "camping_chair", "2026-11-06").state;
     expect(s.multipliers.camping_chair ?? 1).toBe(1);
-    expect(personalizationNote("camping_chair", "캠핑의자", s)).toContain("한 번만으로는");
+    expect(personalizationNote("camping_chair", "캠핑의자", s)).toBe("캠핑의자를 오늘 한 번 지나쳤어요. 다른 날에도 지나치면 덜 알려 드릴게요.");
     const r = recordSkip(s, "camping_chair", "2026-11-09");
     expect(r.changed).toBe(true);
     expect(r.state.multipliers.camping_chair).toBe(0.9);
@@ -119,5 +120,20 @@ describe("거래 가능 시간 (한국 시간)", () => {
     expect(isAvailableAt(late, kstToMs(2026, 11, 6, 23, 0))).toBe(true);
     expect(isAvailableAt(late, kstToMs(2026, 11, 7, 0, 30))).toBe(true);
     expect(isAvailableAt(late, kstToMs(2026, 11, 7, 1, 30))).toBe(false);
+  });
+});
+
+describe("조사", () => {
+  it("받침에 따라 은/는·이/가·을/를·으로/로를 고른다", () => {
+    expect(josa("캠핑의자", "은/는")).toBe("캠핑의자는");
+    expect(josa("책상", "은/는")).toBe("책상은");
+    expect(josa("유모차", "을/를")).toBe("유모차를");
+    expect(josa("텐트", "이/가")).toBe("텐트가");
+    expect(josa("책장", "이/가")).toBe("책장이");
+    expect(josa("서울", "으로/로")).toBe("서울로");
+    expect(josa("판교", "으로/로")).toBe("판교로");
+    expect(josa("수원역", "으로/로")).toBe("수원역으로");
+    expect(josa("3", "을/를")).toBe("3을");
+    expect(josa("2", "을/를")).toBe("2를");
   });
 });

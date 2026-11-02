@@ -3,6 +3,8 @@
  * 한 번은 "오늘 바빠서"일 수 있으니, 같은 품목을 서로 다른 날 2번 이상 지나쳤을 때부터 M × 0.9 (하한 0.5).
  * 거래가 성사되면 M × 1.05 (상한 1.2). 모델 재학습이 아니라 사용자별 가중치 조정이다.
  */
+import { josa } from "./text.ts";
+
 export interface PersonalizationState {
   multipliers: Record<string, number>;
   skipDays: Record<string, string[]>;
@@ -33,9 +35,9 @@ export function recordTrade(state: PersonalizationState, category: string): Pers
 /** 개인화 카드 문구 */
 export function personalizationNote(category: string, label: string, state: PersonalizationState): string | null {
   const m = state.multipliers[category] ?? 1;
-  if (m < 1) return `요즘 지나친 ${label} 같은 매물은 덜 알려 드릴게요.`;
+  if (m < 1) return `요즘 자주 지나친 ${josa(label, "은/는")} 덜 알려 드릴게요.`;
   if (m > 1) return `${label} 거래가 잘 맞았어요. 비슷한 매물을 조금 더 알려 드릴게요.`;
   const days = state.skipDays[category]?.length ?? 0;
-  if (days === 1) return `오늘 지나친 ${label}은 한 번만으로는 덜 알리지 않아요.`;
+  if (days === 1) return `${josa(label, "을/를")} 오늘 한 번 지나쳤어요. 다른 날에도 지나치면 덜 알려 드릴게요.`;
   return null;
 }

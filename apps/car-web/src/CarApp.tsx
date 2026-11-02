@@ -35,6 +35,7 @@ export function bootCar(client: ApiClient, clock: AppClock, opts: { storageKey?:
 
 export function CarApp({ boot, onReset, showConsole = true }: { boot: CarBoot; onReset?: () => void; showConsole?: boolean }) {
   useEffect(() => {
+    (window as unknown as { __jhgoCar?: CarBoot }).__jhgoCar = boot; // 점검용
     void boot.controller.init();
     return () => boot.controller.dispose();
   }, [boot]);

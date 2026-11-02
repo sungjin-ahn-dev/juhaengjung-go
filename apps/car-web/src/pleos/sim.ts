@@ -452,8 +452,7 @@ export class SimCar implements NaviPort, VehiclePort, DrivingRestrictionPort {
     if (req.waypointIndex === "FIRST") this.wps.unshift(w);
     else this.wps.push(w);
     this.reroute();
-    for (const l of this.naviListeners) l.onWayPointInfo?.(this.wps.map((x) => this.wpInfo(x)));
-    this.changed();
+    await this.emitRouteChanged();
   }
   async removeWaypoint(idx: WaypointIndex) {
     this.log("call", "NaviHelper", `removeWaypoint(${idx})`);
@@ -461,7 +460,13 @@ export class SimCar implements NaviPort, VehiclePort, DrivingRestrictionPort {
     else if (idx === "FIRST") this.wps.shift();
     else this.wps.splice(1, 1);
     this.reroute();
+    await this.emitRouteChanged();
+  }
+  /** 경로가 바뀌면 내비가 하듯 경유지·목적지 정보를 바로 다시 알려 준다 */
+  private async emitRouteChanged() {
     for (const l of this.naviListeners) l.onWayPointInfo?.(this.wps.map((x) => this.wpInfo(x)));
+    const d = await this.getDestinationInfo();
+    for (const l of this.naviListeners) l.onDestinationInfo?.(d);
     this.changed();
   }
   async requestRoute(dest: { latitude: number; longitude: number; name: string }) {

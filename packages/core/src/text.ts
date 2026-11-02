@@ -131,6 +131,25 @@ export function needsMeasuredSize(size: SizeCm): boolean {
   return Math.max(size.w, size.d, size.h) >= BIG_ITEM_CM;
 }
 
+/** 끝 글자에 받침이 있는지(한글 음절·숫자 읽기 기준). 영문 등은 받침 없음으로 본다 */
+function finalConsonant(word: string): number {
+  const ch = word.trim().slice(-1);
+  if (!ch) return 0;
+  const code = ch.charCodeAt(0);
+  if (code >= 0xac00 && code <= 0xd7a3) return (code - 0xac00) % 28;
+  // 숫자 읽기: 영·일·삼·육·칠·팔은 받침, 이·사·오·구는 없음 (일=ㄹ 8, 칠·팔=ㄹ 8)
+  const digit: Record<string, number> = { "0": 21, "1": 8, "2": 0, "3": 16, "4": 0, "5": 0, "6": 1, "7": 8, "8": 8, "9": 0 };
+  return digit[ch] ?? 0;
+}
+
+/** 조사 붙이기: josa("캠핑의자", "은/는") → "캠핑의자는", josa("책상", "을/를") → "책상을" */
+export function josa(word: string, pair: "은/는" | "이/가" | "을/를" | "과/와" | "으로/로"): string {
+  const jong = finalConsonant(word);
+  const [withBatchim, without] = pair.split("/");
+  if (pair === "으로/로") return word + (jong === 0 || jong === 8 ? without : withBatchim);
+  return word + (jong ? withBatchim : without);
+}
+
 /** 금액을 "3만 5천 원"처럼 읽기 쉽게 */
 export function wonText(n: number): string {
   if (n >= 10000) {

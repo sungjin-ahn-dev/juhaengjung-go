@@ -1,6 +1,7 @@
 /** 오른쪽 주행중GO! 패널 — 감시 상태, 알림(유일하게 눈에 띄는 카드), 경합 질문, 거래 진행 */
 import { useEffect, useState } from "react";
 import type { CarController, CarState, CandidateView, TradeView } from "../controller.ts";
+import { categoryLabel } from "@jhgo/core";
 import { fmtClock, fmtWon } from "./format.ts";
 
 export function GoPanel({ s, c, now }: { s: CarState; c: CarController; now: number }) {
@@ -136,11 +137,13 @@ function TradeCard({ t, c, now, restricted }: { t: TradeView; c: CarController; 
   return (
     <div className="c-trade" data-testid="trade">
       <div className="c-trade-head">
-        <div className="c-trade-item">{t.title.length > 12 ? t.title.slice(0, 12) + "…" : t.title}</div>
+        <div className="c-trade-item">{categoryLabel(t.category)}</div>
         <div className="c-trade-price">
-          {fmtWon(t.price)} {t.payment.status === "held" ? "보관 중" : ""}
+          {fmtWon(t.price)}
+          {t.payment.status === "held" ? " 보관 중" : ""}
         </div>
       </div>
+      <div className="c-trade-title">{t.title}</div>
       <ol className="c-steps">
         {STEP_LABEL.map((l, i) => (
           <li key={l} className={i < idx ? "done" : i === idx ? "now" : ""}>

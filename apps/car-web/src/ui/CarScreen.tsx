@@ -152,7 +152,7 @@ export function CarScreen({ c, sim, now }: { c: CarController; sim: SimCar | nul
 
           {sheetOpen && <Sheet s={s} c={c} />}
 
-          <div className="c-toasts" aria-live="polite">
+          <div className={`c-toasts ${sheetOpen ? "beside-sheet" : ""}`} aria-live="polite">
             {s.toasts.map((t) => (
               <div key={t.id} className={`c-toast ${t.kind}`}>
                 {t.text}

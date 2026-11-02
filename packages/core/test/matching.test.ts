@@ -7,6 +7,7 @@ import {
   evaluate,
   fitItem,
   kstToMs,
+  pointAtAlong,
   projectOnPolyline,
   timeAtAlong,
   type EvalInput,
@@ -92,7 +93,7 @@ describe("T2 경로 근처 후보 + T16 출발 전 브리핑", () => {
   });
 });
 
-describe("T3 우회 시간 = 현재→매물 + 매물→목적지 − 현재→목적지 + 거래 시간", () => {
+describe("T3 우회 시간 = 갈림 지점→매물 + 매물→목적지 − 갈림 지점→목적지(기준 경로) + 거래 시간", () => {
   it("길가 매물은 짧고, 멀리 들어간 매물은 길다", () => {
     const ev = evaluate(input({ ignoreWindow: true }));
     const by = Object.fromEntries(ev.candidates.map((c) => [c.listingId, c]));
@@ -101,7 +102,25 @@ describe("T3 우회 시간 = 현재→매물 + 매물→목적지 − 현재→�
     // 공식 확인
     const c = by.carseat;
     const base = router.route([DEMO_PLACES.start, DEMO_PLACES.home])!;
-    expect(c.detourS).toBe(Math.round(Math.max(0, c.tCurToListingS + c.tListingToDestS - base.durationS) + 90));
+    const l = demoListings().find((x) => x.id === "carseat")!;
+    const branch = pointAtAlong(base.line, c.branchAlongM!).point;
+    const toListing = router.route([branch, l.pickupPoint])!.durationS;
+    const expected = Math.max(0, toListing + c.tListingToDestS - (base.durationS - timeAtAlong(base, c.branchAlongM!))) + 90;
+    expect(Math.abs(c.detourS - expected)).toBeLessThanOrEqual(1);
+  });
+
+  it("주행 중 차가 움직여도 우회 시간이 흔들리지 않는다(갈림 지점 전까지)", () => {
+    const base = router.route([DEMO_PLACES.start, DEMO_PLACES.home])!;
+    const at0 = evaluate(input({ ignoreWindow: true, baseRoute: base, currentAlongM: 0 })).candidates;
+    for (const along of [600, 1700, 2900]) {
+      const p = pointAtAlong(base.line, along).point;
+      const ev = evaluate(input({ ignoreWindow: true, baseRoute: base, currentAlongM: along, ctx: ctxAtStart({ location: p }) }));
+      for (const c of ev.candidates) {
+        if (c.exclusions.includes("passed")) continue;
+        const c0 = at0.find((x) => x.listingId === c.listingId)!;
+        expect(Math.abs(c.detourS - c0.detourS)).toBeLessThanOrEqual(1);
+      }
+    }
   });
 
   it("차 안 requestTrip 결과가 있으면 현재→매물 시간에 그것을 쓴다", () => {

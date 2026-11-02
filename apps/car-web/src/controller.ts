@@ -10,6 +10,7 @@ import {
   AlertGate,
   GATE_REASON_KO,
   haversineM,
+  josa,
   type DriverSignals,
   type GateReason,
   type GoLevel,
@@ -475,7 +476,12 @@ export class CarController {
 
       // 6 말할 때: 알림 대상이 있고 거래 중이 아니면 타이밍 게이트를 통과할 때 말한다
       // 정차 중에는 음성 알림 대신 출발 전 브리핑이 같은 역할을 한다
-      if (driving && !this.state.alert && !this.state.trade && (ev.top || ev.contention)) {
+      const wantAlert = driving && !this.state.alert && !this.state.trade && !!(ev.top || ev.contention);
+      if (!wantAlert && this.state.holdNote) {
+        this.lastHoldKey = "";
+        this.set({ holdNote: null });
+      }
+      if (wantAlert) {
         const g = this.gate.check(Date.now());
         if (!g.ok) {
           const key = g.reasons.join(",");
@@ -596,7 +602,8 @@ export class CarController {
         break;
       case "trade.handed":
         if (trade) this.set({ trade });
-        this.toast("판매자가 건넸다고 표시했어요. 확인해 주세요", "info");
+        // 현장 확인 화면이 열려 있으면 그 안의 안내가 같은 말을 한다
+        if (this.state.screen !== "inspect") this.toast("판매자가 건넸다고 표시했어요. 확인해 주세요", "info");
         break;
       case "trade.received":
       case "trade.settled":
@@ -706,7 +713,7 @@ export class CarController {
     try {
       const r = await this.api.call<EndResult>("POST", "/v1/drive/end", { odometerDeltaKm: delta });
       this.set({ result: r, screen: "result", mode: "idle", candidates: [], route: null, alert: null });
-      this.say(r.items.length ? `도착했어요. 오늘 ${r.items.map((i) => i.categoryLabel).join(", ")}를 가는 길에 챙겼어요.` : "도착했어요.");
+      this.say(r.items.length ? `도착했어요. 오늘 ${josa(r.items.map((i) => i.categoryLabel).join(", "), "을/를")} 가는 길에 챙겼어요.` : "도착했어요.");
     } catch {
       /* 무시 */
     }

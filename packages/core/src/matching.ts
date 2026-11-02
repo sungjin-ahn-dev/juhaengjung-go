@@ -7,7 +7,7 @@
  *       T(현재→매물): requestTrip 값이 있으면 그것, 없으면 경로 계산
  *       T(현재→목적지): getDestinationInfo.remainTime 이 있으면 그것
  */
-import { haversineM, projectOnPolyline, type LatLng } from "./geo.ts";
+import { haversineM, pointAtAlong, projectOnPolyline, type LatLng } from "./geo.ts";
 import { checkEnergy, type EnergyResult } from "./energy.ts";
 import { fitItem, type FitResult } from "./load.ts";
 import { priceAttractiveness } from "./pricing.ts";
@@ -199,12 +199,8 @@ export function evaluate(input: EvalInput): Evaluation {
   const base = mode === "route" ? input.baseRoute ?? router.route([ctx.location, dest!]) : null;
   const curAlong = mode === "route" ? input.currentAlongM ?? 0 : 0;
   const curTimeOnBase = base ? timeAtAlong(base, curAlong) : 0;
-  const curToDest =
-    mode === "route"
-      ? dest!.remainTimeS != null
-        ? { t: dest!.remainTimeS, d: dest!.remainDistM ?? NaN }
-        : legTime(router, ctx.location, dest!)
-      : null;
+  // 내비가 알려 준 남은 시간 — requestTrip으로 정확한 지점까지 잰 값과 짝을 맞출 때만 쓴다
+  const navRemainS = mode === "route" ? dest!.remainTimeS ?? null : null;
 
   const candidates: Candidate[] = [];
   for (const l of input.listings) {
@@ -236,8 +232,20 @@ export function evaluate(input: EvalInput): Evaluation {
     const ld = mode === "route" ? legTime(router, point, dest!) : { t: 0, d: 0 };
 
     let detourS: number;
-    if (mode === "route") detourS = Math.max(0, cl.t + ld.t - curToDest!.t) + cfg.handoverS;
-    else detourS = cl.t + cfg.handoverS;
+    if (mode === "route") {
+      if (trip?.pointIsExact) {
+        // 정확한 지점으로 잰 requestTrip: (지금→매물 ETA) + (매물→목적지) − (지금→목적지 남은 시간)
+        const curToDestS = navRemainS ?? legTime(router, ctx.location, dest!).t;
+        detourS = Math.max(0, cl.t + ld.t - curToDestS) + cfg.handoverS;
+      } else {
+        // 기준 경로에서 갈라지는 지점부터 비교한다. 거기까지는 들르든 안 들르든 같은 길이라
+        // 차가 움직여도 값이 흔들리지 않는다(같은 경로 계산기 값끼리만 뺀다).
+        const branchPt = pointAtAlong(base!.line, branchAlongM!).point;
+        const bl = legTime(router, branchPt, point);
+        const baseRemainS = base!.durationS - timeAtAlong(base!, branchAlongM!);
+        detourS = Math.max(0, bl.t + ld.t - baseRemainS) + cfg.handoverS;
+      }
+    } else detourS = cl.t + cfg.handoverS;
     const detourMin = Math.max(1, Math.round(detourS / 60));
 
     const fit = fitItem(l.sizeCm, vehicle);

@@ -1,0 +1,570 @@
+/* 주행중GO! 판매자 — 밝은 폰 화면. 크라프트는 '차가 오고 있다'는 순간에만 크게 쓴다. */
+.s-root {
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --ink: #1f2328;
+  --muted: #667085;
+  --line: #e3e6eb;
+  --kraft: #d9b27c;
+  --kraft-deep: #a8783f;
+  --kraft-soft: #f4e8d6;
+  --ok: #2e7d4f;
+  --warn: #b45a24;
+  --blue: #1d6fb8;
+  --font-ui: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", "Noto Sans CJK KR", system-ui, sans-serif;
+  --font-sign: "Do Hyeon", "IBM Plex Sans KR", "Noto Sans CJK KR", system-ui, sans-serif;
+  font-family: var(--font-ui);
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  position: relative;
+  min-height: 100%;
+  font-size: 16px;
+}
+.s-root * {
+  box-sizing: border-box;
+}
+/* :where()로 우선순위를 0으로 둬서 버튼마다 지정한 글자색이 이긴다 */
+:where(.s-root) :where(button, input, textarea, select) {
+  font: inherit;
+  color: inherit;
+}
+.s-root :focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 2px;
+}
+.s-phone {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100%;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.s-top {
+  padding: 18px 18px 10px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+}
+.s-brand {
+  font-family: var(--font-sign);
+  font-size: 22px;
+  color: var(--kraft-deep);
+}
+.s-top h1 {
+  margin: 2px 0 0;
+  font-size: 24px;
+}
+.s-trust {
+  font-size: 13px;
+  color: var(--muted);
+  text-align: right;
+}
+.s-main {
+  flex: 1;
+  padding: 4px 16px 96px;
+}
+.s-tabs {
+  position: sticky;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+}
+.s-tabs button {
+  border: 0;
+  background: transparent;
+  padding: 10px 4px;
+  border-radius: 12px;
+  font-size: 15px;
+  color: var(--muted);
+  cursor: pointer;
+  position: relative;
+}
+.s-tabs button.on {
+  color: var(--ink);
+  font-weight: 700;
+  background: #eef1f5;
+}
+.s-dot {
+  position: absolute;
+  top: 6px;
+  right: 22%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+.s-h2 {
+  font-size: 19px;
+  margin: 18px 2px 10px;
+}
+.s-list {
+  background: var(--surface);
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.s-item {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 12px;
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.s-item:last-child {
+  border-bottom: 0;
+}
+.s-item img,
+.s-thumb {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: #e9edf2;
+}
+.s-item-title {
+  font-weight: 600;
+  line-height: 1.35;
+}
+.s-item-meta {
+  color: var(--muted);
+  font-size: 14px;
+  margin-top: 3px;
+  line-height: 1.45;
+}
+.s-item-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.s-chip {
+  display: inline-block;
+  font-size: 13px;
+  border-radius: 999px;
+  padding: 2px 9px;
+  background: #eef1f5;
+  margin-right: 4px;
+}
+.s-chip.active {
+  background: #e3f1e8;
+  color: var(--ok);
+}
+.s-chip.reserved {
+  background: var(--kraft-soft);
+  color: var(--kraft-deep);
+}
+.s-chip.sold {
+  background: #eceef1;
+  color: var(--muted);
+}
+.s-btn {
+  border: 1px solid #cfd5de;
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 15px;
+}
+.s-btn.small {
+  padding: 6px 10px;
+  font-size: 13px;
+  border-radius: 10px;
+}
+.s-btn.primary {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+  font-weight: 700;
+}
+.s-btn.kraft {
+  background: var(--kraft);
+  border-color: var(--kraft);
+  color: var(--ink);
+  font-weight: 700;
+}
+.s-btn.block {
+  width: 100%;
+  padding: 15px;
+  font-size: 17px;
+}
+.s-btn[disabled] {
+  opacity: 0.45;
+  cursor: default;
+}
+.s-empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 26px 12px;
+  line-height: 1.6;
+}
+
+/* 같이 올리기 */
+.s-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.s-field {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px;
+}
+.s-field > label,
+.s-label {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.s-help {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 6px 0 0;
+}
+.s-input,
+.s-textarea,
+.s-select {
+  width: 100%;
+  border: 1px solid #cfd5de;
+  border-radius: 12px;
+  padding: 11px 12px;
+  background: #fff;
+}
+.s-textarea {
+  min-height: 92px;
+  resize: vertical;
+  line-height: 1.5;
+}
+.s-grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.s-grid3 label {
+  font-size: 13px;
+  color: var(--muted);
+}
+.s-seg {
+  display: inline-flex;
+  background: #eef1f5;
+  border-radius: 12px;
+  padding: 3px;
+  flex-wrap: wrap;
+}
+.s-seg button {
+  border: 0;
+  background: transparent;
+  padding: 8px 12px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.s-seg button.on {
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgba(31, 35, 40, 0.15);
+  font-weight: 700;
+}
+.s-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.s-badge-ai {
+  font-size: 12px;
+  background: #e8f0fb;
+  color: var(--blue);
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-left: 6px;
+  font-weight: 600;
+}
+.s-photos {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.s-photos img {
+  width: 84px;
+  height: 84px;
+  border-radius: 12px;
+  object-fit: cover;
+}
+.s-places {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.s-places label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 4px;
+}
+.s-warn {
+  color: var(--warn);
+  font-size: 14px;
+  margin-top: 6px;
+}
+.s-days {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.s-days button {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid #cfd5de;
+  background: #fff;
+  cursor: pointer;
+}
+.s-days button.on {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+.s-switch {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.s-switch input {
+  width: 22px;
+  height: 22px;
+}
+
+/* 차가 오고 있다 — 이 앱의 대표 장면 */
+.s-takeover {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: var(--kraft);
+  color: var(--ink);
+  display: flex;
+  justify-content: center;
+}
+.s-takeover.embedded {
+  position: absolute;
+}
+.s-take-inner {
+  width: 100%;
+  max-width: 480px;
+  padding: 28px 22px 22px;
+  display: flex;
+  flex-direction: column;
+}
+.s-take-title {
+  font-size: 21px;
+  font-weight: 700;
+}
+.s-take-eta {
+  font-family: var(--font-sign);
+  font-size: 92px;
+  line-height: 1;
+  margin: 26px 0 4px;
+}
+.s-take-sub {
+  font-size: 18px;
+}
+.s-take-facts {
+  margin: 22px 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid rgba(29, 26, 22, 0.2);
+}
+.s-take-facts li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(29, 26, 22, 0.2);
+  font-size: 16px;
+}
+.s-take-facts b {
+  text-align: right;
+}
+.s-take-timer {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(29, 26, 22, 0.15);
+  overflow: hidden;
+}
+.s-take-timer i {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+  transform-origin: left;
+}
+.s-take-actions {
+  margin-top: auto;
+  display: grid;
+  gap: 10px;
+  padding-top: 18px;
+}
+.s-take-actions button {
+  border: 0;
+  border-radius: 16px;
+  padding: 18px;
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.s-accept {
+  background: var(--ink);
+  color: var(--kraft);
+}
+.s-decline {
+  background: transparent;
+  border: 2px solid rgba(29, 26, 22, 0.45) !important;
+  color: var(--ink);
+}
+
+/* 거래 진행 */
+.s-trade {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 16px;
+}
+.s-trade.live {
+  border-color: var(--kraft);
+  box-shadow: 0 0 0 3px var(--kraft-soft);
+}
+.s-trade-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+.s-trade-title {
+  font-weight: 700;
+  font-size: 18px;
+}
+.s-eta-big {
+  font-family: var(--font-sign);
+  font-size: 46px;
+  line-height: 1;
+  margin: 12px 0 2px;
+}
+.s-steps {
+  list-style: none;
+  margin: 14px 0 4px;
+  padding: 0;
+}
+.s-steps li {
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 0;
+  color: #9aa3b2;
+}
+.s-steps li.done {
+  color: #4b5563;
+}
+.s-steps li.now {
+  color: var(--ink);
+  font-weight: 700;
+}
+.s-steps li i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+}
+.s-steps li.done i {
+  background: currentColor;
+}
+.s-steps li.now i {
+  background: var(--kraft);
+  border-color: var(--kraft-deep);
+}
+.s-banner {
+  border-radius: 14px;
+  padding: 13px 14px;
+  margin: 10px 0;
+  font-weight: 600;
+  background: var(--kraft-soft);
+}
+.s-banner.go {
+  background: var(--kraft);
+}
+.s-money {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.s-money div {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px;
+}
+.s-money span {
+  color: var(--muted);
+  font-size: 13px;
+}
+.s-money b {
+  display: block;
+  font-family: var(--font-sign);
+  font-weight: 400;
+  font-size: 24px;
+  margin-top: 4px;
+}
+.s-ledger div {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+.s-stars button {
+  border: 0;
+  background: transparent;
+  font-size: 26px;
+  cursor: pointer;
+  color: #c9ced6;
+  padding: 0 2px;
+}
+.s-stars button.on {
+  color: var(--kraft-deep);
+}
+.s-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 86px;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: #fff;
+  border-radius: 999px;
+  padding: 11px 18px;
+  font-size: 15px;
+  z-index: 40;
+  max-width: 90%;
+}
+.s-root.embedded .s-toast {
+  position: absolute;
+}
+.s-login {
+  padding: 30px 18px;
+}
+.s-login h1 {
+  font-family: var(--font-sign);
+  font-weight: 400;
+  font-size: 40px;
+  margin: 0;
+  color: var(--kraft-deep);
+}
+.s-login p {
+  color: var(--muted);
+  line-height: 1.6;
+}
