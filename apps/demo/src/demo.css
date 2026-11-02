@@ -1,0 +1,221 @@
+/* 체험 페이지 바탕: 시연 책상. 차량 화면(해 질 녘 내비)과 판매자 폰(밝은 화면)은 각자 색을 그대로 쓰고,
+   바탕만 보는 사람의 밝기 설정을 따른다. 크라프트는 앱처럼 '차가 온다'는 순간에만 — 여기서는 시연 순서 번호에만 쓴다. */
+:root {
+  --bench-bg: #e4e8ee;
+  --bench-fg: #18202b;
+  --bench-muted: #556173;
+  --bench-line: #c6ced9;
+  --bench-rim: #11161d;
+  --bench-kraft: #d9b27c;
+  --bench-kraft-ink: #1d1a16;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bench-bg: #0e131a;
+    --bench-fg: #e8edf3;
+    --bench-muted: #8e9bad;
+    --bench-line: #263242;
+    --bench-rim: #05080c;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bench-bg: #0e131a;
+  --bench-fg: #e8edf3;
+  --bench-muted: #8e9bad;
+  --bench-line: #263242;
+  --bench-rim: #05080c;
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: auto;
+  min-height: 100%;
+}
+body {
+  background: var(--bench-bg);
+  color: var(--bench-fg);
+  font-family: var(--font-ui);
+}
+
+.bench {
+  max-width: 1900px;
+  margin: 0 auto;
+  padding-block: 18px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid;
+  gap: 14px;
+}
+
+.bench-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 18px;
+}
+.bench-head h1 {
+  margin: 0;
+  font-family: var(--font-sign);
+  font-weight: 400;
+  font-size: 32px;
+  line-height: 1.1;
+}
+.bench-head p {
+  margin: 0;
+  flex: 1 1 420px;
+  min-width: 0;
+  max-width: 68ch;
+  color: var(--bench-muted);
+  line-height: 1.55;
+}
+.bench-reset {
+  margin-left: auto;
+  border: 1px solid var(--bench-line);
+  background: transparent;
+  color: var(--bench-fg);
+  border-radius: 10px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+.bench-reset:hover {
+  border-color: var(--bench-muted);
+}
+
+/* 시연 순서: 실제로 순서가 있는 단계라 번호를 단다 */
+.bench-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  counter-reset: step;
+  font-size: 14px;
+  color: var(--bench-muted);
+}
+.bench-steps li {
+  counter-increment: step;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bench-steps li::before {
+  content: counter(step);
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--bench-kraft);
+  color: var(--bench-kraft-ink);
+  font-weight: 700;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.bench-steps b {
+  color: var(--bench-fg);
+  font-weight: 600;
+}
+
+.bench-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: start;
+}
+
+/* 차량 앱: 화면 아래에 가상 콘솔을 가로로 펼친다 */
+.demo-car {
+  min-width: 0;
+  color: var(--text);
+}
+.demo-car .c-shell {
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0;
+  gap: 12px;
+  min-height: 0;
+}
+.demo-car .c-stage {
+  max-width: none;
+  width: 100%;
+}
+.demo-car .vc {
+  width: auto;
+  flex: none;
+  max-height: none;
+  overflow: visible;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  column-gap: 20px;
+  align-items: start;
+}
+.demo-car .vc > h3,
+.demo-car .vc > p {
+  grid-column: 1 / -1;
+}
+.demo-car .c-caption {
+  color: var(--bench-muted);
+}
+
+/* 판매자 폰 */
+.phone-wrap {
+  position: sticky;
+  top: 16px;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+.phone {
+  position: relative;
+  width: 390px;
+  max-width: calc(100vw - 32px - 20px);
+  height: min(844px, calc(100vh - 64px));
+  min-height: 560px;
+  border-radius: 38px;
+  border: 10px solid var(--bench-rim);
+  overflow: hidden;
+  background: #f4f6f8;
+  /* 판매자 앱의 전체 화면 요청(takeover)·토스트를 폰 화면 기준으로 띄우기 위해 */
+  transform: translateZ(0);
+}
+.phone-screen {
+  height: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.phone .s-takeover.embedded,
+.phone .s-root.embedded .s-toast {
+  position: fixed;
+}
+.phone-note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--bench-muted);
+}
+
+@media (max-width: 1180px) {
+  .bench-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .phone-wrap {
+    position: static;
+  }
+}
+@media (max-width: 480px) {
+  .bench-head h1 {
+    font-size: 26px;
+  }
+  .phone {
+    height: 720px;
+    min-height: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+  }
+}
