@@ -1,0 +1,326 @@
+import { beforeEach, describe, expect, it } from "vitest";
+import { DEMO_NET, DEMO_PLACES, Graph, GraphRouter, pointAtAlong, timeAtAlong, type DriveContext } from "@jhgo/core";
+import { createBackend, createLocalClient, DEMO_SERVICE_CONFIG, DEMO_START, ManualClock, type AppEvent, type ApiClient } from "../src/index.ts";
+import { SqliteStore } from "../src/store-sqlite.ts";
+
+const router = new GraphRouter(new Graph(DEMO_NET));
+const base = router.route([DEMO_PLACES.start, DEMO_PLACES.home])!;
+
+/** 기준 경로에서 출발 t분 뒤 위치 */
+function at(min: number) {
+  let s = 0;
+  while (s < base.distanceM && timeAtAlong(base, s) < min * 60) s += 10;
+  return { location: pointAtAlong(base.line, s).point, remainTimeS: Math.round(base.durationS - timeAtAlong(base, s)) };
+}
+
+function setup(includeCarSeat = true) {
+  const clock = new ManualClock(DEMO_START);
+  const b = createBackend({ demo: true, clock, config: DEMO_SERVICE_CONFIG });
+  const anon = createLocalClient(b);
+  return { ...b, clock, anon, includeCarSeat };
+}
+
+type Setup = ReturnType<typeof setup>;
+
+async function login(s: Setup, name: string): Promise<ApiClient> {
+  const { users } = await s.anon.call<{ users: { id: string; name: string }[] }>("GET", "/v1/demo/users");
+  const u = users.find((x) => x.name === name)!;
+  const { token } = await s.anon.call<{ token: string }>("POST", "/v1/session", { userId: u.id });
+  return createLocalClient(s, token);
+}
+
+function ctx(s: Setup, min: number, over: Partial<DriveContext> = {}): DriveContext {
+  const p = at(min);
+  return {
+    now: s.clock.now(),
+    navStatus: "ROUTE_DRIVE",
+    location: p.location,
+    destination: { ...DEMO_PLACES.home, remainTimeS: p.remainTimeS },
+    waypointCount: 0,
+    socPct: 62,
+    seats: { row2Occupied: true },
+    ...over,
+  };
+}
+
+function collect(client: ApiClient) {
+  const events: AppEvent[] = [];
+  client.subscribe((e) => events.push(e));
+  return { events, types: () => events.map((e) => e.type), flush: () => new Promise((r) => setTimeout(r, 5)) };
+}
+
+let s: Setup;
+let car: ApiClient;
+let park: ApiClient;
+
+beforeEach(async () => {
+  s = setup();
+  await s.anon.call("POST", "/v1/demo/reset", {});
+  car = await login(s, "김주행");
+  park = await login(s, "박서연");
+});
+
+describe("인증과 권한", () => {
+  it("토큰 없으면 401, 다른 역할 API는 403", async () => {
+    await expect(s.anon.call("GET", "/v1/me")).rejects.toMatchObject({ status: 401 });
+    await expect(car.call("GET", "/v1/seller/listings")).rejects.toMatchObject({ status: 403 });
+    await expect(park.call("POST", "/v1/drive/context", { ctx: ctx(s, 0) })).rejects.toMatchObject({ status: 403 });
+    const me = await car.call<{ user: { name: string; token?: string } }>("GET", "/v1/me");
+    expect(me.user.name).toBe("김주행");
+    expect(me.user.token).toBeUndefined();
+  });
+});
+
+describe("T17 같이 올리기 (판매자)", () => {
+  it("붙여넣기 → 제목·가격·품목·AI 크기, 큰 물건은 실측 확인이 있어야 등록", async () => {
+    const parsed = await park.call<{ title: string; price: number; category: string; sizeEstimate: { sizeCm: { w: number } } }>("POST", "/v1/seller/parse", {
+      text: "원목 아기침대 팝니다\n가격 4만원\n분해해 뒀어요",
+    });
+    expect(parsed).toMatchObject({ title: "원목 아기침대 팝니다", price: 40000, category: "baby_bed" });
+    const body = {
+      title: parsed.title,
+      category: parsed.category,
+      price: parsed.price,
+      condition: "good",
+      sizeCm: parsed.sizeEstimate.sizeCm,
+      sizeSource: "ai",
+      pickupPoint: { lat: 37.3889, lng: 127.1046, label: "백현동" },
+    };
+    await expect(park.call("POST", "/v1/seller/listings", body)).rejects.toMatchObject({ status: 422, code: "measure_required" });
+    const ok = await park.call<{ listing: { id: string; referencePrice: number; approxArea: { lat: number }; pickupPoint: { lat: number } } }>("POST", "/v1/seller/listings", {
+      ...body,
+      sizeSource: "seller_measured",
+    });
+    expect(ok.listing.referencePrice).toBe(90000);
+    expect(ok.listing.approxArea.lat).not.toBe(ok.listing.pickupPoint.lat);
+  });
+});
+
+describe("주행 매칭 (T1~T7, T16)", () => {
+  it("출발 전 브리핑: 경로 위 관심 매물 + 제외 이유, 정확한 위치는 안 보인다(T18)", async () => {
+    const r = await car.call<{ items: Record<string, unknown>[]; route: { viaNames: string[] } }>("POST", "/v1/drive/briefing", { ctx: ctx(s, 0) });
+    const by = Object.fromEntries(r.items.map((i) => [i.categoryLabel as string, i]));
+    expect(Object.keys(by)).toEqual(expect.arrayContaining(["캠핑의자", "아기 침대", "유모차", "카시트"]));
+    expect(by["아기 침대"].exclusions).toEqual(["load_seat"]);
+    for (const i of r.items) {
+      expect(i).not.toHaveProperty("pickupPoint");
+      expect(i).toHaveProperty("approxArea");
+    }
+    expect(r.route.viaNames).toContain("판교");
+  });
+
+  it("출발 직후 캠핑의자 알림 → '아니요'면 다시 안 알림 → 분당에서 카시트·유모차 경합", async () => {
+    const r0 = await car.call<{ top: { categoryLabel: string; listingId: string; speech: string } }>("POST", "/v1/drive/context", { ctx: ctx(s, 0) });
+    expect(r0.top.categoryLabel).toBe("캠핑의자");
+    expect(r0.top.speech).toContain("들를까요?");
+    await car.call("POST", "/v1/drive/alerted", { listingIds: [r0.top.listingId] });
+    await car.call("POST", "/v1/drive/dismiss", { listingId: r0.top.listingId });
+    s.clock.advance(60_000);
+    const r1 = await car.call<{ top: unknown }>("POST", "/v1/drive/context", { ctx: ctx(s, 1) });
+    expect(r1.top).toBeNull();
+    s.clock.advance(12 * 60_000);
+    const r2 = await car.call<{ contention: { categoryLabel: string }[] | null }>("POST", "/v1/drive/context", { ctx: ctx(s, 13) });
+    expect(r2.contention?.map((c) => c.categoryLabel).sort()).toEqual(["유모차", "카시트"]);
+  });
+
+  it("지나친 알림은 개인화 신호(T14): 같은 날은 한 번만, 다른 날 또 지나치면 가중치 0.9", async () => {
+    const r0 = await car.call<{ top: { listingId: string } }>("POST", "/v1/drive/context", { ctx: ctx(s, 0) });
+    await car.call("POST", "/v1/drive/alerted", { listingIds: [r0.top.listingId] });
+    s.clock.advance(10 * 60_000);
+    const r1 = await car.call<{ notices: { type: string; text: string }[] }>("POST", "/v1/drive/context", { ctx: ctx(s, 10) });
+    expect(r1.notices.some((n) => n.type === "personalization")).toBe(true);
+    let prof = await car.call<{ user: { personalization: { multipliers: Record<string, number>; skipDays: Record<string, string[]> } } }>("GET", "/v1/buyer/profile");
+    expect(prof.user.personalization.skipDays.camping_chair).toHaveLength(1);
+    expect(prof.user.personalization.multipliers.camping_chair ?? 1).toBe(1);
+    // 다음 날 같은 길에서 또 지나침
+    await car.call("POST", "/v1/drive/end", {});
+    s.clock.advance(24 * 3600_000 - 10 * 60_000);
+    const d2 = await car.call<{ top: { listingId: string } }>("POST", "/v1/drive/context", { ctx: ctx(s, 0) });
+    await car.call("POST", "/v1/drive/alerted", { listingIds: [d2.top.listingId] });
+    s.clock.advance(10 * 60_000);
+    await car.call("POST", "/v1/drive/context", { ctx: ctx(s, 10) });
+    prof = await car.call("GET", "/v1/buyer/profile");
+    expect(prof.user.personalization.multipliers.camping_chair).toBe(0.9);
+  });
+
+  it("배터리가 부족하면 먼 매물은 알리지 않는다(T4)", async () => {
+    const r = await car.call<{ items: { categoryLabel: string; exclusions: string[] }[] }>("POST", "/v1/drive/briefing", { ctx: ctx(s, 0, { socPct: 18 }) });
+    expect(r.items.find((i) => i.categoryLabel === "카시트")!.exclusions).toContain("energy");
+  });
+});
+
+describe("거래 흐름 (T9~T13)", () => {
+  async function requestCarSeat() {
+    s.clock.advance(13 * 60_000);
+    const ev = await car.call<{ candidates: { listingId: string; categoryLabel: string }[] }>("POST", "/v1/drive/context", { ctx: ctx(s, 13) });
+    const id = ev.candidates.find((c) => c.categoryLabel === "카시트")!.listingId;
+    const r = await car.call<{ trade: { id: string; status: string; pickupPoint: unknown; expiresAt: number } }>("POST", "/v1/drive/request", { ctx: ctx(s, 13), listingId: id });
+    return r.trade;
+  }
+
+  it("요청 → 판매자 수락 → 대금 보관·경유지 확인 → 도착 예정·나오세요 → 도착 → 받았어요 → 정산", async () => {
+    const sellerEv = collect(park);
+    const buyerEv = collect(car);
+    const t = await requestCarSeat();
+    expect(t.status).toBe("requested");
+    expect(t.pickupPoint).toBeNull(); // 수락 전에는 정확한 위치 비공개
+    await sellerEv.flush();
+    expect(sellerEv.types()).toContain("request.new");
+    expect(sellerEv.events[0].title).toBe("카시트 사러 오는 차가 있어요");
+
+    // 판매자 화면에는 구매자 위치가 없다
+    const st = await park.call<{ trades: Record<string, unknown>[] }>("GET", "/v1/seller/trades");
+    const view = st.trades[0];
+    expect(JSON.stringify(view)).not.toMatch(/"location"|"destination"|remainDistM/);
+    expect((view.buyer as { name: string }).name).toBe("김*행");
+
+    const acc = await park.call<{ trade: { status: string; payment: { status: string } } }>("POST", `/v1/seller/trades/${t.id}/accept`);
+    expect(acc.trade).toMatchObject({ status: "accepted", payment: { status: "held" } });
+    await buyerEv.flush();
+    expect(buyerEv.types()).toContain("trade.accepted");
+    const bt = await car.call<{ trade: { pickupPoint: { label: string } } }>("GET", `/v1/buyer/trades/${t.id}`);
+    expect(bt.trade.pickupPoint.label).toContain("백현동");
+
+    await car.call("POST", `/v1/buyer/trades/${t.id}/waypoint-confirmed`);
+    await car.call("POST", `/v1/buyer/trades/${t.id}/eta`, { remainS: 600 });
+    s.clock.advance(7 * 60_000);
+    await car.call("POST", `/v1/buyer/trades/${t.id}/eta`, { remainS: 170 });
+    s.clock.advance(3 * 60_000);
+    await car.call("POST", `/v1/buyer/trades/${t.id}/arrived`);
+    await sellerEv.flush();
+    expect(sellerEv.types()).toEqual(expect.arrayContaining(["trade.on_the_way", "trade.eta", "trade.come_out", "trade.arrived"]));
+
+    await park.call("POST", `/v1/seller/trades/${t.id}/handed`);
+    const rec = await car.call<{ trade: { status: string; settleAt: number } }>("POST", `/v1/buyer/trades/${t.id}/received`);
+    expect(rec.trade.status).toBe("completed");
+    s.clock.t = rec.trade.settleAt;
+    s.svc.tick();
+    const sum = await park.call<{ settled: number; held: number; ledger: { action: string }[]; trust: { completed: number } }>("GET", "/v1/seller/summary");
+    expect(sum.settled).toBe(35000);
+    expect(sum.held).toBe(0);
+    expect(sum.ledger.map((x) => x.action).sort()).toEqual(["capture", "hold"]);
+    expect(sum.trust.completed).toBe(1);
+    const listings = await park.call<{ listings: { status: string }[] }>("GET", "/v1/seller/listings");
+    expect(listings.listings[0].status).toBe("sold");
+
+    // 결과 카드
+    const end = await car.call<{ items: { categoryLabel: string; separateTripMin: number }[] }>("POST", "/v1/drive/end", { odometerDeltaKm: 37.4 });
+    expect(end.items[0].categoryLabel).toBe("카시트");
+    expect(end.items[0].separateTripMin).toBeGreaterThan(20);
+  });
+
+  it("자동 수락 시간대 매물은 요청 즉시 확정(T10)", async () => {
+    const ev = await car.call<{ top: { listingId: string } }>("POST", "/v1/drive/context", { ctx: ctx(s, 0) });
+    const r = await car.call<{ trade: { status: string; autoAccepted: boolean } }>("POST", "/v1/drive/request", { ctx: ctx(s, 0), listingId: ev.top.listingId });
+    expect(r.trade).toMatchObject({ status: "accepted", autoAccepted: true });
+  });
+
+  it("응답 없이 우회 지점을 지나면 요청이 끝난다(T9)", async () => {
+    const t = await requestCarSeat();
+    s.clock.advance(12 * 60_000);
+    const r = await car.call<{ notices: { type: string }[] }>("POST", "/v1/drive/context", { ctx: ctx(s, 26) });
+    expect(r.notices.some((n) => n.type === "expired")).toBe(true);
+    const bt = await car.call<{ trade: { status: string } }>("GET", `/v1/buyer/trades/${t.id}`);
+    expect(bt.trade.status).toBe("expired");
+  });
+
+  it("진행 중 거래가 있으면 새 알림을 띄우지 않고, 다른 매물 요청도 막는다", async () => {
+    await requestCarSeat();
+    const r = await car.call<{ top: unknown; activeTrade: { status: string } }>("POST", "/v1/drive/context", { ctx: ctx(s, 13) });
+    expect(r.top).toBeNull();
+    expect(r.activeTrade.status).toBe("requested");
+  });
+
+  it("현장에서 다르면 '안 살게요' → 전액 환불, 매물 다시 판매 중(T12)", async () => {
+    const t = await requestCarSeat();
+    await park.call("POST", `/v1/seller/trades/${t.id}/accept`);
+    await car.call("POST", `/v1/buyer/trades/${t.id}/arrived`);
+    const r = await car.call<{ trade: { status: string; payment: { status: string } } }>("POST", `/v1/buyer/trades/${t.id}/decline`, { reason: "사진에 없던 파손" });
+    expect(r.trade).toMatchObject({ status: "declined_mismatch", payment: { status: "refunded" } });
+    const ls = await park.call<{ listings: { status: string; title: string }[] }>("GET", "/v1/seller/listings");
+    expect(ls.listings.find((l) => l.title.includes("카시트"))!.status).toBe("active");
+    const sum = await park.call<{ trust: { mismatch: number }; refunded: number }>("GET", "/v1/seller/summary");
+    expect(sum.trust.mismatch).toBe(1);
+    expect(sum.refunded).toBe(35000);
+  });
+
+  it("판매자 취소 → 구매자에게 알림(경유지 해제), 노쇼 → 환불과 구매자 신뢰도(T13)", async () => {
+    const buyerEv = collect(car);
+    const t = await requestCarSeat();
+    await park.call("POST", `/v1/seller/trades/${t.id}/accept`);
+    await park.call("POST", `/v1/seller/trades/${t.id}/cancel`, { reason: "급한 일" });
+    await buyerEv.flush();
+    expect(buyerEv.types()).toContain("trade.canceled");
+
+    // 노쇼
+    await park.call("PATCH", `/v1/seller/listings/${(await park.call<{ listings: { id: string }[] }>("GET", "/v1/seller/listings")).listings[0].id}`, { status: "active" });
+    const t2 = await car.call<{ trade: { id: string } }>("POST", "/v1/drive/request", {
+      ctx: ctx(s, 13),
+      listingId: (await park.call<{ listings: { id: string }[] }>("GET", "/v1/seller/listings")).listings[0].id,
+    });
+    await park.call("POST", `/v1/seller/trades/${t2.trade.id}/accept`);
+    await car.call("POST", `/v1/buyer/trades/${t2.trade.id}/eta`, { remainS: 300 });
+    s.clock.advance(5 * 60_000 + DEMO_SERVICE_CONFIG.trade!.noShowGraceMs + 1);
+    s.svc.tick();
+    const bt = await car.call<{ trade: { status: string; payment: { status: string } } }>("GET", `/v1/buyer/trades/${t2.trade.id}`);
+    expect(bt.trade).toMatchObject({ status: "no_show", payment: { status: "refunded" } });
+    const me = await car.call<{ trust: { noShow: number } }>("GET", "/v1/me");
+    expect(me.trust.noShow).toBe(1);
+  });
+});
+
+describe("실시간 알림 (SSE)", () => {
+  it("스트림이 hello 뒤에 내 알림을 보낸다", async () => {
+    const res = await s.app.fetch(new Request(`http://local/v1/stream?token=${park.token()}`));
+    expect(res.headers.get("content-type")).toContain("text/event-stream");
+    const reader = res.body!.getReader();
+    const dec = new TextDecoder();
+    let text = "";
+    const readUntil = async (needle: string) => {
+      const deadline = Date.now() + 2000;
+      while (!text.includes(needle) && Date.now() < deadline) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        text += dec.decode(value);
+      }
+    };
+    await readUntil("event: hello");
+    expect(text).toContain("event: hello");
+    s.clock.advance(13 * 60_000);
+    const ev = await car.call<{ candidates: { listingId: string; categoryLabel: string }[] }>("POST", "/v1/drive/context", { ctx: ctx(s, 13) });
+    await car.call("POST", "/v1/drive/request", { ctx: ctx(s, 13), listingId: ev.candidates.find((c) => c.categoryLabel === "카시트")!.listingId });
+    await readUntil("request.new");
+    expect(text).toContain("event: app");
+    expect(text).toContain("request.new");
+    await reader.cancel();
+  });
+});
+
+describe("SQLite 저장소", () => {
+  it("저장·조회·트랜잭션 롤백", () => {
+    const st = new SqliteStore(":memory:");
+    st.put("users", { id: "u1", name: "a" });
+    expect(st.get<{ name: string }>("users", "u1")!.name).toBe("a");
+    expect(() =>
+      st.tx(() => {
+        st.put("users", { id: "u2", name: "b" });
+        throw new Error("x");
+      }),
+    ).toThrow();
+    expect(st.get("users", "u2")).toBeUndefined();
+    expect(st.list("users")).toHaveLength(1);
+  });
+
+  it("서버 전체가 SQLite 위에서도 같은 흐름으로 동작", async () => {
+    const clock = new ManualClock(DEMO_START);
+    const b = createBackend({ demo: true, clock, store: new SqliteStore(":memory:"), seed: true });
+    const anon = createLocalClient(b);
+    const { users } = await anon.call<{ users: { id: string; name: string }[] }>("GET", "/v1/demo/users");
+    const { token } = await anon.call<{ token: string }>("POST", "/v1/session", { userId: users.find((u) => u.name === "김주행")!.id });
+    const c = createLocalClient(b, token);
+    const r = await c.call<{ top: { categoryLabel: string } }>("POST", "/v1/drive/context", {
+      ctx: { now: clock.now(), navStatus: "ROUTE_DRIVE", location: DEMO_PLACES.start, destination: DEMO_PLACES.home, waypointCount: 0, socPct: 60, seats: { row2Occupied: true } },
+    });
+    expect(r.top.categoryLabel).toBe("캠핑의자");
+  });
+});
