@@ -1,0 +1,25 @@
+{
+  "name": "juhaengjung-go",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "services/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p packages/core && tsc -p services/api && npm run typecheck -w apps/seller-web && npm run typecheck -w apps/car-web",
+    "build:web": "npm run build -w apps/seller-web && npm run build -w apps/car-web",
+    "start": "npm run start -w services/api",
+    "dev": "npm run dev -w services/api",
+    "e2e": "node tools/e2e.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "tsx": "4.23.15",
+    "typescript": "5.6.3",
+    "vitest": "2.1.9"
+  }
+}

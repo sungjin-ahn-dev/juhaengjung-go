@@ -1,0 +1,10 @@
+{
+  "name": "@jhgo/core",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "주행중GO! 핵심 로직 — 도로망·경로·매칭·적재·에너지·알림 타이밍·개인화·거래 상태 (브라우저와 Node 공용, 외부 의존성 없음)",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

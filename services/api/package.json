@@ -1,0 +1,20 @@
+{
+  "name": "@jhgo/api",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "주행중GO! 서버 — Hono API (브라우저에서도 같은 코드로 동작), Node에서는 SQLite 저장 + SSE",
+  "exports": {
+    ".": "./src/index.ts",
+    "./browser": "./src/browser.ts"
+  },
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "dev": "tsx watch src/server.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "1.19.17",
+    "@jhgo/core": "0.1.0",
+    "hono": "4.13.13"
+  }
+}

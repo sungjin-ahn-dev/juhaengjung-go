@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.tsbuildinfo
+data/
+*.sqlite
+*.sqlite-*
+tools/out/
+apps/car-android/.gradle/
+apps/car-android/build/
+apps/car-android/app/build/
+apps/car-android/local.properties
+.DS_Store
