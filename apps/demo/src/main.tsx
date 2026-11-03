@@ -125,13 +125,26 @@ function GuideBar({ g, onStop }: { g: GuideState; onStop: () => void }) {
   );
 }
 
+const AUTO_FLAG = "jhgo.demo.auto";
+/** 새로 고친 뒤 자동 시연을 이어 가기 위한 표시 — 아티팩트 iframe처럼 주소를 못 바꾸는 곳에서도 되게 sessionStorage를 먼저 쓴다 */
+function readAutoFlag(): boolean {
+  try {
+    if (sessionStorage.getItem(AUTO_FLAG)) {
+      sessionStorage.removeItem(AUTO_FLAG);
+      return true;
+    }
+  } catch {
+    /* 저장소를 못 쓰는 환경 */
+  }
+  return false;
+}
+
 function Bench({ boot, seller, buyer, clock, auto }: { boot: CarBoot; seller: ApiClient; buyer: ApiClient; clock: AppClock; auto: boolean }) {
   const reset = () => location.reload();
   const [phone, setPhone] = useState<"seller" | "buyer">("seller");
   const [guide, setGuide] = useState<GuideState | null>(null);
   const stopFlag = useRef(false);
-  useEffect(() => {
-    if (!auto || !boot.sim) return;
+  const begin = () => {
     stopFlag.current = false;
     const g: GuideState = { step: 1, note: "", error: null, done: false };
     setGuide({ ...g });
@@ -139,18 +152,31 @@ function Bench({ boot, seller, buyer, clock, auto }: { boot: CarBoot; seller: Ap
       Object.assign(g, p);
       setGuide({ ...g });
     };
-    const t = setTimeout(() => {
-      runGuide(boot, seller, clock, set, () => stopFlag.current).catch((e: unknown) => {
-        const m = e instanceof Error ? e.message : String(e);
-        set({ error: m === "stopped" ? "멈췄어요. '처음부터 다시'로 새로 시작할 수 있어요" : m });
-      });
-    }, 1500);
+    runGuide(boot, seller, clock, set, () => stopFlag.current).catch((e: unknown) => {
+      const m = e instanceof Error ? e.message : String(e);
+      set({ error: m === "stopped" ? "'처음부터 다시'를 누르면 새로 시작해요" : m });
+    });
+  };
+  useEffect(() => {
+    if (!auto || !boot.sim) return;
+    const t = setTimeout(begin, 1500);
     return () => clearTimeout(t);
-  }, [auto, boot, seller, clock]);
+  }, [auto, boot]);
   const startGuide = () => {
-    const u = new URL(location.href);
-    u.searchParams.set("auto", "");
-    location.href = u.toString();
+    const st = boot.controller.state;
+    // 아직 아무것도 안 했으면 그 자리에서, 손댄 뒤라면 새로 고쳐(페이지 안 서버 초기화) 처음부터
+    if (st.mode === "idle" && !st.trade && !st.result && st.screen === "map") {
+      begin();
+      return;
+    }
+    try {
+      sessionStorage.setItem(AUTO_FLAG, "1");
+      location.reload();
+    } catch {
+      const u = new URL(location.href);
+      u.searchParams.set("auto", "");
+      location.href = u.toString();
+    }
   };
   // 판매자에게 차가 오면(요청·곧 도착·도착·기다림) 판매자 폰으로 돌려 놓는다
   useEffect(
@@ -242,8 +268,8 @@ async function start() {
   // ?compose: 카시트가 아직 안 올라간 상태로 시작(판매자 폰에서 같이 올리기부터)
   const params = new URLSearchParams(location.search);
   const compose = params.has("compose");
-  // ?auto: 열리자마자 자동 시연(7단계)을 돌린다
-  const auto = params.has("auto");
+  // ?auto(또는 '자동 시연'을 눌러 새로 고친 뒤): 열리자마자 자동 시연(7단계)을 돌린다
+  const auto = params.has("auto") || readAutoFlag();
   const b = createLocalBackend({ includeCarSeat: !compose });
   const clock = createDirectClock(b.clock as never);
   // 판매자 폰은 카시트를 올려 둔 박서연으로 미리 들어가 있게 한다(로그인 화면에서 다른 판매자로 바꿀 수 있다)
