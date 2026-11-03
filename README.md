@@ -70,6 +70,8 @@ npm run e2e:bridge     # 차량 화면이 실제 SDK 모드(브리지)로 끝까
 npm run e2e:auto       # 체험 페이지 '자동 시연'(?auto)이 7단계를 끝까지 저절로 가는지(빌드한 jhgo-demo.html, 약 2분)
 ```
 
+E2E 세 가지는 Playwright가 필요하다(package.json에 넣지 않았다 — 개발 환경에 설치된 판을 쓴다). 처음 받은 PC라면 `npm i --no-save playwright@1.56.0 && npx playwright install chromium`. 시연 영상 자르기·잇기에는 ffmpeg가 필요하다. GitHub에 올리면 `.github/workflows/ci.yml`이 같은 확인을 돌린다(테스트·타입·빌드 → E2E·브리지·자동 시연, 체험 페이지 파일과 스크린샷을 아티팩트로).
+
 ## 시연 영상
 
 Playwright로 녹화하고 ffmpeg로 장면마다 자른다(ffmpeg 필요). 녹화 프레임이 밀려도 장면 경계가 맞게, 장면이 바뀔 때 화면 아래 색 띠를 바꾸고 영상에서 그 색을 찾는다(`tools/video-cut.ts`).
@@ -78,6 +80,7 @@ Playwright로 녹화하고 ffmpeg로 장면마다 자른다(ffmpeg 필요). 녹�
 npm run build -w apps/demo
 node node_modules/tsx/dist/cli.mjs tools/record-demo.ts <출력 폴더>      # 체험 페이지 → 01~08 MP4·대표 이미지(경합은 콘솔 '음성 대답'으로 고른다)
 JHGO_RECORD=<출력 폴더> npm run e2e:bridge                               # 실제 SDK 모드(가짜 브리지) → 09~10
+node node_modules/tsx/dist/cli.mjs tools/video-stitch.ts <클립 폴더> <출력 mp4>   # 01~10을 제목 카드와 이어 제출용 한 편(약 3분, 무음)
 ```
 
 - `JHGO_FONTS=<node_modules/@fontsource 폴더>`: 상표 글꼴 do-hyeon을 녹화 페이지에 넣는다(웹 글꼴을 못 받는 환경용). 본문 글꼴 JHGO Sans는 차·폰 화면 번들 안에 들어 있다.
@@ -86,3 +89,11 @@ JHGO_RECORD=<출력 폴더> npm run e2e:bridge                               # �
 ## 차량 앱(Android)
 
 `apps/car-android/README.md`. Pleos Connect 에뮬레이터에서 PC 서버의 차량 화면을 띄우고 실제 NaviHelper·Vehicle SDK를 부른다.
+
+## 테스트 환경과 제출용 APK
+
+- 개발·확인: Node 22, npm 10. 차 화면·폰 웹은 Chromium 계열 브라우저(E2E는 Playwright 1.56 Chromium). 서버는 `npm start`(기본 8787, SQLite `data/`), 체험 페이지는 서버 없이 한 파일.
+- 차량 앱 빌드: Android Studio(AGP 8.7, Kotlin 2.0, API 34), Pleos SDK Maven 접근 권한(`apps/car-android/README.md`). 에뮬레이터: Pleos Connect Emulator(API 34) + Virtual Console. 앱 안 '연결 설정'에서 PC 서버 주소(기본 `http://10.0.2.2:8787`)를 바꾼다.
+- 폰: 같은 와이파이에서 `http://<PC IP>:8787/seller/`·`/buyer/`. 웹 푸시는 HTTPS 주소에서만.
+- 공모전 제출용 APK는 `apk/<팀명>_주행중GO_release.apk`에 둔다(`pleosRelease` 빌드 → 이름 바꿔 복사. GitHub 용량을 넘으면 Releases에 올리고 여기 링크를 적는다). 아직 넣지 않았다 — Pleos SDK 바이너리로 빌드한 뒤 추가.
+- 접수 양식에 옮길 글: `docs/02_접수양식_초안.md`.

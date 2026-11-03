@@ -1,0 +1,47 @@
+# 저장소를 받는 사람(심사용 계정 포함)이 같은 확인을 돌릴 수 있게 — 테스트·타입 검사·웹 빌드·체험 페이지 빌드, 그리고 Playwright로 끝까지(E2E·브리지·자동 시연)
+name: ci
+on:
+  push:
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build:web
+      - run: npm run build -w apps/demo
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jhgo-demo
+          path: apps/demo/dist/jhgo-demo.html
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Playwright는 package.json에 넣지 않는다(개발 환경마다 설치된 판을 쓴다). CI에서는 여기서 받는다
+      - run: npm i --no-save playwright@1.56.0 && npx playwright install --with-deps chromium
+      - run: npm run build:web
+      - run: npm run build -w apps/demo
+      - run: npm run e2e
+      - run: npm run e2e:bridge
+      - run: npm run e2e:auto
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-screenshots
+          path: tools/out/*.png

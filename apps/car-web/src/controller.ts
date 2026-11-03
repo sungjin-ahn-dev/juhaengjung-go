@@ -299,7 +299,12 @@ export class CarController {
       this.unsubs.push(
         this.api.subscribe(
           (e) => void this.onEvent(e),
-          (s) => this.set({ sse: s }),
+          (s) => {
+            // 끊겼다 다시 붙으면 그 사이 놓친 거래 변화(건넸어요·취소 등)를 한 번 맞춘다. 주행 중엔 drive/context가 매 틱 맞추지만 정차 화면에서는 이게 유일하다
+            const reconnected = s === "open" && this.state.sse === "closed" && this.state.ready;
+            this.set({ sse: s });
+            if (reconnected) void this.resyncTrade();
+          },
         ),
       );
       this.timer = setInterval(() => void this.tick(), this.opts.tickMs ?? 1200);
@@ -313,6 +318,23 @@ export class CarController {
   dispose() {
     if (this.timer) clearInterval(this.timer);
     this.unsubs.forEach((u) => u());
+  }
+
+  private async resyncTrade() {
+    const t = this.state.trade;
+    if (!t) return;
+    try {
+      const r = await this.api.call<{ trade: TradeView }>("GET", `/v1/buyer/trades/${t.id}`);
+      const ended = !["requested", "accepted", "arrived", "completed"].includes(r.trade.status);
+      this.set({ trade: ended ? null : r.trade });
+      if (ended) {
+        await this.removeOurWaypoint();
+        this.set({ screen: this.state.screen === "inspect" ? "map" : this.state.screen });
+        this.toast("거래가 끝났어요", "warn");
+      }
+    } catch {
+      /* 다음 이벤트·틱에서 맞춘다 */
+    }
   }
 
   private async login() {

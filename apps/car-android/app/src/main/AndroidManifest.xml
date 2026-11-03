@@ -6,6 +6,8 @@
 
     <application
         android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:usesCleartextTraffic="true"
         android:theme="@android:style/Theme.Material.NoActionBar">
         <!-- usesCleartextTraffic: 시연용 PC 서버(http://10.0.2.2:8787) 전용. 배포 때는 false + TLS -->

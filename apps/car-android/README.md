@@ -36,4 +36,5 @@ app/src/pleos/java/ai/jhgo/car/PleosBackend.kt   NaviHelper·Vehicle·CarUxRestr
 app/src/pleos/java/ai/jhgo/car/NativeVoice.kt    Pleos TTS → 안드로이드 TTS, SpeechRecognizer
 app/src/pleos/AndroidManifest.xml                Pleos 권한
 app/src/demo/java/ai/jhgo/car/SdkBackends.kt     브리지 없음
+app/src/main/res/mipmap-*/                       런처 아이콘(어댑티브: 아스팔트색 바탕 + 'GO!' 도현체, 폰 웹 아이콘과 같은 표식)
 ```
