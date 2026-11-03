@@ -3,17 +3,155 @@
  * 서버 코드(services/api)를 페이지 안에서 메모리 저장소로 돌리고, 두 앱이 같은 서버에 붙는다.
  * 차량 쪽은 브라우저 시뮬레이터 + 가상 콘솔(실제 차에서는 Android 셸의 Pleos SDK 브리지).
  */
-import { StrictMode, useEffect, useState } from "react";
+import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { DEMO_PLACES } from "@jhgo/core";
 import { createDirectClock, createLocalBackend, type ApiClient, type AppClock } from "@jhgo/api/browser";
 import { CarApp, bootCar, type CarBoot } from "../../car-web/src/CarApp.tsx";
 import { SellerApp } from "../../seller-web/src/SellerApp.tsx";
 import { BuyerApp } from "../../buyer-web/src/BuyerApp.tsx";
 import "./demo.css";
 
-function Bench({ boot, seller, buyer, clock }: { boot: CarBoot; seller: ApiClient; buyer: ApiClient; clock: AppClock }) {
+// ── 자동 시연: 버튼 하나로 7단계가 저절로 진행된다(클릭 없이 보기). 차·판매자 폰·서버는 손으로 할 때와 같은 길을 지난다 ──
+const GUIDE_STEPS = [
+  "목적지를 송파 집으로 정해요. 길 위의 관심 매물이 번호 핀과 목록으로 보여요",
+  "2열에 아이가 타고(아기 침대 제외), 10배속으로 출발해요",
+  "영통 캠핑의자 알림. 말로 \"아니\"라고 답해요",
+  "분당: 카시트? 유모차? 말로 \"카시트\", 이어서 \"응\"",
+  "판매자 폰에 요청이 떠요. 판매자가 수락하면 대금을 보관하고 경유지를 넣어요",
+  "가는 중. 판매자가 '지금 나가요'를 누르고, 차가 경유지에 도착하면 현장 확인 화면",
+  "판매자 '건넸어요', 차 '받았어요'. 다시 출발해 목적지에 도착하면 결과 카드에서 판매자 평가",
+];
+
+interface GuideState {
+  step: number;
+  note: string;
+  error: string | null;
+  done: boolean;
+}
+
+async function runGuide(boot: CarBoot, seller: ApiClient, clock: AppClock, set: (g: Partial<GuideState>) => void, stopped: () => boolean) {
+  const c = boot.controller;
+  const sim = boot.sim!;
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const until = async (pred: () => boolean, ms: number, what: string) => {
+    const t0 = Date.now();
+    while (!pred()) {
+      if (stopped()) throw new Error("stopped");
+      if (Date.now() - t0 > ms) throw new Error(`${what}이(가) 시간 안에 오지 않았어요`);
+      await sleep(150);
+    }
+  };
+  const pause = async (ms: number) => {
+    const t0 = Date.now();
+    while (Date.now() - t0 < ms) {
+      if (stopped()) throw new Error("stopped");
+      await sleep(100);
+    }
+  };
+  const hear = (w: string) => boot.platform.voice.hear?.(w);
+  const sellerDo = (id: string, what: string) => seller.call("POST", `/v1/seller/trades/${id}/${what}`);
+
+  set({ step: 1, note: "" });
+  await c.setDestination(DEMO_PLACES.home);
+  await until(() => c.state.mode === "route" && c.state.candidates.length > 0, 20000, "브리핑");
+  await pause(4500);
+
+  set({ step: 2 });
+  sim.setRow2Occupied(true);
+  await clock.setRate?.(10);
+  await pause(1200);
+  sim.setGear("D");
+  await until(() => c.state.alert?.kind === "single", 90000, "캠핑의자 알림");
+
+  set({ step: 3 });
+  await until(() => !!c.state.alert?.listening || !c.state.alert, 12000, "듣는 시간");
+  if (c.state.alert?.listening) hear("아니");
+  else if (c.state.alert) await c.answer(false);
+  await pause(1500);
+  await clock.setRate?.(30);
+  await until(() => c.state.alert?.kind === "contention", 150000, "경합 질문");
+
+  set({ step: 4 });
+  await until(() => !!c.state.alert?.listening || c.state.alert?.kind !== "contention", 12000, "듣는 시간");
+  if (c.state.alert?.kind === "contention") {
+    if (c.state.alert.listening) hear("카시트");
+    else c.choose(c.state.alert.pair.find((x) => x.categoryLabel === "카시트")!.listingId);
+  }
+  await until(() => c.state.alert?.kind === "single", 12000, "카시트 알림");
+  await until(() => !!c.state.alert?.listening || !c.state.alert, 12000, "듣는 시간");
+  if (c.state.alert?.listening) hear("응");
+  else if (c.state.alert) await c.answer(true);
+  await until(() => !!c.state.trade, 15000, "요청");
+
+  set({ step: 5 });
+  await pause(3000);
+  const tradeId = c.state.trade!.id;
+  await sellerDo(tradeId, "accept");
+  await until(() => c.state.trade?.status === "accepted" && !!c.state.trade.waypointConfirmedAt, 20000, "경유지 확정");
+  await pause(2500);
+
+  set({ step: 6 });
+  await sellerDo(tradeId, "coming");
+  await until(() => c.state.screen === "inspect", 300000, "경유지 도착");
+  await pause(3500);
+
+  set({ step: 7 });
+  await sellerDo(tradeId, "handed");
+  await until(() => !!c.state.trade?.handedAt, 15000, "건넸어요");
+  await pause(2500);
+  await c.received();
+  await pause(3000);
+  sim.setGear("D");
+  await until(() => c.state.screen === "result", 300000, "목적지 도착");
+  await pause(2500);
+  const r = c.state.result;
+  if (r?.items[0]) await c.rate(r.items[0].tradeId, 4);
+  await clock.setRate?.(1);
+  set({ done: true, note: "끝났어요. 구매자 폰에서 거래 내역과 평가를 볼 수 있어요" });
+}
+
+function GuideBar({ g, onStop }: { g: GuideState; onStop: () => void }) {
+  return (
+    <div className={`guide ${g.error ? "err" : g.done ? "done" : ""}`} role="status" aria-live="polite" data-testid="guide">
+      <span className="guide-step">{g.done ? "✓" : g.step}</span>
+      <span className="guide-text">{g.error ? `멈췄어요: ${g.error}` : g.done ? g.note : GUIDE_STEPS[g.step - 1]}</span>
+      {!g.done && !g.error && (
+        <button onClick={onStop} data-testid="guide-stop">
+          멈추기
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Bench({ boot, seller, buyer, clock, auto }: { boot: CarBoot; seller: ApiClient; buyer: ApiClient; clock: AppClock; auto: boolean }) {
   const reset = () => location.reload();
   const [phone, setPhone] = useState<"seller" | "buyer">("seller");
+  const [guide, setGuide] = useState<GuideState | null>(null);
+  const stopFlag = useRef(false);
+  useEffect(() => {
+    if (!auto || !boot.sim) return;
+    stopFlag.current = false;
+    const g: GuideState = { step: 1, note: "", error: null, done: false };
+    setGuide({ ...g });
+    const set = (p: Partial<GuideState>) => {
+      Object.assign(g, p);
+      setGuide({ ...g });
+    };
+    const t = setTimeout(() => {
+      runGuide(boot, seller, clock, set, () => stopFlag.current).catch((e: unknown) => {
+        const m = e instanceof Error ? e.message : String(e);
+        set({ error: m === "stopped" ? "멈췄어요. '처음부터 다시'로 새로 시작할 수 있어요" : m });
+      });
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [auto, boot, seller, clock]);
+  const startGuide = () => {
+    const u = new URL(location.href);
+    u.searchParams.set("auto", "");
+    location.href = u.toString();
+  };
   // 판매자에게 차가 오면(요청·곧 도착·도착·기다림) 판매자 폰으로 돌려 놓는다
   useEffect(
     () =>
@@ -27,12 +165,27 @@ function Bench({ boot, seller, buyer, clock }: { boot: CarBoot; seller: ApiClien
       <header className="bench-head">
         <h1>주행중GO! 체험</h1>
         <p>
-          왼쪽은 구매자 차의 내비 화면과 가상 콘솔, 오른쪽은 카시트를 올린 판매자의 폰이에요. 폰 위 버튼으로 구매자의 폰(결제 수단·거래 내역·평가)으로 바꿔 볼 수 있어요. 모두 이 페이지 안에서 도는 같은 서버에 붙어 있어요.
+          왼쪽은 구매자 차의 내비 화면과 가상 콘솔, 오른쪽은 카시트를 올린 판매자의 폰이에요. 폰 위 버튼으로 구매자의 폰(결제 수단·거래 내역·평가)으로 바꿔 볼 수 있어요. 모두 이 페이지 안에서 도는 같은 서버에 붙어 있어요. 아래 순서대로 직접 눌러 보거나, <b>자동 시연</b>을 누르면 2분 동안 저절로 진행돼요.
         </p>
-        <button className="bench-reset" onClick={reset}>
-          처음부터 다시
-        </button>
+        <div className="bench-actions">
+          {!guide && (
+            <button className="bench-auto" onClick={startGuide} data-testid="guide-start">
+              자동 시연
+            </button>
+          )}
+          <button className="bench-reset" onClick={reset}>
+            처음부터 다시
+          </button>
+        </div>
       </header>
+      {guide && (
+        <GuideBar
+          g={guide}
+          onStop={() => {
+            stopFlag.current = true;
+          }}
+        />
+      )}
       <ol className="bench-steps" aria-label="시연 순서">
         <li>
           <span>차 화면 왼쪽 <b>목적지</b>에서 송파 집</span>
@@ -87,7 +240,10 @@ function Bench({ boot, seller, buyer, clock }: { boot: CarBoot; seller: ApiClien
 
 async function start() {
   // ?compose: 카시트가 아직 안 올라간 상태로 시작(판매자 폰에서 같이 올리기부터)
-  const compose = new URLSearchParams(location.search).has("compose");
+  const params = new URLSearchParams(location.search);
+  const compose = params.has("compose");
+  // ?auto: 열리자마자 자동 시연(7단계)을 돌린다
+  const auto = params.has("auto");
   const b = createLocalBackend({ includeCarSeat: !compose });
   const clock = createDirectClock(b.clock as never);
   // 판매자 폰은 카시트를 올려 둔 박서연으로 미리 들어가 있게 한다(로그인 화면에서 다른 판매자로 바꿀 수 있다)
@@ -108,7 +264,7 @@ async function start() {
   const boot = bootCar(b.client(), clock, { storageKey: "jhgo.demo.car" });
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
-      <Bench boot={boot} seller={seller} buyer={buyer} clock={clock} />
+      <Bench boot={boot} seller={seller} buyer={buyer} clock={clock} auto={auto} />
     </StrictMode>,
   );
 }

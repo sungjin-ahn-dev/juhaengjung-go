@@ -19,6 +19,6 @@ TripRoom(`../triproom`)·멀미예보(`../motioncast`)와 별개 저장소다. �
 - `npm test` · `npm run typecheck` 통과.
 - 화면을 바꾸면 `npm run build:web` 뒤 `npm run e2e`(스크린샷 `tools/out/`을 직접 본다).
 - 차량 앱·브리지를 바꾸면 `npm run e2e:bridge`. Kotlin을 바꾸면 API_MATRIX 시그니처로 만든 스텁 컴파일로 최소 확인하고, 실제 빌드는 PC에서.
-- 체험 페이지: `npm run build -w apps/demo` → `apps/demo/dist/jhgo-demo.html`을 같은 경로로 다시 게시.
+- 체험 페이지: `npm run build -w apps/demo` → `npm run e2e:auto`(자동 시연이 끝까지 가는지) → `apps/demo/dist/jhgo-demo.html`을 같은 경로로 다시 게시.
 - 화면이 크게 바뀌면 시연 영상도 다시 만든다(README '시연 영상'). 영상 설명에는 시뮬레이터 녹화인지 SDK 모드(가짜 브리지)인지 적는다.
 - 판단은 가이드, 진행은 STATUS에 한 줄씩.

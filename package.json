@@ -16,6 +16,7 @@
     "dev": "npm run dev -w services/api",
     "e2e": "node tools/e2e.cjs",
     "e2e:bridge": "tsx tools/bridge-contract.ts",
+    "e2e:auto": "tsx tools/auto-demo.ts",
     "build:demo": "npm run build -w apps/demo"
   },
   "devDependencies": {

@@ -29,7 +29,11 @@ export function receivingOf(me: Me, listings: SellerListing[], now: number): Rec
   const active = listings.filter((l) => l.status === "active");
   if (pauseActive(me.pause, now))
     return { kind: "paused", title: "쉬는 중이에요", sub: me.pause?.until ? `${untilText(me.pause.until, now)} 지나가는 차에 보이지 않아요` : "다시 켤 때까지 지나가는 차에 보이지 않아요" };
-  if (active.length === 0) return { kind: "empty", title: "첫 물건을 올려 볼까요?", sub: "다른 앱에 쓴 글을 붙여 넣으면 끝나요" };
+  if (active.length === 0) {
+    const sold = listings.filter((l) => l.status === "sold").length;
+    if (sold > 0) return { kind: "empty", title: "지금 파는 물건이 없어요", sub: `${sold}개를 팔았어요. 다음 물건도 붙여 넣으면 끝나요` };
+    return { kind: "empty", title: "첫 물건을 올려 볼까요?", sub: "다른 앱에 쓴 글을 붙여 넣으면 끝나요" };
+  }
   const inWindow = active.filter((l) => isAvailableAt(l.availability, now));
   if (inWindow.length) return { kind: "on", title: "지금 요청을 받고 있어요", sub: `${describeAvailability(inWindow[0].availability)}, 판매 중 ${active.length}개` };
   const next = active

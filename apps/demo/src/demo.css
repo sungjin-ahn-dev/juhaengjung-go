@@ -70,8 +70,76 @@ body {
   color: var(--bench-muted);
   line-height: 1.55;
 }
-.bench-reset {
+.bench-actions {
   margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+.bench-auto {
+  border: 0;
+  background: var(--bench-kraft);
+  color: var(--bench-kraft-ink);
+  border-radius: 10px;
+  padding: 8px 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.bench-auto:hover {
+  filter: brightness(1.05);
+}
+/* 자동 시연 진행 줄 */
+.guide {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--bench-kraft);
+  color: var(--bench-kraft-ink);
+  font-size: 15px;
+  font-weight: 600;
+}
+.guide.done {
+  background: rgba(47, 122, 71, 0.14);
+  color: var(--bench-fg);
+}
+.guide.err {
+  background: rgba(168, 64, 46, 0.14);
+  color: var(--bench-fg);
+}
+.guide-step {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--bench-kraft-ink);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.guide.done .guide-step {
+  background: #2f7a47;
+}
+.guide.err .guide-step {
+  background: #a8402e;
+}
+.guide-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.guide button {
+  border: 1px solid rgba(29, 26, 22, 0.35);
+  background: transparent;
+  color: inherit;
+  border-radius: 8px;
+  padding: 5px 11px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.bench-reset {
   border: 1px solid var(--bench-line);
   background: transparent;
   color: var(--bench-fg);
