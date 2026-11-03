@@ -84,6 +84,7 @@ npm run build -w apps/demo
 node node_modules/tsx/dist/cli.mjs tools/record-demo.ts <출력 폴더>      # 체험 페이지 → 01~08 MP4·대표 이미지(경합은 콘솔 '음성 대답'으로 고른다)
 JHGO_RECORD=<출력 폴더> npm run e2e:bridge                               # 실제 SDK 모드(가짜 브리지) → 09~10
 node node_modules/tsx/dist/cli.mjs tools/video-stitch.ts <클립 폴더> <출력 mp4>   # 01~10을 제목 카드와 이어 제출용 한 편(약 3분, 무음)
+node node_modules/tsx/dist/cli.mjs tools/video-short.ts <클립 폴더> <출력 mp4>    # 숏폼(세로 1080×1920, 약 55초) — 차 화면·판매자 폰을 위아래로
 ```
 
 - `JHGO_FONTS=<node_modules/@fontsource 폴더>`: 상표 글꼴 do-hyeon을 녹화 페이지에 넣는다(웹 글꼴을 못 받는 환경용). 본문 글꼴 JHGO Sans는 차·폰 화면 번들 안에 들어 있다.
@@ -91,7 +92,7 @@ node node_modules/tsx/dist/cli.mjs tools/video-stitch.ts <클립 폴더> <출력
 
 ## 차량 앱(Android)
 
-`apps/car-android/README.md`. Pleos Connect 에뮬레이터에서 PC 서버의 차량 화면을 띄우고 실제 NaviHelper·Vehicle SDK를 부른다.
+`apps/car-android/README.md`. Pleos Connect 에뮬레이터에서 PC 서버의 차량 화면을 띄우고 실제 NaviHelper·Vehicle SDK를 부른다. Gleo AI 음성 비서가 앱 기능 세 개(`assets/schema.json`: 관심 추가·알림 답하기·가는 길 요약)를 부를 수 있고, 시뮬레이터에서는 가상 콘솔 'Gleo AI 음성 기능'으로 같은 호출을 흉내 낸다(`docs/BRIDGE.md`).
 
 ## 테스트 환경과 제출용 APK
 

@@ -114,6 +114,18 @@ async function waitHealth() {
     await car.getByTestId("pin-카시트").click();
     check(await car.locator('[data-testid="go-row-카시트"].on').count() === 1, "지도 핀을 누르면 목록의 같은 매물이 표시됨");
     await snapC("briefing");
+    // Gleo AI 음성 기능(정차 중): 가는 길 요약과 관심 추가 — 콘솔이 Gleo 호출을 흉내 내면 앱이 Callback Schema대로 답한다
+    await car.getByTestId("gleo-briefing").click();
+    await car.getByTestId("gleo-response").waitFor({ timeout: 5000 });
+    const gb = await car.getByTestId("gleo-response").innerText();
+    check(gb.includes("SHOW_BRIEFING") && gb.includes("success") && /listings along the route/.test(gb) && gb.includes("카시트"), 'Gleo "가는 길에 뭐 있어?" → SHOW_BRIEFING: 매물 수와 1위');
+    await car.getByTestId("gleo-add-interest").click();
+    await car.waitForFunction(() => document.querySelector('[data-testid="gleo-response"]')?.textContent?.includes("ADD_INTEREST"), null, { timeout: 5000 });
+    const ga = await car.getByTestId("gleo-response").innerText();
+    check(ga.includes("success") && ga.includes("Added 책상"), 'Gleo "책상 관심 추가해 줘" → ADD_INTEREST success');
+    await car.getByRole("button", { name: "관심사", exact: true }).click();
+    await car.getByTestId("sheet-interests").getByText("책상").waitFor({ timeout: 5000 });
+    check(true, "관심사 시트에 책상이 들어감");
     await car.getByRole("button", { name: "지도", exact: true }).click();
     // 노출 수(T29): 판매자 폰에 '지나간 차 1대에 보였어요'
     await phone.reload({ waitUntil: "load" });
@@ -148,7 +160,11 @@ async function waitHealth() {
     check(true, '음성 대답 "카시트" → 알아들었어요(시뮬레이터 음성 포트)');
     await alert.waitFor({ timeout: 10000 });
     check((await alert.innerText()).includes("카시트"), "고른 카시트 상세 알림");
-    await alert.getByRole("button", { name: "들를게요" }).click();
+    // Gleo AI 음성 기능(ANSWER_ALERT): 콘솔이 Gleo 호출을 흉내 내면 앱이 Callback Schema대로 답한다
+    await car.getByTestId("gleo-yes").click();
+    await car.waitForFunction(() => document.querySelector('[data-testid="gleo-response"]')?.textContent?.includes("ANSWER_ALERT"), null, { timeout: 5000 });
+    const gy = await car.getByTestId("gleo-response").innerText();
+    check(gy.includes("success") && gy.includes("Requested the seller"), 'Gleo "들를게" → ANSWER_ALERT success, 판매자에게 요청');
     await car.getByTestId("trade").waitFor();
     await snapC("requested");
 

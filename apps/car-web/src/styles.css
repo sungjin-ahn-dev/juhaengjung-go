@@ -1653,6 +1653,48 @@ select:focus-visible {
 .vc-log .event {
   color: #2f7d4a;
 }
+.vc-help {
+  margin: 0 0 6px;
+  color: #5d6878;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+/* Gleo 응답: 셸이 브로드캐스트로 돌려주는 것과 같은 내용 */
+.vc-gleo {
+  margin-top: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--console-line);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #4b5666;
+}
+.vc-gleo span {
+  display: block;
+  color: #7b8696;
+}
+.vc-gleo b {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: #e8edf3;
+  color: #1f2733;
+  font-size: 12px;
+}
+.vc-gleo b.success {
+  background: #dcf1e2;
+  color: #1f6b3a;
+}
+.vc-gleo b.asking {
+  background: #f7ead3;
+  color: #7a4d10;
+}
+.vc-gleo b.fail {
+  background: #f8dcd7;
+  color: #8a2f21;
+}
 
 @media (max-width: 1100px) {
   .c-shell {

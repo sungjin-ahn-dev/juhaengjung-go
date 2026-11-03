@@ -2,6 +2,7 @@ package ai.jhgo.car
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Bundle
@@ -32,6 +33,9 @@ import androidx.webkit.WebViewAssetLoader
 class MainActivity : ComponentActivity() {
     private var web: WebView? = null
     private var bridge: PleosBridge? = null
+    private var gleo: GleoBridge? = null
+    /** 화면이 뜨기 전에 온 Gleo 호출(앱을 Gleo가 처음 띄운 경우) */
+    private var pendingGleo: Intent? = null
     private lateinit var root: FrameLayout
     private var overlay: View? = null
     private var offline = false
@@ -87,9 +91,26 @@ class MainActivity : ComponentActivity() {
             w.addJavascriptInterface(b, "PleosBridge")
             bridge = b
         }
+        // Gleo AI 음성 기능 → 웹 화면(assets/schema.json). SDK 플레이버와 무관하게 붙는다
+        val g = GleoBridge(this, w)
+        w.addJavascriptInterface(g, "GleoBridge")
+        gleo = g
         root.addView(w, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         web = w
         loadServer()
+        (pendingGleo ?: intent)?.let { if (g.accepts(it)) web?.postDelayed({ g.handle(it) }, 2500) }
+        pendingGleo = null
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val g = gleo
+        if (g == null) {
+            pendingGleo = intent
+            return
+        }
+        if (g.accepts(intent)) g.handle(intent)
     }
 
     private fun serverBase(): String = prefs.getString(KEY_SERVER, null) ?: BuildConfig.SERVER_BASE_URL

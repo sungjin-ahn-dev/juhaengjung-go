@@ -59,6 +59,16 @@
 
 안 되면 안드로이드 `android.speech.tts.TextToSpeech`. 듣기는 안드로이드 `SpeechRecognizer`(RECORD_AUDIO) — Pleos SpeechToText는 사용 신청 준비 중이라 쓰지 않는다.
 
+## Gleo AI 앱 연동 (App Integration Guide, `document.pleos.ai/docs/pleos-only/app-integration-guide`)
+
+SDK가 아니라 스키마 + Intent 규약이다(2026-11-03 문서를 이 작업 환경에서 직접 읽음). 사용 신청 항목이 아니고, 스키마는 Gleo 측 검토 뒤 자동 활성화된다.
+
+| 기능 | 규약 | 판정 | 쓰는 곳 | 🧪 |
+|---|---|---|---|---|
+| 음성 기능 선언 | `assets/schema.json` — `packageName`, `appDescription`, `version`, `actionCalls`(최대 3개: `type:"function"`, `function{component:"activity"|"service", name 대문자_스네이크, description 영어, parameters(JSON Schema object, type은 string·number·boolean·array, enum은 문자열만)}`) | 📄 | `apps/car-android/app/src/main/assets/schema.json` — ADD_INTEREST(keyword, goLevel enum), ANSWER_ALERT(answer enum yes·no, item), SHOW_BRIEFING | 부팅 때 Gleo가 assets를 읽는지, 에뮬레이터에 Gleo가 있는지 |
+| 호출 받기 | Gleo → `startActivity`(action = function 이름, extra `ACTION_PARAM` = 인자 JSON 문자열) / service면 `sendBroadcast`. 매니페스트 `<intent-filter><action name=function/><category DEFAULT/></intent-filter>` | 📄 | `MainActivity`(singleTask, `onNewIntent`) → `GleoBridge.handle` → 웹 `window.__jhgoGleo` | 실제 action·extra 이름이 문서와 같은지 |
+| 결과 돌려주기 | `sendBroadcast(Intent("ai.pleos.playground.intent.action.APP_ACTION_RESPONSE").putExtra("packageName", …).putExtra("response", JSON))` — `functionName`, `status`(success·asking·fail), `message`(영어 문장), `data`(JSON 배열 문자열), `mode`(voice·beep·silent). 7초 안에 | 📄 | `GleoBridge.send`(웹이 안 답하면 5초 뒤 fail) | Gleo가 message로 뭐라고 말하는지 |
+
 ## 안드로이드 플랫폼
 
 | 기능 | API | 쓰는 곳 | 🧪 |
@@ -74,4 +84,5 @@
 3. PC에서 `npm start` → 에뮬레이터에서 앱 실행 → 오른쪽 아래 'SDK 기록'으로 호출·이벤트 확인. PC 크롬 `chrome://inspect`로 WebView 콘솔도 볼 수 있다.
 4. Virtual Console: 좌석(2열)·방향지시등·조향·브레이크·배터리를 바꿔 'SDK 기록'에 이벤트가 오는지.
 5. Pleos 내비에서 수원 → 송파 목적지 설정 → 브리핑이 열리는지 → 시뮬레이션 주행으로 알림·경유지 추가·도착까지.
-6. 위 🧪 열의 결과를 이 표에 적고, 대체(↪)로 둔 것 중 확인된 API가 생기면 교체한다.
+6. Gleo: 에뮬레이터에 Gleo AI가 있으면 "주행중GO에 유모차 관심 추가해 줘"가 ADD_INTEREST로 들어오는지, 응답 브로드캐스트를 Gleo가 말로 읽는지. 없으면 `adb shell am start -a ADD_INTEREST --es ACTION_PARAM '{"keyword":"유모차"}' ai.jhgo.car`로 Intent 경로만 확인.
+7. 위 🧪 열의 결과를 이 표에 적고, 대체(↪)로 둔 것 중 확인된 API가 생기면 교체한다.

@@ -77,3 +77,11 @@ Kotlin → JS   window.__pleos.resolve(id, json)      결과(JSON 글)
 - 출발 전 브리핑에서 고른 매물도 `requestRouteWithWaypoints`가 안 되면 `addWaypoint`로 넣는다. 반영 확인은 `getWaypointInfo`를 두 번까지(1.5초 간격) 다시 조회한다.
 - 지도: 차 위치는 NaviHelper 현재 위치다. 경로 선은 NaviHelper가 주지 않아서 서버와 같은 경로 계산기로 그린 근사이고, 목적지·경유지가 바뀌거나 300m 넘게 벗어나면 다시 그린다.
 - 오른쪽 아래 'SDK 기록' 서랍에 호출·이벤트가 남는다(자주 오는 이벤트는 내용이 바뀔 때만).
+
+## Gleo AI 음성 기능 (PleosBridge와 별개 통로)
+
+- 셸 → 웹: `GleoBridge.kt`가 Gleo의 Intent(action = function 이름, extra `ACTION_PARAM`)를 받아 `window.__jhgoGleo(JSON{requestId, name, params})`를 부른다. 웹이 아직 안 떴으면 0.5초마다 다시(5초까지).
+- 웹 → 셸: `apps/car-web/src/gleo.ts`가 기능을 수행하고 `window.GleoBridge.respond(JSON{requestId, functionName, status, message, data?, mode?})`로 돌려준다. 셸은 이를 `APP_ACTION_RESPONSE` 브로드캐스트로 Gleo에 보낸다.
+- 기능 세 개(`assets/schema.json` = 매니페스트 intent-filter = `GleoBridge.FUNCTIONS` = 웹 `GLEO_FUNCTIONS`, 브리지 계약 시험이 네 곳이 같은지 본다): `ADD_INTEREST`(관심 키워드 추가), `ANSWER_ALERT`(떠 있는 알림에 yes/no 또는 품목 이름 — 알림이 없으면 fail), `SHOW_BRIEFING`(가는 길 매물 요약, 정차 중이면 목록도 연다).
+- 시뮬레이터에서는 가상 콘솔 'Gleo AI 음성 기능'이 같은 함수를 부르고 응답을 보여 준다.
+

@@ -1,0 +1,52 @@
+{
+  "packageName": "ai.jhgo.car",
+  "appDescription": "Finds second-hand items for sale near the driver's route and lets the driver stop by after the seller accepts. Voice functions: add an interest, answer the current stop-by question, and summarize listings on the route.",
+  "version": "0.1.0",
+  "actionCalls": [
+    {
+      "type": "function",
+      "function": {
+        "component": "activity",
+        "name": "ADD_INTEREST",
+        "description": "Adds a keyword the driver wants to buy to the interest list so matching listings near the route are announced.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "keyword": { "type": "string", "description": "Item the driver wants, such as a stroller or a camping chair." },
+            "goLevel": {
+              "type": "string",
+              "description": "How far the driver is willing to detour for it.",
+              "enum": ["must", "likely", "near"]
+            }
+          },
+          "required": ["keyword"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "component": "activity",
+        "name": "ANSWER_ALERT",
+        "description": "Answers the stop-by question currently shown on screen: yes or no, or the item name when two items are offered.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "answer": { "type": "string", "description": "Whether to stop by.", "enum": ["yes", "no"] },
+            "item": { "type": "string", "description": "Item name to choose when the app asks which of two items to stop by for." }
+          },
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "component": "activity",
+        "name": "SHOW_BRIEFING",
+        "description": "Summarizes the listings found along the current route and, when the car is parked, opens the list.",
+        "parameters": { "type": "object", "properties": {}, "required": [] }
+      }
+    }
+  ]
+}

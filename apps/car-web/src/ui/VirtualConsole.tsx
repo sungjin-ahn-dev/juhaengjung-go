@@ -5,6 +5,7 @@ import type { AppClock } from "../clock.ts";
 import type { SdkLogEntry } from "../pleos/ports.ts";
 import type { SimCar } from "../pleos/sim.ts";
 import type { CarController } from "../controller.ts";
+import type { GleoRequest, GleoResponse } from "../gleo.ts";
 import { fmtClock } from "./format.ts";
 
 const node = (id: string) => DEMO_NET.nodes.find((n) => n.id === id)!;
@@ -14,6 +15,7 @@ export function VirtualConsole({
   clock,
   controller,
   hear,
+  gleo,
   onReset,
 }: {
   sim: SimCar;
@@ -22,9 +24,17 @@ export function VirtualConsole({
   controller?: CarController;
   /** 마이크 대신 말을 넣는다(시뮬레이터 음성 포트) */
   hear?: (word: string) => boolean;
+  /** Gleo AI 대신 음성 기능을 부른다(assets/schema.json과 같은 세 함수) */
+  gleo?: (req: GleoRequest) => Promise<GleoResponse>;
   onReset?: () => void;
 }) {
   const [, setT] = useState(0);
+  const [gleoLog, setGleoLog] = useState<{ said: string; res: GleoResponse } | null>(null);
+  const askGleo = async (said: string, req: GleoRequest) => {
+    if (!gleo) return;
+    const res = await gleo(req);
+    setGleoLog({ said, res });
+  };
   const [logs, setLogs] = useState<SdkLogEntry[]>([]);
   const [rate, setRate] = useState(clock.rate());
   useEffect(() => {
@@ -172,6 +182,33 @@ export function VirtualConsole({
               );
             })()}
           </div>
+        </section>
+      )}
+
+      {gleo && (
+        <section>
+          <h4>Gleo AI 음성 기능</h4>
+          <p className="vc-help">실제 차에서는 Gleo가 "주행중GO에 …"를 알아듣고 앱의 세 기능(assets/schema.json)을 부른다. 여기서는 그 호출을 흉내 내고 앱이 Gleo에 돌려주는 답을 보여 준다.</p>
+          <div className="vc-row">
+            <button onClick={() => void askGleo("주행중GO에 책상 관심 추가해 줘", { name: "ADD_INTEREST", params: { keyword: "책상", goLevel: "near" } })} data-testid="gleo-add-interest">
+              "책상 관심 추가해 줘"
+            </button>
+            <button onClick={() => void askGleo("가는 길에 뭐 있어?", { name: "SHOW_BRIEFING", params: {} })} data-testid="gleo-briefing">
+              "가는 길에 뭐 있어?"
+            </button>
+            <button onClick={() => void askGleo("들를게", { name: "ANSWER_ALERT", params: { answer: "yes" } })} data-testid="gleo-yes">
+              "들를게"
+            </button>
+            <button onClick={() => void askGleo("카시트로 할게", { name: "ANSWER_ALERT", params: { item: "카시트" } })} data-testid="gleo-item">
+              "카시트로 할게"
+            </button>
+          </div>
+          {gleoLog && (
+            <div className="vc-gleo" data-testid="gleo-response">
+              <span>"{gleoLog.said}" → {gleoLog.res.functionName}</span>
+              <b className={gleoLog.res.status}>{gleoLog.res.status}</b> {gleoLog.res.message}
+            </div>
+          )}
         </section>
       )}
 

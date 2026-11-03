@@ -15,12 +15,27 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|density|uiMode">
             <!-- 주행 중에도 화면이 막히지 않게(AAOS 주행 최적화 표시). 실제로 허용되는지는 G0 확인 항목 -->
             <meta-data android:name="distractionOptimized" android:value="true" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Gleo AI 음성 기능(assets/schema.json의 actionCalls, 최대 3개). Gleo가 startActivity(action, extra ACTION_PARAM)로 부른다.
+                 singleTask라 떠 있는 화면이 onNewIntent로 받는다. 응답은 APP_ACTION_RESPONSE 브로드캐스트(7초 안) -->
+            <intent-filter>
+                <action android:name="ADD_INTEREST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="ANSWER_ALERT" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="SHOW_BRIEFING" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
     </application>

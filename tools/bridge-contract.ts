@@ -427,6 +427,22 @@ type MockCall = { method: string; args: Record<string, unknown> };
     const unknown = all.filter((c) => !c.method.includes("."));
     check(unknown.length === 0, "모든 호출이 '도메인.메서드' 이름");
     check(!all.some((c) => c.method === "Vehicle.registerTrunkOpen"), "Door(트렁크, 미확인)는 셸에 묻지 않음");
+
+    // Gleo AI 음성 기능: 셸의 assets/schema.json(actionCalls) = 매니페스트 intent-filter = 웹 처리기 이름, 셸이 부르는 입구가 응답을 돌려준다
+    const schema = JSON.parse(fs.readFileSync(path.join(ROOT, "apps/car-android/app/src/main/assets/schema.json"), "utf8")) as { actionCalls: { function: { name: string } }[] };
+    const schemaNames = schema.actionCalls.map((a) => a.function.name).sort();
+    const manifest = fs.readFileSync(path.join(ROOT, "apps/car-android/app/src/main/AndroidManifest.xml"), "utf8");
+    const manifestNames = [...manifest.matchAll(/<action android:name="([A-Z_]+)" \/>/g)].map((m) => m[1]).sort();
+    const kotlin = fs.readFileSync(path.join(ROOT, "apps/car-android/app/src/main/java/ai/jhgo/car/GleoBridge.kt"), "utf8");
+    const kotlinNames = [...(kotlin.match(/FUNCTIONS = setOf\(([^)]*)\)/)?.[1] ?? "").matchAll(/"([A-Z_]+)"/g)].map((m) => m[1]).sort();
+    const webNames = [...(await page.evaluate(() => (window as any).__jhgoGleoNames as string[]))].sort();
+    check(schemaNames.length <= 3 && schemaNames.join() === manifestNames.join() && schemaNames.join() === kotlinNames.join() && schemaNames.join() === webNames.join(), `Gleo 기능 이름이 schema.json·매니페스트·GleoBridge.kt·웹에서 같음(${schemaNames.join(", ")})`);
+    // (tsx가 넣는 __name 도우미 때문에 함수 대신 문자열로 넘긴다)
+    const gleoRes = (await page.evaluate(
+      `new Promise((resolve) => { window.GleoBridge = { respond: (json) => resolve(json) }; window.__jhgoGleo(JSON.stringify({ requestId: "t1", name: "SHOW_BRIEFING", params: {} })); })`,
+    )) as string;
+    const gr = JSON.parse(gleoRes) as { requestId: string; functionName: string; status: string; message: string };
+    check(gr.requestId === "t1" && gr.functionName === "SHOW_BRIEFING" && ["success", "fail"].includes(gr.status) && /^[A-Za-z]/.test(gr.message), "Gleo 호출(window.__jhgoGleo) → GleoBridge.respond로 Callback Schema(functionName·status·영어 message) 응답");
     if (!REC) await page.getByRole("button", { name: /SDK 기록/ }).click(); // 녹화 때는 처음부터 열려 있다
     const drawer = await page.locator(".c-sdklog").innerText();
     check(drawer.includes("addWaypoint") && drawer.includes("requestTrip"), "SDK 기록 서랍에 실제 호출이 남음");
