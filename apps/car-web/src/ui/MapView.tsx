@@ -139,9 +139,6 @@ export function MapView({ snap, width = 1280, candidates, selectedId = null, onP
   return (
     <svg className="c-map" width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="내비 지도">
       <defs>
-        <filter id="route-glow" x="-10%" y="-10%" width="120%" height="120%">
-          <feGaussianBlur stdDeviation="6" />
-        </filter>
         <radialGradient id="car-beam" cx="50%" cy="100%" r="100%">
           <stop offset="0" stopColor="#57d2e6" stopOpacity="0.28" />
           <stop offset="1" stopColor="#57d2e6" stopOpacity="0" />
@@ -152,7 +149,9 @@ export function MapView({ snap, width = 1280, candidates, selectedId = null, onP
       {routePassed.length > 1 && <polyline points={pts(routePassed)} stroke="#3a4c62" strokeWidth={8} fill="none" strokeLinecap="round" strokeLinejoin="round" />}
       {routeAhead.length > 1 && (
         <>
-          <polyline points={pts(routeAhead)} stroke="#57d2e6" strokeOpacity={0.35} strokeWidth={18} fill="none" strokeLinecap="round" strokeLinejoin="round" filter="url(#route-glow)" />
+          {/* 빛 번짐: 필터(feGaussianBlur) 대신 반투명 굵은 선 두 겹 — 차량 WebView에서 매 틱 그려도 가볍게 */}
+          <polyline points={pts(routeAhead)} stroke="#57d2e6" strokeOpacity={0.09} strokeWidth={30} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          <polyline points={pts(routeAhead)} stroke="#57d2e6" strokeOpacity={0.16} strokeWidth={19} fill="none" strokeLinecap="round" strokeLinejoin="round" />
           <polyline points={pts(routeAhead)} stroke="#0b3640" strokeWidth={13} fill="none" strokeLinecap="round" strokeLinejoin="round" />
           <polyline points={pts(routeAhead)} stroke="#57d2e6" strokeWidth={8} fill="none" strokeLinecap="round" strokeLinejoin="round" />
         </>
