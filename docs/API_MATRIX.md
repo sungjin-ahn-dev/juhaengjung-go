@@ -39,7 +39,7 @@
 | 기능 | 시그니처 | 판정 | 권한 | 쓰는 곳 | 🧪 |
 |---|---|---|---|---|---|
 | 초기화 | `Vehicle(context)`, `initialize()`, `release()` | ✅ | — | PleosBackend.vehicle | initialize가 동기인지 |
-| 2열 착석 | `getSeat().registerSeatOccupancy(SeatArea(vararg SeatValue), SeatOccupancyListener)` → `onSeatOccupancyUpdated(occupancy: Boolean?)`, `unregisterSeatOccupancy` | ✅ | CAR_SEATS | 2열을 접을 수 있는지(적재) | Virtual Console 좌석 조작 반영 |
+| 2열·3열 착석 | `getSeat().registerSeatOccupancy(SeatArea(vararg SeatValue), SeatOccupancyListener)` → `onSeatOccupancyUpdated(occupancy: Boolean?)`, `unregisterSeatOccupancy`. SeatValue 범위 ROW_1_LEFT…ROW_3_RIGHT | ✅ (ROW_3_CENTER는 이름 ❌ → 쓰지 않음) | CAR_SEATS | 2열·3열을 접을 수 있는지(적재). 줄마다 따로 등록(row2: ROW_2_LEFT·CENTER·RIGHT, row3: ROW_3_LEFT·RIGHT). 이 SDK에 없는 이름은 셸이 건너뛰고 등록한 이름을 돌려준다 | Virtual Console 좌석 조작 반영, 3열 차에서 ROW_3 값이 오는지 |
 | 방향지시등 | `getTurnSignal().registerTurnSignalState(TurnSignalStateListener)` → `onTurnSignalStateUpdated(TurnSignalValue?)` {OFF, LEFT, RIGHT} | ✅ | CAR_LIGHTS | 켠 동안 알림 미루기 | |
 | 조향각 | `getSteeringWheel().registerSteeringWheelAngle(SteeringWheelAngleListener)` → `onSteeringWheelAngleUpdated(Float?)`, `checkSteeringWheelAngleCapabilities(onComplete: (CapabilityConfig, AreaBounds<Float>) -> Unit, onFailed)` | ✅ | CAR_DRIVE | 3.5° 넘게 꺾는 동안 알림 미루기 | 갱신 주기 |
 | 브레이크 | `getBrake().registerBrakePedalStatus(BrakePedalStatusListener)` → `onBrakePedalStatusUpdated(Boolean?)` | ✅ | CAR_DRIVE | 밟는 동안 알림 미루기 | |

@@ -83,7 +83,8 @@ const MOCK = `
     "NaviHelper.requestRouteWithWaypoints": () => { throw new Error("UNVERIFIED_ROUTE_INFO"); },
     "Vehicle.getCarInfo": () => ({ manufacturer: null, model: null, modelYear: null }),
     "Vehicle.capabilities": () => ({ steeringWheelAngle: "READ", evBatteryStateOfCharge: "READ" }),
-    "Vehicle.registerSeatOccupancy": () => null,
+    // Kotlin과 같이: 줄(tag)마다 등록, 결과는 등록한 SeatValue 이름(이 SDK에 없는 이름은 건너뜀)
+    "Vehicle.registerSeatOccupancy": (a) => ({ tag: a.tag ?? "row2", registered: (a.area ?? []).filter((n) => ["ROW_1_LEFT", "ROW_1_RIGHT", "ROW_2_LEFT", "ROW_2_CENTER", "ROW_2_RIGHT", "ROW_3_LEFT", "ROW_3_RIGHT"].includes(n)) }),
     "Vehicle.getEvBatteryStateOfCharge": () => st.soc,
     "Vehicle.registerEvBatteryStateOfCharge": () => null,
     "Vehicle.getFuelRangeKm": () => null,
@@ -204,9 +205,19 @@ type MockCall = { method: string; args: Record<string, unknown> };
     for (const m of ["Vehicle.registerSeatOccupancy", "Vehicle.registerTurnSignalState", "Vehicle.registerSteeringWheelAngle", "Vehicle.registerBrakePedalStatus", "CarUx.current", "Vehicle.getCarInfo", "Voice.capabilities"])
       await waitCall(m, () => true, 8000);
     check(true, "부팅 때 좌석·방향지시등·조향·브레이크 리스너, 주행 중 여부, 차 정보, 음성 능력을 브리지로 요청");
-    const seatCall = (await calls()).find((c) => c.method === "Vehicle.registerSeatOccupancy")!;
-    check(JSON.stringify(seatCall.args.area) === JSON.stringify(["ROW_2_LEFT", "ROW_2_CENTER", "ROW_2_RIGHT"]), "2열 좌석 3곳을 SeatValue 이름으로 등록");
-    await mock.emit("Vehicle.onSeatOccupancyUpdated", true);
+    const seatCalls = (await calls()).filter((c) => c.method === "Vehicle.registerSeatOccupancy");
+    const row2 = seatCalls.find((c) => c.args.tag === "row2");
+    const row3 = seatCalls.find((c) => c.args.tag === "row3");
+    check(row2 && JSON.stringify(row2.args.area) === JSON.stringify(["ROW_2_LEFT", "ROW_2_CENTER", "ROW_2_RIGHT"]), "2열 좌석 3곳을 SeatValue 이름으로 등록(tag row2)");
+    check(row3 && JSON.stringify(row3.args.area) === JSON.stringify(["ROW_3_LEFT", "ROW_3_RIGHT"]), "3열 좌석을 확인된 SeatValue 이름만으로 따로 등록(tag row3)");
+    // 3열 이벤트가 2열 값으로 섞이지 않는지: 3열만 앉고 → 2열 착석
+    await mock.emit("Vehicle.onSeatOccupancyUpdated", { tag: "row3", occupied: true });
+    await mock.emit("Vehicle.onSeatOccupancyUpdated", { tag: "row2", occupied: true });
+    const seatsNow = await page.evaluate(() => {
+      const st = (window as unknown as { __jhgoCar: { controller: { state: { row2: boolean | null; row3: boolean | null } } } }).__jhgoCar.controller.state;
+      return { row2: st.row2, row3: st.row3 };
+    });
+    check(seatsNow.row2 === true && seatsNow.row3 === true, "줄마다 온 착석 이벤트를 따로 반영(2열·3열)");
 
     // ── 목적지는 Pleos 내비에서: 목적지가 잡히면(정차 중) 브리핑이 저절로 열린다 ──
     const g = new Graph(DEMO_NET);
@@ -415,6 +426,7 @@ type MockCall = { method: string; args: Record<string, unknown> };
     check(routeIdx.every((i) => i >= failFrom && i < failTo), "목적지 설정 API(RouteInfo 미확인)는 경유지 실패 대체에서만 시도 — 정상 흐름은 쓰지 않음");
     const unknown = all.filter((c) => !c.method.includes("."));
     check(unknown.length === 0, "모든 호출이 '도메인.메서드' 이름");
+    check(!all.some((c) => c.method === "Vehicle.registerTrunkOpen"), "Door(트렁크, 미확인)는 셸에 묻지 않음");
     if (!REC) await page.getByRole("button", { name: /SDK 기록/ }).click(); // 녹화 때는 처음부터 열려 있다
     const drawer = await page.locator(".c-sdklog").innerText();
     check(drawer.includes("addWaypoint") && drawer.includes("requestTrip"), "SDK 기록 서랍에 실제 호출이 남음");
@@ -439,9 +451,9 @@ type MockCall = { method: string; args: Record<string, unknown> };
           at,
           REC,
           [
-            { id: "08-sdk-briefing-alert", segs: [["boot", "alert-end"]] },
+            { id: "09-sdk-briefing-alert", segs: [["boot", "alert-end"]] },
             {
-              id: "09-sdk-waypoint-arrive",
+              id: "10-sdk-waypoint-arrive",
               segs: [
                 ["accept", "accept-end"],
                 ["arrive", "arrive-end", -0.8],

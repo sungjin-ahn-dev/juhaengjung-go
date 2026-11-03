@@ -49,7 +49,7 @@ export interface CandidateView {
   fromHereM: number | null;
   etaAtListing: number;
   available: boolean;
-  fit: { kind: "trunk" | "folded" | "none"; label: string };
+  fit: { kind: "trunk" | "folded3" | "folded" | "none"; label: string };
   energy: { ok: boolean; arrivalSocPct?: number; rangeAfterKm?: number; note: string; unknown?: boolean };
   exclusions: string[];
   inWindow: boolean;
@@ -76,6 +76,11 @@ export interface TradeView {
   receivedAt?: number;
   settleAt?: number;
   waypointConfirmedAt?: number;
+  arrivedAt?: number;
+  nudgedAt?: number;
+  /** 도착 뒤 이 시각이 지나면 '판매자가 안 나왔어요'로 끝낼 수 있다 */
+  sellerWaitUntil?: number | null;
+  ratings?: { buyerToSeller?: number; sellerToBuyer?: number };
   payment: { status: string; amount: number };
   pickupPoint: { lat: number; lng: number; label: string } | null;
   approxArea: { lat: number; lng: number; radiusM: number } | null;
@@ -107,7 +112,8 @@ export interface CarState {
   me: { id: string; name: string } | null;
   vehicle: VehicleProfile | null;
   vehicleNeedsPick: boolean;
-  interests: Interest[];
+  /** 찜은 매물 제목(title)이 붙어 온다 */
+  interests: (Interest & { title?: string; listingStatus?: string })[];
   settings: GoSetting | null;
   restricted: boolean;
   navStatus: NavigationStatus;
@@ -119,7 +125,13 @@ export interface CarState {
   soc: number | null;
   fuelRangeKm: number | null;
   row2: boolean | null;
+  row3: boolean | null;
   trunkOpen: boolean | null;
+  /** 요청할 수 없는 이유(결제 수단 없음·요청 제한) — 있으면 알림을 띄우지 않는다 */
+  block: { reason: "payment" | "limit"; text: string; until?: number } | null;
+  paymentMethod: { kind: string; label: string } | null;
+  /** 결과 카드에서 남긴 판매자 평가(거래 id → 별) */
+  ratings: Record<string, number>;
   signals: DriverSignals;
   gate: { ok: boolean; reasons: GateReason[] };
   mode: "route" | "region" | "idle";
@@ -157,7 +169,11 @@ const initialState: CarState = {
   soc: null,
   fuelRangeKm: null,
   row2: null,
+  row3: null,
   trunkOpen: null,
+  block: null,
+  paymentMethod: null,
+  ratings: {},
   signals: {},
   gate: { ok: true, reasons: [] },
   mode: "idle",
@@ -296,8 +312,12 @@ export class CarController {
   }
 
   async loadProfile() {
-    const p = await this.api.call<{ user: { vehicle: VehicleProfile; settings: GoSetting }; interests: Interest[] }>("GET", "/v1/buyer/profile");
-    this.set({ vehicle: p.user.vehicle, settings: p.user.settings, interests: p.interests });
+    const p = await this.api.call<{
+      user: { vehicle: VehicleProfile; settings: GoSetting; paymentMethod?: { kind: string; label: string } };
+      interests: (Interest & { title?: string })[];
+      block: CarState["block"];
+    }>("GET", "/v1/buyer/profile");
+    this.set({ vehicle: p.user.vehicle, settings: p.user.settings, interests: p.interests, paymentMethod: p.user.paymentMethod ?? null, block: p.block });
   }
 
   /** 5 적재: Vehicle CarInfo → 차종. 모델명이 없으면 한 번 고르게 한다 */
@@ -332,6 +352,8 @@ export class CarController {
     };
     this.unsubs.push(
       vehicle.registerSeatOccupancy(["ROW_2_LEFT", "ROW_2_CENTER", "ROW_2_RIGHT"], (v) => this.set({ row2: v })),
+      // 3열(T26): 확인된 SeatValue 범위(ROW_1_LEFT…ROW_3_RIGHT)의 양 끝만 쓴다. 2열 차는 값이 오지 않는다
+      vehicle.registerSeatOccupancy(["ROW_3_LEFT", "ROW_3_RIGHT"], (v) => this.set({ row3: v })),
       vehicle.registerEvBatteryStateOfCharge((v) => this.set({ soc: v })),
       vehicle.registerTurnSignalState((v) => upd({ turnSignal: v })),
       vehicle.registerSteeringWheelAngle((v) => upd({ steeringAngleDeg: v })),
@@ -435,7 +457,7 @@ export class CarController {
       waypoints: wps.map((w) => ({ lat: w.latitude, lng: w.longitude })),
       socPct: soc,
       fuelRangeKm: fuel,
-      seats: { row2Occupied: this.state.row2 },
+      seats: { row2Occupied: this.state.row2, row3Occupied: this.state.row3 },
       tripChecks: this.tripChecks,
     };
   }
@@ -471,8 +493,10 @@ export class CarController {
         candidates: CandidateView[];
         route: CarState["route"];
         activeTrade: TradeView | null;
+        block: CarState["block"];
         notices: { type: string; text: string }[];
       }>("POST", "/v1/drive/context", { ctx });
+      if (JSON.stringify(ev.block) !== JSON.stringify(this.state.block)) this.set({ block: ev.block });
 
       for (const n of ev.notices) this.toast(n.text, n.type === "expired" ? "warn" : "info");
       if (ev.activeTrade) this.set({ trade: ev.activeTrade });
@@ -640,7 +664,7 @@ export class CarController {
       case "trade.received":
       case "trade.settled":
       case "trade.refunded":
-        if (trade) this.set({ trade: trade.status === "settled" || trade.status === "declined_mismatch" ? null : trade });
+        if (trade) this.set({ trade: ["settled", "declined_mismatch", "seller_no_show"].includes(trade.status) ? null : trade });
         if (e.type === "trade.settled") this.toast(e.title, "good");
         break;
     }
@@ -800,6 +824,45 @@ export class CarController {
     await this.removeOurWaypoint();
     this.set({ trade: null, loadedPrompt: false, screen: "map" });
     this.say("거래하지 않았어요. 대금은 전액 환불돼요.");
+    this.toast("현장 사진은 폰의 주행중GO!에서 남길 수 있어요", "info");
+  }
+
+  /** T20 도착했는데 판매자가 안 보일 때: 다시 알리기 */
+  async nudgeSeller() {
+    const t = this.state.trade;
+    if (!t) return;
+    try {
+      const r = await this.api.call<{ trade: TradeView }>("POST", `/v1/buyer/trades/${t.id}/nudge`);
+      this.set({ trade: r.trade });
+      this.toast("판매자에게 다시 알렸어요", "good");
+    } catch (e) {
+      this.toast((e as Error).message, "warn");
+    }
+  }
+
+  /** T20 기다려도 안 나오면 거래를 끝낸다 — 전액 환불, 판매자 신뢰도에 반영 */
+  async sellerAbsent() {
+    const t = this.state.trade;
+    if (!t) return;
+    try {
+      await this.api.call("POST", `/v1/buyer/trades/${t.id}/seller-absent`);
+    } catch (e) {
+      this.toast((e as Error).message, "warn");
+      return;
+    }
+    await this.removeOurWaypoint();
+    this.set({ trade: null, loadedPrompt: false, screen: "map" });
+    this.say("판매자를 만나지 못해 거래를 끝냈어요. 대금은 전액 환불돼요. 출발하면 원래 목적지로 이어 갈게요.");
+  }
+
+  /** T21 결과 카드에서 판매자 평가 */
+  async rate(tradeId: string, stars: number) {
+    try {
+      await this.api.call("POST", `/v1/buyer/trades/${tradeId}/rate`, { stars });
+      this.set({ ratings: { ...this.state.ratings, [tradeId]: stars } });
+    } catch (e) {
+      this.toast((e as Error).message, "warn");
+    }
   }
 
   /** system: 차 쪽 실패로 앱이 대신 취소(구매자 신뢰도에 반영하지 않음) */
@@ -836,6 +899,11 @@ export class CarController {
     await this.api.call("POST", "/v1/buyer/interests", { type: "wish", listingId, goLevel });
     await this.loadProfile();
     this.toast("찜했어요. 다음에 지날 때 먼저 알려 드릴게요", "good");
+  }
+  /** 찜한 매물의 GO 등급 바꾸기 */
+  async setWishLevel(listingId: string, goLevel: GoLevel) {
+    await this.api.call("POST", "/v1/buyer/interests", { type: "wish", listingId, goLevel });
+    await this.loadProfile();
   }
   async removeInterest(id: string) {
     await this.api.call("DELETE", `/v1/buyer/interests/${id}`);

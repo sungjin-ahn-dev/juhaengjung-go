@@ -219,3 +219,35 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* 판매자 폰 / 구매자 폰 바꾸기 */
+.phone-switch {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid var(--bench-line);
+  background: var(--bench-bg);
+}
+.phone-switch button {
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 16px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--bench-muted);
+  background: transparent;
+  cursor: pointer;
+}
+.phone-switch button.on {
+  background: var(--bench-fg);
+  color: var(--bench-bg);
+  font-weight: 600;
+}
+.phone-switch button:focus-visible {
+  outline: 3px solid var(--bench-kraft);
+  outline-offset: 2px;
+}
+.phone > .phone-screen[hidden] {
+  display: none !important;
+}

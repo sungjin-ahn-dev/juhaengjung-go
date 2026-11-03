@@ -82,6 +82,10 @@ export function VirtualConsole({ sim, clock, onReset }: { sim: SimCar; clock: Ap
             <input type="checkbox" checked={st.row2Occupied} onChange={(e) => sim.setRow2Occupied(e.target.checked)} data-testid="row2" />
             2열 착석
           </label>
+          <label title="3열이 있는 차(아이오닉 9·EV9·팰리세이드·카니발)에서만 적재 판단에 써요">
+            <input type="checkbox" checked={st.row3Occupied} onChange={(e) => sim.setRow3Occupied(e.target.checked)} data-testid="row3" />
+            3열 착석
+          </label>
           <label>
             <input type="checkbox" checked={st.autoDriver} onChange={(e) => sim.setAutoDriver(e.target.checked)} />
             자동 운전 행동

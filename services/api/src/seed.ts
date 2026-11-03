@@ -44,6 +44,8 @@ export interface SeedResult {
 export function seedDemo(svc: Service, opts: { includeCarSeat?: boolean } = {}): SeedResult {
   const includeCarSeat = opts.includeCarSeat ?? true;
   const buyer = svc.createUser("buyer", "김주행");
+  // 시연 구매자는 테스트 결제 수단을 미리 등록해 둔다(폰의 구매자 페이지에서 지우고 다시 등록할 수 있다)
+  svc.setPaymentMethod(buyer, { kind: "test" });
   for (const [keyword, goLevel] of [
     ["카시트", "must"],
     ["유모차", "must"],

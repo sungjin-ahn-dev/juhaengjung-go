@@ -1,5 +1,6 @@
 /**
- * 거래 상태 머신 — T9 요청, T10 수락·대금 보관, T11 도착 예정·도착, T12 현장 확인, T13 정산·환불·취소·노쇼.
+ * 거래 상태 머신 — T9 요청, T10 수락·대금 보관, T11 도착 예정·도착, T12 현장 확인, T13 정산·환불·취소·노쇼,
+ * T20 판매자 미응대(도착 뒤 기다려도 안 나옴), T22 반복 취소·노쇼 요청 제한.
  * 순수 함수: (거래, 이벤트, 시각) → (새 거래, 효과 목록). 서버는 효과를 저장·알림·신뢰도에 반영한다.
  */
 export type TradeStatus =
@@ -12,7 +13,8 @@ export type TradeStatus =
   | "expired"
   | "canceled"
   | "declined_mismatch"
-  | "no_show";
+  | "no_show"
+  | "seller_no_show";
 
 export const TRADE_STATUS_KO: Record<TradeStatus, string> = {
   requested: "판매자 응답 대기",
@@ -25,10 +27,11 @@ export const TRADE_STATUS_KO: Record<TradeStatus, string> = {
   canceled: "취소",
   declined_mismatch: "현장에서 거절 · 환불",
   no_show: "구매자 미도착 · 환불",
+  seller_no_show: "판매자 미응대 · 환불",
 };
 
 export const ACTIVE_STATUSES: TradeStatus[] = ["requested", "accepted", "arrived"];
-export const TERMINAL_STATUSES: TradeStatus[] = ["settled", "declined", "expired", "canceled", "declined_mismatch", "no_show"];
+export const TERMINAL_STATUSES: TradeStatus[] = ["settled", "declined", "expired", "canceled", "declined_mismatch", "no_show", "seller_no_show"];
 
 export type PaymentStatus = "none" | "held" | "captured" | "refunded";
 
@@ -58,6 +61,12 @@ export interface Trade {
   waypointConfirmedAt?: number;
   comeOutSentAt?: number;
   arrivedAt?: number;
+  /** 도착 뒤 구매자가 판매자에게 다시 알린 시각 */
+  nudgedAt?: number;
+  /** 판매자가 안 나와 구매자가 거래를 끝낸 시각 */
+  sellerAbsentAt?: number;
+  /** 구매자 미도착으로 끝난 시각 */
+  noShowAt?: number;
   handedAt?: number;
   receivedAt?: number;
   completedAt?: number;
@@ -67,7 +76,8 @@ export interface Trade {
   canceledAt?: number;
   canceledBy?: "buyer" | "seller" | "system";
   reason?: string;
-  mismatch?: { reason: string; note?: string; at: number };
+  /** 현장 거절 사유. 사진은 거절 뒤 폰에서 남긴다 */
+  mismatch?: { reason: string; note?: string; at: number; photos?: string[] };
   payment: { status: PaymentStatus; amount: number; heldAt?: number; capturedAt?: number; refundedAt?: number };
   ratings: { buyerToSeller?: number; sellerToBuyer?: number };
   /** 판매자가 미리 정해 둔 자동 수락 */
@@ -89,6 +99,10 @@ export interface TradeConfig {
   /** 요청 유효 시간 하한·상한 */
   minRequestTtlMs: number;
   maxRequestTtlMs: number;
+  /** 도착하고 이만큼 기다려도 판매자가 안 나오면 구매자가 거래를 끝낼 수 있다 */
+  sellerWaitMs: number;
+  /** 도착 뒤 '다시 알리기' 최소 간격 */
+  nudgeEveryMs: number;
 }
 
 export const DEFAULT_TRADE_CONFIG: TradeConfig = {
@@ -99,6 +113,8 @@ export const DEFAULT_TRADE_CONFIG: TradeConfig = {
   etaNotifyDeltaMs: 60 * 1000,
   minRequestTtlMs: 2 * 60 * 1000,
   maxRequestTtlMs: 20 * 60 * 1000,
+  sellerWaitMs: 5 * 60 * 1000,
+  nudgeEveryMs: 60 * 1000,
 };
 
 export type TradeEvent =
@@ -115,6 +131,12 @@ export type TradeEvent =
   /** system: 차 쪽 실패(내비 오류·경유지 실패)로 앱이 대신 취소 — 구매자 신뢰도에 반영하지 않는다 */
   | { type: "BUYER_CANCEL"; reason?: string; system?: boolean }
   | { type: "SELLER_CANCEL"; reason?: string }
+  /** 도착했는데 판매자가 안 보일 때 다시 알리기 */
+  | { type: "BUYER_NUDGE" }
+  /** 도착하고 기다려도 판매자가 안 나왔다 — 전액 환불, 판매자 신뢰도에 반영 */
+  | { type: "BUYER_REPORT_SELLER_ABSENT" }
+  /** 현장 거절 뒤 사진 남기기(폰) */
+  | { type: "BUYER_EVIDENCE"; photos: string[] }
   | { type: "TICK" }
   | { type: "RATE"; by: "buyer" | "seller"; stars: number };
 
@@ -314,12 +336,13 @@ export function applyTradeEvent(t: Trade, ev: TradeEvent, now: number, cfg: Trad
     case "BUYER_CANCEL": {
       need(t, ["requested", "accepted", "arrived"], "취소");
       const r = refund(t, now);
-      const effects: Effect[] = [...r.effects, { kind: "notify", to: "seller", type: "trade.canceled", data: { by: "buyer", reason: ev.reason } }];
+      const effects: Effect[] = [...r.effects, { kind: "notify", to: "seller", type: "trade.canceled", data: { by: "buyer", system: !!ev.system, reason: ev.reason } }];
       if (t.status !== "requested") {
         effects.push({ kind: "listing", status: "active" });
         if (!ev.system) effects.push({ kind: "trust", who: "buyer", field: "canceled" });
       }
-      return { trade: { ...t, status: "canceled", canceledAt: now, canceledBy: "buyer", reason: ev.reason, payment: r.payment }, effects };
+      // 차 쪽 실패로 앱이 대신 끝낸 취소는 'system' — 구매자 신뢰도·요청 제한에 넣지 않는다
+      return { trade: { ...t, status: "canceled", canceledAt: now, canceledBy: ev.system ? "system" : "buyer", reason: ev.reason, payment: r.payment }, effects };
     }
     case "SELLER_CANCEL": {
       need(t, ["accepted", "arrived"], "취소");
@@ -332,6 +355,42 @@ export function applyTradeEvent(t: Trade, ev: TradeEvent, now: number, cfg: Trad
           { kind: "listing", status: "active" },
           { kind: "notify", to: "buyer", type: "trade.canceled", data: { by: "seller", reason: ev.reason } },
         ],
+      };
+    }
+    case "BUYER_NUDGE": {
+      need(t, ["arrived"], "다시 알리기");
+      if (t.handedAt) return { trade: t, effects: [] };
+      if (t.nudgedAt && now - t.nudgedAt < cfg.nudgeEveryMs) throw new TradeError("too_soon", "방금 알렸어요. 잠시 뒤에 다시 알릴 수 있어요");
+      return { trade: { ...t, nudgedAt: now }, effects: [{ kind: "notify", to: "seller", type: "trade.waiting" }] };
+    }
+    case "BUYER_REPORT_SELLER_ABSENT": {
+      need(t, ["arrived"], "판매자 미응대 처리");
+      if (t.handedAt) throw new TradeError("handed", "판매자가 건넸다고 표시했어요. 받았어요나 안 살게요를 골라 주세요");
+      const allowedAt = sellerAbsentAllowedAt(t, cfg);
+      if (now < allowedAt) {
+        const left = Math.max(1, Math.ceil((allowedAt - now) / 60000));
+        throw new TradeError("too_early", `도착하고 ${Math.round(cfg.sellerWaitMs / 60000)}분은 기다려 주세요. ${left}분 남았어요`);
+      }
+      const r = refund(t, now);
+      return {
+        trade: { ...t, status: "seller_no_show", sellerAbsentAt: now, reason: "판매자를 만나지 못했어요", payment: r.payment },
+        effects: [
+          ...r.effects,
+          { kind: "listing", status: "active" },
+          { kind: "trust", who: "seller", field: "noShow" },
+          { kind: "notify", to: "seller", type: "trade.seller_no_show" },
+          { kind: "notify", to: "buyer", type: "trade.refunded" },
+        ],
+      };
+    }
+    case "BUYER_EVIDENCE": {
+      need(t, ["declined_mismatch"], "사진 남기기");
+      const prev = t.mismatch?.photos ?? [];
+      const photos = [...prev, ...ev.photos].slice(0, 3);
+      if (photos.length === prev.length) return { trade: t, effects: [] };
+      return {
+        trade: { ...t, mismatch: { ...(t.mismatch ?? { reason: "등록 정보와 달라요", at: now }), photos } },
+        effects: [{ kind: "notify", to: "seller", type: "trade.evidence", data: { count: photos.length } }],
       };
     }
     case "RATE": {
@@ -357,7 +416,7 @@ function tick(t: Trade, now: number, cfg: TradeConfig): { trade: Trade; effects:
   if (t.status === "accepted" && t.etaAt !== null && !t.handedAt && now >= t.etaAt + cfg.noShowGraceMs) {
     const r = refund(t, now);
     return {
-      trade: { ...t, status: "no_show", reason: "도착 예정 시각이 한참 지났어요", payment: r.payment },
+      trade: { ...t, status: "no_show", noShowAt: now, reason: "도착 예정 시각이 한참 지났어요", payment: r.payment },
       effects: [
         ...r.effects,
         { kind: "listing", status: "active" },
@@ -384,4 +443,39 @@ function tick(t: Trade, now: number, cfg: TradeConfig): { trade: Trade; effects:
     };
   }
   return { trade: t, effects: [] };
+}
+
+/** 판매자 미응대로 끝낼 수 있는 시각 — 도착 시각 + 기다림 */
+export function sellerAbsentAllowedAt(t: Pick<Trade, "arrivedAt">, cfg: Pick<TradeConfig, "sellerWaitMs"> = DEFAULT_TRADE_CONFIG): number {
+  return (t.arrivedAt ?? Number.POSITIVE_INFINITY) + cfg.sellerWaitMs;
+}
+
+/** 수락 뒤 구매자 취소·노쇼가 잦으면 요청을 막는다(T22). system 취소(차 쪽 실패)는 세지 않는다 */
+export interface RequestLimitConfig {
+  windowMs: number;
+  maxIncidents: number;
+  blockMs: number;
+}
+
+export const DEFAULT_REQUEST_LIMIT: RequestLimitConfig = {
+  windowMs: 30 * 24 * 3600_000,
+  maxIncidents: 3,
+  blockMs: 7 * 24 * 3600_000,
+};
+
+/** 구매자 책임으로 끝난 거래의 시각(수락 뒤 구매자 취소, 구매자 미도착) */
+export function buyerIncidentAt(t: Trade): number | null {
+  if (t.status === "canceled" && t.canceledBy === "buyer" && t.acceptedAt !== undefined) return t.canceledAt ?? t.createdAt;
+  if (t.status === "no_show") return t.noShowAt ?? t.etaAt ?? t.createdAt;
+  return null;
+}
+
+export function requestBlock(trades: Trade[], now: number, cfg: RequestLimitConfig = DEFAULT_REQUEST_LIMIT): { until: number; count: number } | null {
+  const times = trades
+    .map(buyerIncidentAt)
+    .filter((x): x is number => x !== null && x > now - cfg.windowMs && x <= now)
+    .sort((a, b) => a - b);
+  if (times.length < cfg.maxIncidents) return null;
+  const until = times[times.length - 1] + cfg.blockMs;
+  return until > now ? { until, count: times.length } : null;
 }

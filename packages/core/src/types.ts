@@ -40,7 +40,8 @@ export interface Listing {
   condition: Condition;
   fragile: boolean;
   sizeCm: SizeCm;
-  sizeSource: "ai" | "seller_measured";
+  /** ai: 사진으로 AI가 추정 / category: 품목 대표 크기 / seller_measured: 판매자 실측 */
+  sizeSource: "ai" | "category" | "seller_measured";
   photos: string[];
   /** 수락 전에는 구매자에게 이 범위만 보인다 */
   approxArea: ApproxArea;
@@ -85,10 +86,12 @@ export interface VehicleProfile {
   modelYear?: number;
   powertrain: Powertrain;
   seatRows: 2 | 3;
-  /** 트렁크 적재 공간(추정치) */
+  /** 트렁크 적재 공간(추정치). 3열 차는 3열을 접었을 때 */
   trunk: SizeCm;
-  /** 2열을 접었을 때 적재 공간(추정치) */
+  /** 2열을 접었을 때 적재 공간(추정치). 3열 차는 2·3열을 다 접었을 때 */
   folded: SizeCm;
+  /** 3열 차: 3열을 세웠을 때 트렁크(추정치) */
+  row3Up?: SizeCm;
   /** 기본 전비·연비 (배터리 %/km) — requestTrip 값이 없거나 불안정할 때 */
   defaultSocPctPerKm?: number;
 }

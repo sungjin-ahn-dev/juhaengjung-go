@@ -11,6 +11,8 @@ import {
   applyTradeEvent,
   approxArea,
   ACTIVE_STATUSES,
+  CATEGORIES,
+  categorize,
   categoryDef,
   categoryLabel,
   createTrade,
@@ -18,6 +20,7 @@ import {
   DEFAULT_TRADE_CONFIG,
   emptyPersonalization,
   emptyTrust,
+  estimateSize,
   evaluate,
   haversineM,
   isAvailableAt,
@@ -29,7 +32,9 @@ import {
   recordSkip,
   recordTrade,
   referencePrice,
+  requestBlock,
   responseRate,
+  sellerAbsentAllowedAt,
   TradeError,
   vehicleByModel,
   wonText,
@@ -56,6 +61,8 @@ import {
   type VehicleProfile,
 } from "@jhgo/core";
 import { maskName, newId, newToken, type AppEvent, type Clock, type EventBus, type Store } from "./infra.ts";
+import { isPushSubscription, type PushSender, type PushSubscriptionJson } from "./push.ts";
+import { photoForAi, type SizeEstimator } from "./size-ai.ts";
 
 export interface User {
   id: string;
@@ -68,6 +75,11 @@ export interface User {
   personalization?: PersonalizationState;
   /** 판매자 기본 거래 지점 */
   homePlace?: { lat: number; lng: number; label: string };
+  /**
+   * 구매자 결제 수단(T23). 실서비스는 결제 대행사(PG) 결제창에서 카드를 등록하고 우리는 빌링 키만 받는다.
+   * 시연은 실제 결제가 없는 테스트 수단만 쓴다. 카드 번호는 이 앱 어디에도 받지 않는다.
+   */
+  paymentMethod?: { kind: "test"; label: string; addedAt: number };
 }
 
 export interface LedgerEntry {
@@ -113,6 +125,24 @@ export interface ServiceDeps {
   clock: Clock;
   router: RoutingProvider;
   config?: Partial<ServiceConfig>;
+  /** 판매자 웹 푸시(Node 서버). 없으면 열린 페이지의 실시간 알림만 */
+  push?: PushSender;
+  /** 사진으로 크기 추정(Node 서버, API 키가 있을 때). 없으면 품목 대표 크기 */
+  sizeAI?: SizeEstimator;
+}
+
+interface PushDoc {
+  id: string;
+  userId: string;
+  sub: PushSubscriptionJson;
+  createdAt: number;
+}
+
+/** 요청을 막는 이유 — 차 화면은 알림을 띄우지 않고 목록 위에 이 문장을 보여 준다 */
+export interface RequestBlockView {
+  reason: "payment" | "limit";
+  text: string;
+  until?: number;
 }
 
 interface DriveSession {
@@ -145,7 +175,7 @@ export interface ListingInput {
   condition: Condition;
   fragile?: boolean;
   sizeCm: SizeCm;
-  sizeSource: "ai" | "seller_measured";
+  sizeSource: "ai" | "category" | "seller_measured";
   photos?: string[];
   pickupPoint: { lat: number; lng: number; label: string };
   availability?: Availability[];
@@ -253,7 +283,7 @@ export class Service {
       condition: i.condition,
       fragile: !!i.fragile || !!categoryDef(category)?.fragile,
       sizeCm: { w: Math.round(size.w), d: Math.round(size.d), h: Math.round(size.h) },
-      sizeSource: i.sizeSource,
+      sizeSource: ["ai", "category", "seller_measured"].includes(i.sizeSource) ? i.sizeSource : "category",
       photos,
       approxArea: approxArea(p, id),
       pickupPoint: { lat: p.lat, lng: p.lng, label: p.label.slice(0, 40) },
@@ -264,6 +294,32 @@ export class Service {
     };
     this.d.store.put("listings", listing);
     return listing;
+  }
+
+  /** 크기 채우기(T17·T25): 사진이 있고 추정기가 있으면 사진으로, 아니면 품목 대표 크기 */
+  async estimateSizeFor(seller: User, b: { title?: string; category?: string | null; photo?: string | null }) {
+    this.requireRole(seller, "seller");
+    const title = (b.title ?? "").slice(0, 60);
+    const category = b.category && categoryDef(b.category) ? b.category : categorize(title);
+    const photo = photoForAi(b.photo);
+    if (photo && this.d.sizeAI) {
+      const r = await this.d.sizeAI.estimate({ title, category, photo, categories: CATEGORIES.map((c) => ({ id: c.id, label: c.label })) });
+      if (r) {
+        return {
+          estimate: { sizeCm: r.sizeCm, method: "ai_photo" as const, confidence: r.confidence, note: r.note || "사진으로 크기를 추정했어요. 줄자로 재서 고쳐 주세요." },
+          category: r.category ?? category,
+          needsMeasured: needsMeasuredSize(r.sizeCm),
+        };
+      }
+    }
+    const est = estimateSize(title, category);
+    if (!est) return { estimate: null, category, needsMeasured: false };
+    const why = photo && this.d.sizeAI ? "사진으로 추정하지 못해 " : "";
+    return {
+      estimate: { sizeCm: est.sizeCm, method: "category_table" as const, confidence: est.confidence, note: `${why}${est.note}` },
+      category,
+      needsMeasured: needsMeasuredSize(est.sizeCm),
+    };
   }
 
   updateListing(seller: User, id: string, patch: Partial<Pick<Listing, "status" | "autoAccept" | "availability" | "price">>): Listing {
@@ -291,7 +347,7 @@ export class Service {
     const base = vehicleByModel(v.model);
     const profile: VehicleProfile | undefined = "trunk" in v && v.trunk ? (v as VehicleProfile) : base;
     if (!profile) throw new ApiError(422, "unknown_model", `${v.model}의 적재 공간 정보가 아직 없어요`);
-    this.d.store.put("users", { ...buyer, vehicle: { ...profile, modelYear: (v as VehicleProfile).modelYear ?? profile.modelYear } });
+    this.d.store.put("users", { ...this.user(buyer.id), vehicle: { ...profile, modelYear: (v as VehicleProfile).modelYear ?? profile.modelYear } });
     return profile;
   }
 
@@ -308,8 +364,45 @@ export class Service {
       minArrivalSocPct: clamp(s.minArrivalSocPct, 5, 50, cur.minArrivalSocPct),
       minRangeAfterKm: clamp(s.minRangeAfterKm, 10, 200, cur.minRangeAfterKm),
     };
-    this.d.store.put("users", { ...buyer, settings: next });
+    this.d.store.put("users", { ...this.user(buyer.id), settings: next });
     return next;
+  }
+
+  setPaymentMethod(buyer: User, b: { kind?: string }) {
+    this.requireRole(buyer, "buyer");
+    if (b.kind !== "test") throw new ApiError(422, "bad_payment", "시연에서는 테스트 결제 수단만 등록할 수 있어요");
+    const pm = { kind: "test" as const, label: "테스트 결제 수단(실제 결제 없음)", addedAt: this.now() };
+    this.d.store.put("users", { ...this.user(buyer.id), paymentMethod: pm });
+    return pm;
+  }
+
+  clearPaymentMethod(buyer: User) {
+    this.requireRole(buyer, "buyer");
+    if (this.activeTradeOf(buyer.id)) throw new ApiError(409, "trade_in_progress", "진행 중인 거래가 끝나면 바꿀 수 있어요");
+    const { paymentMethod: _pm, ...rest } = this.user(buyer.id);
+    void _pm;
+    this.d.store.put("users", rest);
+  }
+
+  /** 요청을 막는 이유: 결제 수단 없음(T23), 수락 뒤 취소·노쇼 반복(T22) */
+  blockFor(buyer: User, now = this.now()): RequestBlockView | null {
+    const u = this.d.store.get<User>("users", buyer.id) ?? buyer;
+    if (!u.paymentMethod) return { reason: "payment", text: "결제 수단이 없어 요청할 수 없어요. 폰의 주행중GO!에서 등록해 주세요" };
+    const b = requestBlock(this.d.store.list<Trade>("trades", (t) => t.buyerId === buyer.id), now);
+    if (b) {
+      const p = kstParts(b.until);
+      return { reason: "limit", until: b.until, text: `수락 뒤 취소·노쇼가 최근 30일에 ${b.count}번이라 ${p.month}월 ${p.day}일 ${kstClock(b.until)}까지 요청할 수 없어요` };
+    }
+    return null;
+  }
+
+  /** 관심사 보기 — 찜은 매물 제목을 붙인다(정확한 위치는 없음) */
+  interestViews(buyer: User) {
+    return this.interests(buyer).map((it) => {
+      if (it.type !== "wish" || !it.listingId) return it;
+      const l = this.d.store.get<Listing>("listings", it.listingId);
+      return { ...it, title: l?.title ?? "내려간 매물", listingStatus: l?.status ?? "hidden" };
+    });
   }
 
   interests(buyer: User): Interest[] {
@@ -471,6 +564,7 @@ export class Service {
       mode: ev.mode,
       route: s ? { distanceM: Math.round(s.baseRoute.distanceM), durationS: Math.round(s.baseRoute.durationS), viaNames: s.baseRoute.viaNames } : null,
       items: ev.candidates.map((c) => this.candidateView(c, s, ctx.location)),
+      block: this.blockFor(buyer, ctx.now),
     };
   }
 
@@ -512,9 +606,12 @@ export class Service {
 
     const ev = this.evalFor(buyer, ctx, s, false);
     const active = this.activeTradeOf(buyer.id);
+    // 요청할 수 없는 상태(결제 수단 없음·요청 제한)면 알리지 않는다 — 들를 수 없는 걸 묻지 않게
+    const block = this.blockFor(buyer, now);
+    const quiet = !!active || !!block;
     const fresh = (c: Candidate | null) => (c && !s?.alerted.has(c.listingId) ? c : null);
-    let top = active ? null : fresh(ev.top);
-    let contention = active || !ev.contention ? null : ev.contention.every((c) => !s?.alerted.has(c.listingId)) ? ev.contention : null;
+    let top = quiet ? null : fresh(ev.top);
+    let contention = quiet || !ev.contention ? null : ev.contention.every((c) => !s?.alerted.has(c.listingId)) ? ev.contention : null;
     if (!top && contention) top = contention[0];
     if (top && contention && !contention.some((c) => c.listingId === top!.listingId)) contention = null;
     for (const n of s?.notices.splice(0) ?? []) notices.push(n);
@@ -528,6 +625,7 @@ export class Service {
       watching: ev.candidates.filter((c) => c.exclusions.length === 0).length,
       candidates: ev.candidates.map((c) => this.candidateView(c, s, ctx.location)),
       activeTrade: active ? this.buyerTradeView(active) : null,
+      block,
       notices,
     };
   }
@@ -557,6 +655,8 @@ export class Service {
     if (!l || l.status !== "active") throw new ApiError(409, "listing_unavailable", "이미 거래 중이거나 내려간 매물이에요");
     if (l.sellerId === buyer.id) throw new ApiError(409, "own_listing", "내 매물이에요");
     if (this.activeTradeOf(buyer.id)) throw new ApiError(409, "trade_in_progress", "진행 중인 거래가 끝나면 다음 매물을 요청할 수 있어요");
+    const block = this.blockFor(buyer, ctx.now);
+    if (block) throw new ApiError(409, block.reason === "payment" ? "payment_required" : "request_limited", block.text);
     const s = this.sessionFor(buyer, ctx);
     const ev = this.evalFor(buyer, ctx, s, true);
     const c = ev.candidates.find((x) => x.listingId === listingId);
@@ -652,9 +752,14 @@ export class Service {
   buyerTradeEvent(buyer: User, id: string, ev: TradeEvent) {
     const t = this.trade(id);
     if (t.buyerId !== buyer.id) throw new ApiError(404, "trade_not_found", "거래를 찾을 수 없어요");
-    const allowed = ["WAYPOINT_CONFIRMED", "ETA", "ARRIVED", "BUYER_RECEIVED", "BUYER_DECLINE_MISMATCH", "BUYER_CANCEL", "RATE"];
+    const allowed = ["WAYPOINT_CONFIRMED", "ETA", "ARRIVED", "BUYER_RECEIVED", "BUYER_DECLINE_MISMATCH", "BUYER_CANCEL", "BUYER_NUDGE", "BUYER_REPORT_SELLER_ABSENT", "BUYER_EVIDENCE", "RATE"];
     if (!allowed.includes(ev.type)) throw new ApiError(403, "forbidden", "구매자가 할 수 없는 동작이에요");
     if (ev.type === "RATE") ev = { ...ev, by: "buyer" };
+    if (ev.type === "BUYER_EVIDENCE") {
+      const photos = (ev.photos ?? []).filter((x) => typeof x === "string" && /^data:image\/(jpeg|png|webp);base64,/.test(x) && x.length < 400_000).slice(0, 3);
+      if (!photos.length) throw new ApiError(422, "photo_required", "사진을 골라 주세요 (JPEG·PNG, 장당 300KB 이하)");
+      ev = { type: "BUYER_EVIDENCE", photos };
+    }
     return this.buyerTradeView(this.applyEvent(t, ev, this.now()));
   }
 
@@ -750,6 +855,54 @@ export class Service {
     };
     this.d.store.put("events", ev);
     this.d.bus.publish(ev);
+    // 판매자는 페이지를 닫아 둘 수 있어 웹 푸시로도 보낸다(T24)
+    if (to === "seller" && this.d.push) void this.sendPush(userId, { title, body, tag: `jhgo-${t.id}`, url: "/seller/", urgent: type === "request.new" || type === "trade.come_out" || type === "trade.arrived" || type === "trade.waiting" });
+  }
+
+  // ───────────────────────── 웹 푸시 (T24) ─────────────────────────
+
+  pushKey(): string | null {
+    return this.d.push?.publicKey() ?? null;
+  }
+
+  subscribePush(user: User, sub: unknown) {
+    if (!this.d.push) throw new ApiError(404, "push_unavailable", "이 서버는 웹 푸시를 쓰지 않아요");
+    if (!isPushSubscription(sub)) throw new ApiError(422, "bad_subscription", "알림 구독 정보가 잘못됐어요");
+    const id = pushId(sub.endpoint);
+    this.d.store.put<PushDoc>("push", { id, userId: user.id, sub, createdAt: this.now() });
+    return { ok: true, count: this.d.store.list<PushDoc>("push", (p) => p.userId === user.id).length };
+  }
+
+  unsubscribePush(user: User, endpoint: string) {
+    const id = pushId(endpoint);
+    const p = this.d.store.get<PushDoc>("push", id);
+    if (p && p.userId === user.id) this.d.store.remove("push", id);
+    return { ok: true };
+  }
+
+  pushCount(user: User): number {
+    return this.d.store.list<PushDoc>("push", (p) => p.userId === user.id).length;
+  }
+
+  private async sendPush(userId: string, payload: { title: string; body: string; tag: string; url: string; urgent?: boolean }) {
+    const push = this.d.push;
+    if (!push) return;
+    for (const p of this.d.store.list<PushDoc>("push", (x) => x.userId === userId)) {
+      const r = await push.send(p.sub, payload);
+      if (r === "gone") this.d.store.remove("push", p.id);
+    }
+  }
+
+  /** 화면에 보여 줄 거래 시간 설정(분) */
+  tradeConfigView() {
+    const m = (ms: number) => Math.round(ms / 60000);
+    return {
+      sellerWaitMin: m(this.cfg.trade.sellerWaitMs),
+      autoConfirmMin: m(this.cfg.trade.autoConfirmMs),
+      settleAfterMin: m(this.cfg.trade.settleAfterMs),
+      comeOutBeforeMin: Math.round(this.cfg.trade.comeOutBeforeS / 60),
+      noShowGraceMin: m(this.cfg.trade.noShowGraceMs),
+    };
   }
 
   events(user: User, since = 0): AppEvent[] {
@@ -767,6 +920,7 @@ export class Service {
     const revealed = ["accepted", "arrived", "completed", "settled"].includes(t.status);
     return {
       ...t,
+      sellerWaitUntil: t.status === "arrived" && t.arrivedAt ? sellerAbsentAllowedAt(t, this.cfg.trade) : null,
       pickupPoint: revealed && l ? l.pickupPoint : null,
       approxArea: l?.approxArea ?? null,
       sizeCm: l?.sizeCm ?? null,
@@ -828,6 +982,13 @@ export class Service {
   }
 }
 
+/** 구독 주소를 저장 키로(짧게) */
+function pushId(endpoint: string): string {
+  let h = 2166136261;
+  for (let i = 0; i < endpoint.length; i++) h = Math.imul(h ^ endpoint.charCodeAt(i), 16777619);
+  return `push_${(h >>> 0).toString(36)}_${endpoint.length}`;
+}
+
 function pickTrust(t: ReturnType<Service["trustSummary"]>) {
   return { completed: t.completed, responseRate: t.responseRate, rating: t.rating, noShow: t.noShow, canceled: t.canceled };
 }
@@ -869,9 +1030,15 @@ export function messageFor(t: Trade, to: "buyer" | "seller", type: string, data:
     case "trade.refunded":
       return { title: "전액 환불됐어요", body: `${item} 대금 ${wonText(t.price)}을 돌려드렸어요.` };
     case "trade.canceled":
-      return data.by === "seller"
-        ? { title: "판매자가 취소했어요", body: `경유지를 해제할게요. 대금은 환불돼요.${data.reason ? ` (${data.reason as string})` : ""}` }
-        : { title: "구매자가 취소했어요", body: `${item} 거래가 취소됐어요.${data.reason ? ` (${data.reason as string})` : ""}` };
+      if (data.by === "seller") return { title: "판매자가 취소했어요", body: `경유지를 해제할게요. 대금은 환불돼요.${data.reason ? ` (${data.reason as string})` : ""}` };
+      if (data.system) return { title: "구매자 차 사정으로 취소됐어요", body: `구매자 차의 내비가 경로를 바꾸지 못했어요. ${item}은 다시 판매 중이에요.` };
+      return { title: "구매자가 취소했어요", body: `${item} 거래가 취소됐어요.${data.reason ? ` (${data.reason as string})` : ""}` };
+    case "trade.waiting":
+      return { title: "구매자가 기다리고 있어요", body: "거래 지점에 도착해 기다리는 중이에요. 물건을 들고 나와 주세요." };
+    case "trade.seller_no_show":
+      return { title: "구매자를 만나지 못해 거래가 끝났어요", body: `구매자가 도착해 기다렸지만 만나지 못했어요. 대금은 구매자에게 환불되고 판매자 신뢰도에 반영돼요. ${item}은 다시 판매 중이에요.` };
+    case "trade.evidence":
+      return { title: "구매자가 현장 사진을 남겼어요", body: "지난 거래에서 사진을 볼 수 있어요." };
     case "trade.no_show":
       return to === "seller"
         ? { title: "구매자가 오지 않았어요", body: "거래가 끝났고 매물은 다시 판매 중이에요." }

@@ -63,6 +63,7 @@ export function GoList({
           <div className="c-list-title">{title}</div>
           <div className="c-list-count">{s.interests.length}</div>
           <p className="c-list-sub">목적지를 정하면 길 위의 관심 매물을 추천순으로 보여 드려요. 지도에 같은 번호로 찍어요.</p>
+          <BlockNote s={s} />
         </header>
         {!driving && (
           <div className="c-list-empty">
@@ -88,6 +89,7 @@ export function GoList({
         <div className="c-list-title">{title}</div>
         <div className="c-list-count">{ok.length}</div>
         <p className={`c-list-sub ${driving && s.holdNote ? "hold" : ""}`}>{sub}</p>
+        <BlockNote s={s} />
       </header>
       <div className="c-list-body">
         {items.length === 0 && <p className="c-list-note">이번 길에는 관심 매물이 없어요. 관심사를 늘리면 더 찾아 드려요.</p>}
@@ -117,6 +119,17 @@ export function GoList({
       </div>
       {driving && ok.length > 0 && <p className="c-list-note">정차하면 사진과 판매자 설명을 볼 수 있어요.</p>}
     </section>
+  );
+}
+
+/** 요청할 수 없는 이유 — 주행 중에는 짧게 */
+function BlockNote({ s }: { s: CarState }) {
+  if (!s.block) return null;
+  const short = s.block.reason === "payment" ? "결제 수단이 없어 알리지 않아요" : "요청 제한 중이라 알리지 않아요";
+  return (
+    <p className="c-list-block" data-testid="request-block">
+      {s.restricted ? short : s.block.text}
+    </p>
   );
 }
 
@@ -171,7 +184,7 @@ function Row({
           {!out ? (
             <button
               className="c-btn kraft"
-              disabled={!!s.trade}
+              disabled={!!s.trade || !!s.block}
               onClick={(e) => {
                 e.stopPropagation();
                 void c.request(x.listingId, "briefing");

@@ -1,0 +1,19 @@
+/* 구매자 폰 — 판매자 폰과 같은 틀(s-*)에 파란 머리띠만 바꾼다. 크라프트는 판매자 쪽 신호라 여기서는 쓰지 않는다. */
+.b-root .s-brand {
+  color: var(--blue);
+}
+.b-setting {
+  align-items: center;
+  margin-top: 8px;
+}
+.b-setting > span {
+  flex: 1;
+}
+.b-setting > b {
+  min-width: 56px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.b-evidence {
+  margin-top: 6px;
+}

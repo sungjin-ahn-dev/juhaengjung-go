@@ -68,8 +68,23 @@ export function createApp(svc: Service, opts: AppOptions) {
       categories: CATEGORIES.map((x) => ({ id: x.id, label: x.label, fragile: !!x.fragile })),
       vehicles: VEHICLE_TABLE.map((v) => ({ model: v.model, powertrain: v.powertrain, seatRows: v.seatRows })),
       pickupPlaces: PICKUP_PLACES,
+      /** 사진으로 크기 추정을 쓸 수 있는지(서버에 API 키가 있을 때) */
+      aiSize: !!svc.d.sizeAI,
+      /** 판매자 웹 푸시를 쓸 수 있는지 */
+      push: !!svc.pushKey(),
+      tradeConfig: svc.tradeConfigView(),
     }),
   );
+
+  // ── 웹 푸시(판매자) ──
+  app.get("/v1/push/key", (c) => {
+    const key = svc.pushKey();
+    if (!key) throw new ApiError(404, "push_unavailable", "이 서버는 웹 푸시를 쓰지 않아요");
+    return c.json({ publicKey: key });
+  });
+  app.get("/v1/push/status", auth(), (c) => c.json({ available: !!svc.pushKey(), count: svc.pushCount(c.get("user")) }));
+  app.post("/v1/push/subscribe", auth(), async (c) => c.json(svc.subscribePush(c.get("user"), (await body<{ subscription?: unknown }>(c)).subscription)));
+  app.post("/v1/push/unsubscribe", auth(), async (c) => c.json(svc.unsubscribePush(c.get("user"), String((await body<{ endpoint?: string }>(c)).endpoint ?? ""))));
 
   app.post("/v1/session", async (c) => {
     const b = await body<{ role?: "buyer" | "seller"; name?: string; userId?: string }>(c);
@@ -166,9 +181,8 @@ export function createApp(svc: Service, opts: AppOptions) {
     return c.json({ ...p, category, sizeEstimate: est, referencePrice: category ? referencePrice(category, "good") : null });
   });
   app.post("/v1/seller/estimate-size", auth("seller"), async (c) => {
-    const b = await body<{ title?: string; category?: string }>(c);
-    const est = estimateSize(b.title ?? "", b.category ?? null);
-    return c.json({ estimate: est, needsMeasured: est ? needsMeasuredSize(est.sizeCm) : false });
+    const b = await body<{ title?: string; category?: string; photo?: string }>(c);
+    return c.json(await svc.estimateSizeFor(c.get("user"), b));
   });
   app.get("/v1/seller/reference-price", auth("seller"), (c) =>
     c.json({ referencePrice: referencePrice(c.req.query("category") ?? "", (c.req.query("condition") as Condition) ?? "good") }),
@@ -191,7 +205,13 @@ export function createApp(svc: Service, opts: AppOptions) {
   // ── 구매자(차량) ──
   app.get("/v1/buyer/profile", auth("buyer"), (c) => {
     const u = c.get("user");
-    return c.json({ user: svc.publicUser(u), interests: svc.interests(u), trust: svc.trustSummary(u.id, "buyer") });
+    return c.json({ user: svc.publicUser(u), interests: svc.interestViews(u), trust: svc.trustSummary(u.id, "buyer"), block: svc.blockFor(u) });
+  });
+  app.get("/v1/buyer/payment-method", auth("buyer"), (c) => c.json({ paymentMethod: c.get("user").paymentMethod ?? null, block: svc.blockFor(c.get("user")) }));
+  app.put("/v1/buyer/payment-method", auth("buyer"), async (c) => c.json({ paymentMethod: svc.setPaymentMethod(c.get("user"), await body(c)) }));
+  app.delete("/v1/buyer/payment-method", auth("buyer"), (c) => {
+    svc.clearPaymentMethod(c.get("user"));
+    return c.json({ ok: true });
   });
   app.put("/v1/buyer/vehicle", auth("buyer"), async (c) => c.json({ vehicle: svc.setVehicle(c.get("user"), await body(c)) }));
   app.put("/v1/buyer/settings", auth("buyer"), async (c) => c.json({ settings: svc.setSettings(c.get("user"), await body(c)) }));
@@ -219,6 +239,9 @@ export function createApp(svc: Service, opts: AppOptions) {
   buyerAction("decline", (b) => ({ type: "BUYER_DECLINE_MISMATCH", reason: String(b.reason ?? "등록 정보와 달라요"), note: b.note as string | undefined }));
   buyerAction("cancel", (b) => ({ type: "BUYER_CANCEL", reason: b.reason as string | undefined, system: b.system === true }));
   buyerAction("rate", (b) => ({ type: "RATE", by: "buyer", stars: Number(b.stars ?? 5) }));
+  buyerAction("nudge", () => ({ type: "BUYER_NUDGE" }));
+  buyerAction("seller-absent", () => ({ type: "BUYER_REPORT_SELLER_ABSENT" }));
+  buyerAction("evidence", (b) => ({ type: "BUYER_EVIDENCE", photos: Array.isArray(b.photos) ? (b.photos as string[]) : [] }));
 
   // ── 주행 ──
   const ctxOf = (b: { ctx?: DriveContextInput }): DriveContextInput => {
@@ -228,7 +251,7 @@ export function createApp(svc: Service, opts: AppOptions) {
       ...ctx,
       now: typeof ctx.now === "number" ? ctx.now : svc.now(),
       waypointCount: ctx.waypointCount ?? ctx.waypoints?.length ?? 0,
-      seats: ctx.seats ?? { row2Occupied: null },
+      seats: ctx.seats ?? { row2Occupied: null, row3Occupied: null },
     };
   };
   app.post("/v1/drive/briefing", auth("buyer"), async (c) => c.json(svc.briefing(c.get("user"), ctxOf(await body(c)))));

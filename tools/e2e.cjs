@@ -1,6 +1,7 @@
 /**
  * 끝까지 흐름 E2E — 판매자 폰(같이 올리기 → 요청 수락 → 건넸어요 → 정산)과
- * 차량 화면(브리핑 → 주행 → 알림 대기 → 경합 → 요청 → 경유지 → 도착 → 현장 확인 → 결과 카드)을 함께 돌린다.
+ * 차량 화면(브리핑 → 주행 → 알림 대기 → 경합 → 요청 → 경유지 → 도착 → 현장 확인 → 결과 카드·판매자 평가)을 함께 돌린다.
+ * 2부: 판매자가 안 나올 때(도착 → 다시 알리기 → 5분 뒤 끝내기). 3부: 구매자 폰(결제 수단·거래 내역).
  *   node tools/e2e.cjs            # 서버를 띄우고 실행, 스크린샷은 tools/out/
  */
 const { chromium } = require("playwright");
@@ -52,6 +53,8 @@ async function waitHealth() {
 
     // ── 판매자 폰 ──
     const phoneCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true });
+    // 헤드리스 크롬은 알림 권한이 기본으로 막혀 있다 — 사람이 '허용'을 누른 상태로 시작
+    await phoneCtx.grantPermissions(["notifications"], { origin: BASE });
     const phone = await phoneCtx.newPage();
     phone.on("pageerror", (e) => log("판매자 페이지 오류:", e.message));
     const snapP = async (name) => phone.screenshot({ path: path.join(OUT, `${String(++shot).padStart(2, "0")}-seller-${name}.png`) });
@@ -62,7 +65,9 @@ async function waitHealth() {
     await phone.getByTestId("fill").click();
     await phone.waitForFunction(() => document.querySelector("#title")?.value?.includes("카시트"));
     check((await phone.locator("#title").inputValue()).includes("회전형 카시트"), "붙여넣기로 제목이 채워짐");
+    check((await phone.locator(".s-badge-ai").innerText()) === "품목 기본 크기", "크기는 품목 기본 크기로 채웠다고 표시(사진 AI가 아님)");
     await phone.getByRole("button", { name: "샘플 사진" }).click();
+    check((await phone.getByTestId("fill-size").innerText()) === "품목 기본 크기로 채우기", "샘플 그림·AI 없는 서버에서는 '품목 기본 크기로 채우기'");
     // AI 추정 크기(45×55×68)는 60cm 이상 → 실측 확인 전에는 올릴 수 없다
     check(await phone.getByTestId("submit").isDisabled(), "큰 물건은 실측 확인 전 '올리기' 비활성");
     await phone.getByTestId("measured").check();
@@ -142,6 +147,8 @@ async function waitHealth() {
     await snapC("on-the-way");
     await phone.getByTestId("tab-trades").click();
     await phone.getByTestId("active-trade").waitFor();
+    const pushRow = await phone.getByTestId("push-row").innerText();
+    check(pushRow.includes("알림 받기"), `판매자 거래 탭: 페이지를 닫아도 받는 알림 켜기(웹 푸시) — ${pushRow}`);
     await snapP("on-the-way");
 
     // 도착 3분 전 '나오세요' → 도착 → 정차 → 현장 확인
@@ -176,10 +183,65 @@ async function waitHealth() {
     await result.waitFor({ timeout: 120000 });
     const rt = await result.innerText();
     check(rt.includes("가는 길에 챙겼어요") && rt.includes("따로 다녀왔다면"), "목적지 도착 → 결과 카드(Odometer 거리 포함)");
+    await result.getByRole("button", { name: "4점" }).click();
+    await result.getByText("★ 4점을 남겼어요").waitFor({ timeout: 5000 });
+    check(true, "결과 카드에서 판매자 평가(4점)");
+    await phone.getByRole("button", { name: "내 물건", exact: true }).click();
+    await phone.waitForFunction(() => document.querySelector(".s-trust")?.textContent?.includes("평점 4"), null, { timeout: 20000 });
+    check(true, "판매자 폰 머리에 평점 4");
     await snapC("result");
 
     const sdk = await car.getByTestId("sdk-log").innerText();
     for (const api of ["requestTrip", "addWaypoint", "onWayPointArrived", "onTurnSignalStateUpdated", "requiresDistractionOptimization", "목적지 도착"]) check(sdk.includes(api), `SDK 로그에 ${api}`);
+
+    // ── 2부: 판매자가 안 나올 때(T20) — 자동 수락인 캠핑의자로 ──
+    const post = (p, body) => fetch(BASE + p, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body ?? {}) }).then((r) => r.json());
+    await post("/v1/demo/reset", { includeCarSeat: true });
+    await car.reload({ waitUntil: "load" });
+    await car.getByTestId("car-screen").waitFor();
+    await car.waitForTimeout(1500);
+    await car.getByRole("button", { name: "목적지", exact: true }).click();
+    await car.getByTestId("sheet-destination").getByRole("button", { name: /송파 집/ }).click();
+    await car.getByTestId("go-list").getByText(/관심 매물 \d개를 찾았어요/).waitFor({ timeout: 15000 });
+    await car.getByRole("button", { name: "지도", exact: true }).click();
+    await car.getByTestId("rate-10").click();
+    await car.getByTestId("gear-d").click();
+    await alert.waitFor({ timeout: 40000 });
+    check((await alert.innerText()).includes("캠핑의자"), "2부: 캠핑의자 알림");
+    await alert.getByRole("button", { name: "들를게요" }).click();
+    await car.getByText("가는 중").waitFor({ timeout: 15000 });
+    await inspect.waitFor({ timeout: 90000 });
+    const wait = car.getByTestId("seller-wait");
+    await wait.waitFor({ timeout: 5000 });
+    check(await car.getByTestId("seller-absent").isDisabled(), "도착 직후에는 '판매자가 안 나왔어요'를 누를 수 없음(5분 기다림)");
+    await car.getByTestId("nudge").click();
+    await car.waitForFunction(() => document.querySelector('[data-testid="nudge"]')?.textContent === "다시 알렸어요", null, { timeout: 5000 });
+    check(true, "판매자에게 다시 알리기");
+    await snapC("seller-wait");
+    const clk = await fetch(BASE + "/v1/clock").then((r) => r.json());
+    await post("/v1/demo/clock", { now: clk.now + 5 * 60_000 + 2000, rate: 1 });
+    await car.waitForFunction(() => !document.querySelector('[data-testid="seller-absent"]')?.hasAttribute("disabled"), null, { timeout: 15000 });
+    await car.getByTestId("seller-absent").click();
+    await car.getByTestId("seller-absent-confirm").click();
+    await inspect.waitFor({ state: "detached", timeout: 10000 });
+    const users = await fetch(BASE + "/v1/demo/users").then((r) => r.json());
+    const camp = users.users.find((u) => u.name === "이캠핑");
+    const { token } = await post("/v1/session", { userId: camp.id });
+    const st = await fetch(BASE + "/v1/seller/trades", { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json());
+    check(st.trades[0]?.status === "seller_no_show" && st.trades[0]?.payment.status === "refunded", "5분 뒤 '판매자가 안 나왔어요' → 거래 끝, 전액 환불(판매자 미응대)");
+
+    // ── 3부: 구매자 폰 — 결제 수단, 거래 내역 ──
+    const bphone = await phoneCtx.newPage();
+    bphone.on("pageerror", (e) => log("구매자 페이지 오류:", e.message));
+    await bphone.goto(BASE + "/buyer/", { waitUntil: "load" });
+    await bphone.getByTestId("blogin-김주행").click();
+    await bphone.getByTestId("buyer-app").waitFor();
+    await bphone.getByText("판매자를 만나지 못함 · 환불").waitFor({ timeout: 10000 });
+    check(true, "구매자 폰 거래 내역: 판매자를 만나지 못함 · 환불");
+    await bphone.screenshot({ path: path.join(OUT, `${String(++shot).padStart(2, "0")}-buyer-trades.png`) });
+    await bphone.getByTestId("btab-pay").click();
+    check((await bphone.getByTestId("pay-method").innerText()).includes("테스트 결제 수단"), "구매자 폰: 결제 수단(테스트) 등록됨");
+    await bphone.screenshot({ path: path.join(OUT, `${String(++shot).padStart(2, "0")}-buyer-pay.png`) });
     log("E2E 통과");
   } finally {
     await browser?.close();

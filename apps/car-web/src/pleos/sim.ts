@@ -53,6 +53,7 @@ export interface SimState {
   fuelRangeKm: number | null;
   odometerKm: number;
   row2Occupied: boolean;
+  row3Occupied: boolean;
   turnSignal: TurnSignalValue;
   steeringDeg: number;
   brake: boolean;
@@ -99,6 +100,7 @@ export class SimCar implements NaviPort, VehiclePort, DrivingRestrictionPort {
   private naviListeners = new Set<NaviListener>();
   private vListeners = {
     seat: new Set<(v: boolean | null) => void>(),
+    seat3: new Set<(v: boolean | null) => void>(),
     soc: new Set<(v: number | null) => void>(),
     signal: new Set<(v: TurnSignalValue | null) => void>(),
     steer: new Set<(v: number | null) => void>(),
@@ -127,6 +129,7 @@ export class SimCar implements NaviPort, VehiclePort, DrivingRestrictionPort {
       fuelRangeKm: null,
       odometerKm: 12840.2,
       row2Occupied: false,
+      row3Occupied: false,
       turnSignal: "OFF",
       steeringDeg: 0,
       brake: false,
@@ -323,6 +326,12 @@ export class SimCar implements NaviPort, VehiclePort, DrivingRestrictionPort {
     this.st.row2Occupied = v;
     this.log("event", "Seat", `onSeatOccupancyUpdated(ROW_2, ${v})`);
     for (const l of this.vListeners.seat) l(v);
+    this.changed();
+  }
+  setRow3Occupied(v: boolean) {
+    this.st.row3Occupied = v;
+    this.log("event", "Seat", `onSeatOccupancyUpdated(ROW_3, ${v})`);
+    for (const l of this.vListeners.seat3) l(v);
     this.changed();
   }
   pulseTurnSignal(v: TurnSignalValue, ms = 4000) {
@@ -523,9 +532,11 @@ export class SimCar implements NaviPort, VehiclePort, DrivingRestrictionPort {
   }
   registerSeatOccupancy(area: SeatValue[], cb: (v: boolean | null) => void) {
     this.log("call", "Vehicle", `Seat.registerSeatOccupancy(${area.join(",")})`);
-    this.vListeners.seat.add(cb);
-    cb(this.st.row2Occupied);
-    return () => this.vListeners.seat.delete(cb);
+    const row3 = area.some((a) => a.startsWith("ROW_3"));
+    const set = row3 ? this.vListeners.seat3 : this.vListeners.seat;
+    set.add(cb);
+    cb(row3 ? this.st.row3Occupied : this.st.row2Occupied);
+    return () => set.delete(cb);
   }
   async getEvBatteryStateOfCharge() {
     return vehicleByModel(this.st.model)?.powertrain === "ev" ? Math.round(this.st.socPct * 10) / 10 : null;

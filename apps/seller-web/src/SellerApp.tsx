@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { describeAvailability, kstClock, referencePrice, type Availability, type Condition, type Listing } from "@jhgo/core";
 import type { ApiClient, AppClock, AppEvent } from "@jhgo/api";
+import { currentPush, disablePush, enablePush, type PushState } from "./push.ts";
 import "./styles.css";
 
 interface Me {
@@ -37,7 +38,9 @@ interface SellerTrade {
   settledAt?: number;
   canceledBy?: string;
   reason?: string;
-  mismatch?: { reason: string };
+  mismatch?: { reason: string; photos?: string[] };
+  nudgedAt?: number;
+  sellerAbsentAt?: number;
   payment: { status: string; amount: number };
   ratings: { buyerToSeller?: number; sellerToBuyer?: number };
   photos: string[];
@@ -55,6 +58,11 @@ interface Summary {
 interface Catalog {
   categories: { id: string; label: string; fragile: boolean }[];
   pickupPlaces: { id: string; label: string; lat: number; lng: number }[];
+  /** 서버에 사진 크기 추정(AI)이 있는지 */
+  aiSize?: boolean;
+  /** 서버가 웹 푸시를 보내는지 */
+  push?: boolean;
+  tradeConfig?: { sellerWaitMin: number; autoConfirmMin: number; settleAfterMin: number; comeOutBeforeMin: number };
 }
 
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
@@ -70,7 +78,9 @@ const STATUS_KO: Record<string, string> = {
   canceled: "취소",
   declined_mismatch: "현장 거절 · 환불",
   no_show: "구매자 미도착",
+  seller_no_show: "만나지 못함 · 환불",
 };
+const SIZE_SOURCE_KO: Record<string, string> = { seller_measured: "실측", ai: "AI 추정", category: "품목 기본 크기" };
 const LISTING_KO: Record<string, string> = { active: "판매 중", reserved: "예약", sold: "판매 완료", hidden: "내림" };
 
 function beep() {
@@ -107,7 +117,8 @@ export function SellerApp({ client, clock, embedded = false, storageKey = "jhgo.
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [now, setNow] = useState(clock.now());
-  const [banner, setBanner] = useState<{ tradeId: string; kind: "come_out" | "arrived" } | null>(null);
+  const [banner, setBanner] = useState<{ tradeId: string; kind: "come_out" | "arrived" | "waiting" } | null>(null);
+  const [push, setPush] = useState<PushState>({ kind: "off" });
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const say = useCallback((t: string) => {
@@ -116,16 +127,32 @@ export function SellerApp({ client, clock, embedded = false, storageKey = "jhgo.
     toastTimer.current = setTimeout(() => setToast(null), 3500);
   }, []);
 
+  // 세션이 끝나면(시연 초기화·다른 기기 로그인) 로그인 화면으로 돌아간다
+  const signOut = useCallback(() => {
+    client.setToken(null);
+    try {
+      localStorage.removeItem(storageKey);
+    } catch {
+      /* 무시 */
+    }
+    setMe(null);
+  }, [client, storageKey]);
+
   const refresh = useCallback(async () => {
-    const [l, t, s] = await Promise.all([
-      client.call<{ listings: Listing[] }>("GET", "/v1/seller/listings"),
-      client.call<{ trades: SellerTrade[] }>("GET", "/v1/seller/trades"),
-      client.call<Summary>("GET", "/v1/seller/summary"),
-    ]);
-    setListings(l.listings);
-    setTrades(t.trades);
-    setSummary(s);
-  }, [client]);
+    try {
+      const [l, t, s] = await Promise.all([
+        client.call<{ listings: Listing[] }>("GET", "/v1/seller/listings"),
+        client.call<{ trades: SellerTrade[] }>("GET", "/v1/seller/trades"),
+        client.call<Summary>("GET", "/v1/seller/summary"),
+      ]);
+      setListings(l.listings);
+      setTrades(t.trades);
+      setSummary(s);
+    } catch (e) {
+      if ((e as { status?: number }).status === 401) signOut();
+      else throw e;
+    }
+  }, [client, signOut]);
 
   // 로그인 확인
   useEffect(() => {
@@ -180,7 +207,12 @@ export function SellerApp({ client, clock, embedded = false, storageKey = "jhgo.
         buzz([200, 100, 200]);
         setBanner({ tradeId: e.tradeId!, kind: "arrived" });
         setTab("trades");
-      } else if (["trade.received", "trade.settled", "trade.mismatch", "trade.canceled", "trade.no_show", "trade.expired"].includes(e.type)) {
+      } else if (e.type === "trade.waiting") {
+        beep();
+        buzz([400, 150, 400, 150, 400]);
+        setBanner({ tradeId: e.tradeId!, kind: "waiting" });
+        setTab("trades");
+      } else if (["trade.received", "trade.settled", "trade.mismatch", "trade.canceled", "trade.no_show", "trade.seller_no_show", "trade.evidence", "trade.expired"].includes(e.type)) {
         say(e.title);
       }
     });
@@ -190,6 +222,24 @@ export function SellerApp({ client, clock, embedded = false, storageKey = "jhgo.
       clearInterval(poll);
     };
   }, [me, client, refresh, say]);
+
+  // 웹 푸시: 권한이 이미 있으면 로그인한 계정으로 다시 등록해 둔다(시연 체험 페이지 안에서는 쓰지 않음)
+  useEffect(() => {
+    if (!me || embedded || !catalog) return;
+    void currentPush(client, !!catalog.push).then(setPush).catch(() => setPush({ kind: "off" }));
+  }, [me, embedded, catalog, client]);
+  const togglePush = async () => {
+    const was = push;
+    setPush({ kind: "busy" });
+    try {
+      const next = was.kind === "on" ? await disablePush(client) : await enablePush(client);
+      setPush(next);
+      if (next.kind === "on") say("알림을 켰어요. 페이지를 닫아도 차가 오면 알려 드려요");
+    } catch (e) {
+      setPush(was);
+      say((e as Error).message);
+    }
+  };
 
   const pending = trades.find((t) => t.status === "requested" && t.expiresAt > now);
   const active = trades.filter((t) => ["accepted", "arrived", "completed"].includes(t.status));
@@ -254,7 +304,10 @@ export function SellerApp({ client, clock, embedded = false, storageKey = "jhgo.
           ) : tab === "items" ? (
             <Items listings={listings} client={client} onCompose={() => setComposing(true)} refresh={refresh} say={say} />
           ) : tab === "trades" ? (
-            <Trades trades={trades} active={active} now={now} act={act} banner={banner} clearBanner={() => setBanner(null)} />
+            <>
+              {!embedded && <PushRow state={push} onToggle={() => void togglePush()} />}
+              <Trades trades={trades} active={active} now={now} act={act} banner={banner} clearBanner={() => setBanner(null)} cfg={catalog?.tradeConfig} />
+            </>
           ) : (
             <Money summary={summary} />
           )}
@@ -280,6 +333,30 @@ export function SellerApp({ client, clock, embedded = false, storageKey = "jhgo.
           {toast}
         </div>
       )}
+    </div>
+  );
+}
+
+/** 웹 푸시 켜고 끄기 — 안 되는 환경이면 이유만 보여 준다 */
+function PushRow({ state, onToggle }: { state: PushState; onToggle: () => void }) {
+  if (state.kind === "unavailable")
+    return (
+      <p className="s-help s-push" data-testid="push-row">
+        페이지를 닫아 두면 요청을 놓칠 수 있어요. {state.why}.
+      </p>
+    );
+  if (state.kind === "denied")
+    return (
+      <p className="s-help s-push" data-testid="push-row">
+        알림이 막혀 있어요. 브라우저 설정에서 이 사이트 알림을 허용해 주세요.
+      </p>
+    );
+  return (
+    <div className="s-push-row" data-testid="push-row">
+      <span>{state.kind === "on" ? "알림 켜짐. 페이지를 닫아도 차가 오면 알려 드려요" : "페이지를 닫아 두면 요청을 놓칠 수 있어요"}</span>
+      <button className={`s-btn small ${state.kind === "on" ? "" : "primary"}`} disabled={state.kind === "busy"} onClick={onToggle} data-testid="push-toggle">
+        {state.kind === "on" ? "알림 끄기" : "알림 받기"}
+      </button>
     </div>
   );
 }
@@ -360,7 +437,7 @@ function Items({ listings, client, onCompose, refresh, say }: { listings: Listin
                   거래 가능: {describeAvailability(l.availability)}
                   {l.autoAccept ? ", 자동 수락" : ""}
                   <br />
-                  {l.sizeCm.w}×{l.sizeCm.d}×{l.sizeCm.h}cm{l.sizeSource === "seller_measured" ? " (실측)" : " (AI 추정)"}
+                  {l.sizeCm.w}×{l.sizeCm.d}×{l.sizeCm.h}cm ({SIZE_SOURCE_KO[l.sizeSource] ?? "추정"})
                 </div>
                 {l.status === "active" && (
                   <div className="s-item-actions">
@@ -428,7 +505,8 @@ function Compose({ client, catalog, me, onDone }: { client: ApiClient; catalog: 
   const [condition, setCondition] = useState<Condition>("good");
   const [fragile, setFragile] = useState(false);
   const [size, setSize] = useState({ w: "", d: "", h: "" });
-  const [sizeFromAi, setSizeFromAi] = useState(false);
+  /** 크기를 어떻게 채웠나: ai_photo(사진 AI) / category_table(품목 기본 크기) / null(직접 입력) */
+  const [sizeMethod, setSizeMethod] = useState<"ai_photo" | "category_table" | null>(null);
   const [measured, setMeasured] = useState(false);
   const [photos, setPhotos] = useState<string[]>([]);
   const places = catalog?.pickupPlaces ?? [];
@@ -464,19 +542,27 @@ function Compose({ client, catalog, me, onDone }: { client: ApiClient; catalog: 
     }
     if (r.sizeEstimate) {
       setSize({ w: String(r.sizeEstimate.sizeCm.w), d: String(r.sizeEstimate.sizeCm.d), h: String(r.sizeEstimate.sizeCm.h) });
-      setSizeFromAi(true);
+      setSizeMethod("category_table");
       setMeasured(false);
       setNote(r.sizeEstimate.note);
     }
   };
-  const aiSize = async () => {
-    const r = await client.call<{ estimate: { sizeCm: { w: number; d: number; h: number }; note: string } | null }>("POST", "/v1/seller/estimate-size", { title, category });
+  // 사진 AI는 서버에 추정기가 있고 실제 사진(JPEG·PNG·WebP)이 있을 때만. 샘플 그림은 품목 기본 크기로
+  const realPhoto = photos.find((p) => /^data:image\/(jpeg|png|webp);base64,/.test(p)) ?? null;
+  const canAi = !!catalog?.aiSize && !!realPhoto;
+  const fillSize = async () => {
+    const r = await client.call<{ estimate: { sizeCm: { w: number; d: number; h: number }; note: string; method: "ai_photo" | "category_table" } | null; category: string | null }>(
+      "POST",
+      "/v1/seller/estimate-size",
+      { title, category, photo: canAi ? realPhoto : null },
+    );
     if (!r.estimate) {
-      setNote("이 품목은 크기를 추정하지 못했어요. 직접 재서 넣어 주세요.");
+      setNote("이 품목은 크기를 채우지 못했어요. 직접 재서 넣어 주세요.");
       return;
     }
     setSize({ w: String(r.estimate.sizeCm.w), d: String(r.estimate.sizeCm.d), h: String(r.estimate.sizeCm.h) });
-    setSizeFromAi(true);
+    setSizeMethod(r.estimate.method);
+    if (!category && r.category) setCategory(r.category);
     setMeasured(false);
     setNote(r.estimate.note);
   };
@@ -494,7 +580,7 @@ function Compose({ client, catalog, me, onDone }: { client: ApiClient; catalog: 
         condition,
         fragile,
         sizeCm: nums,
-        sizeSource: measured || !sizeFromAi ? "seller_measured" : "ai",
+        sizeSource: measured || !sizeMethod ? "seller_measured" : sizeMethod === "ai_photo" ? "ai" : "category",
         photos,
         pickupPoint: { lat: place.lat, lng: place.lng, label: place.label },
         availability,
@@ -582,19 +668,28 @@ function Compose({ client, catalog, me, onDone }: { client: ApiClient; catalog: 
 
       <div className="s-field">
         <span className="s-label">
-          크기 (cm){sizeFromAi && !measured && <span className="s-badge-ai">AI 추정</span>}
+          크기 (cm){sizeMethod && !measured && <span className="s-badge-ai">{sizeMethod === "ai_photo" ? "AI 추정(사진)" : "품목 기본 크기"}</span>}
         </span>
         <div className="s-grid3">
           {(["w", "d", "h"] as const).map((k) => (
             <label key={k}>
               {k === "w" ? "가로" : k === "d" ? "세로(깊이)" : "높이"}
-              <input className="s-input" inputMode="numeric" value={size[k]} onChange={(e) => setSize({ ...size, [k]: e.target.value.replace(/[^\d]/g, "") })} aria-label={`크기 ${k}`} />
+              <input
+                className="s-input"
+                inputMode="numeric"
+                value={size[k]}
+                onChange={(e) => {
+                  setSize({ ...size, [k]: e.target.value.replace(/[^\d]/g, "") });
+                  setSizeMethod(null);
+                }}
+                aria-label={`크기 ${k}`}
+              />
             </label>
           ))}
         </div>
         <div className="s-row" style={{ marginTop: 8 }}>
-          <button className="s-btn" onClick={() => void aiSize()} disabled={!title && !category}>
-            AI로 크기 채우기
+          <button className="s-btn" onClick={() => void fillSize()} disabled={!title && !category && !canAi} data-testid="fill-size">
+            {canAi ? "사진으로 크기 채우기" : "품목 기본 크기로 채우기"}
           </button>
         </div>
         {note && <p className="s-help">{note}</p>}
@@ -754,13 +849,15 @@ function Trades({
   act,
   banner,
   clearBanner,
+  cfg,
 }: {
   trades: SellerTrade[];
   active: SellerTrade[];
   now: number;
   act: (id: string, a: string, b?: unknown) => Promise<void>;
-  banner: { tradeId: string; kind: "come_out" | "arrived" } | null;
+  banner: { tradeId: string; kind: "come_out" | "arrived" | "waiting" } | null;
   clearBanner: () => void;
+  cfg?: Catalog["tradeConfig"];
 }) {
   const past = trades.filter((t) => !active.includes(t) && t.status !== "requested");
   return (
@@ -785,8 +882,13 @@ function Trades({
             )}
             {banner?.tradeId === t.id && (
               <div className="s-banner go" onClick={clearBanner}>
-                {banner.kind === "come_out" ? "곧 도착해요. 물건을 들고 나와 주세요" : "구매자가 도착했어요. 물건을 건네 주세요"}
+                {banner.kind === "come_out" ? "곧 도착해요. 물건을 들고 나와 주세요" : banner.kind === "waiting" ? "구매자가 기다리고 있어요. 물건을 들고 나와 주세요" : "구매자가 도착했어요. 물건을 건네 주세요"}
               </div>
+            )}
+            {t.status === "arrived" && !t.handedAt && t.arrivedAt && (
+              <p className="s-help" style={{ margin: "6px 0 0" }} data-testid="arrived-wait">
+                구매자가 도착한 지 {Math.max(0, Math.floor((now - t.arrivedAt) / 60000))}분 됐어요. {cfg?.sellerWaitMin ?? 5}분이 지나도 만나지 못하면 구매자가 거래를 끝낼 수 있어요.
+              </p>
             )}
             <ol className="s-steps">
               {STEPS.map((s, i) => (
@@ -803,7 +905,7 @@ function Trades({
                   건넸어요
                 </button>
               )}
-              {t.handedAt && t.status !== "completed" && <span className="s-help">구매자 확인을 기다려요. 확인이 없으면 20분 뒤 자동으로 확인돼요.</span>}
+              {t.handedAt && t.status !== "completed" && <span className="s-help">구매자 확인을 기다려요. 확인이 없으면 {cfg?.autoConfirmMin ?? 30}분 뒤 자동으로 확인돼요.</span>}
               {["accepted", "arrived"].includes(t.status) && (
                 <button className="s-btn" onClick={() => void act(t.id, "cancel", { reason: "판매자 사정" })}>
                   취소
@@ -837,6 +939,14 @@ function Trades({
                 </div>
               )}
               {t.ratings.sellerToBuyer && <div className="s-item-meta">구매자 평가 {t.ratings.sellerToBuyer}점</div>}
+              {t.ratings.buyerToSeller && <div className="s-item-meta">구매자가 남긴 평가 {t.ratings.buyerToSeller}점</div>}
+              {t.mismatch?.photos?.length ? (
+                <div className="s-evidence" aria-label="구매자가 남긴 현장 사진">
+                  {t.mismatch.photos.map((p, i) => (
+                    <img key={i} src={p} alt={`현장 사진 ${i + 1}`} />
+                  ))}
+                </div>
+              ) : null}
             </div>
           </div>
         ))}

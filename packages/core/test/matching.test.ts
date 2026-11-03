@@ -7,6 +7,8 @@ import {
   evaluate,
   fitItem,
   kstToMs,
+  sellerReliability,
+  vehicleByModel,
   pointAtAlong,
   projectOnPolyline,
   timeAtAlong,
@@ -206,6 +208,23 @@ describe("T5 적재 판단 — 차종 트렁크 치수 + 2열 착석", () => {
     expect(fitItem({ w: 60, d: 60, h: 60 }, AVANTE).kind).toBe("none");
   });
 
+  it("3열 차: 3열 세운 트렁크 → 3열 접기 → 2·3열 접기, 3열에 사람이 있으면 접는 칸 제외(T26)", () => {
+    const ev9 = vehicleByModel("EV9")!;
+    expect(fitItem({ w: 45, d: 40, h: 68 }, ev9).kind).toBe("trunk");
+    expect(fitItem({ w: 45, d: 55, h: 68 }, ev9)).toEqual({ kind: "folded3", label: "3열 접으면 가능" });
+    expect(fitItem({ w: 100, d: 90, h: 40 }, ev9)).toEqual({ kind: "folded3", label: "3열 접으면 가능" });
+    expect(fitItem({ w: 125, d: 68, h: 22 }, ev9)).toEqual({ kind: "folded", label: "2·3열 접으면 가능" });
+    expect(fitItem({ w: 180, d: 60, h: 30 }, ev9)).toEqual({ kind: "folded", label: "2·3열 접으면 가능" });
+    const seat = evaluate(input({ vehicle: ev9, ignoreWindow: true })).candidates.find((c) => c.listingId === "carseat")!;
+    expect(seat.fit.kind).toBe("folded3");
+    expect(seat.exclusions).not.toContain("load_seat3");
+    const occ = evaluate(input({ vehicle: ev9, ctx: ctxAtStart({ seats: { row2Occupied: false, row3Occupied: true } }), ignoreWindow: true })).candidates.find((c) => c.listingId === "carseat")!;
+    expect(occ.exclusions).toContain("load_seat3");
+    // 2열 차에서는 3열 신호를 보지 않는다
+    const io = evaluate(input({ ctx: ctxAtStart({ seats: { row2Occupied: false, row3Occupied: true } }), ignoreWindow: true })).candidates.find((c) => c.listingId === "carseat")!;
+    expect(io.exclusions).not.toContain("load_seat3");
+  });
+
   it("2열에 사람이 있으면 '2열 접으면 가능' 매물은 제외", () => {
     const empty = evaluate(input({ ignoreWindow: true })).candidates.find((c) => c.listingId === "bed")!;
     expect(empty.exclusions).not.toContain("load_seat");
@@ -310,5 +329,23 @@ describe("브리핑에는 제외 이유가 함께 나온다", () => {
     expect(reasons.carseat).toEqual([]);
     void graph;
     void listing;
+  });
+});
+
+describe("판매자 신뢰 배수 R — 수락 뒤 취소·미응대·현장 불일치", () => {
+  it("문제 거래 비율만큼 낮추고 하한은 0.5", () => {
+    const t = (over: Partial<ReturnType<typeof emptyTrust>>) => ({ ...emptyTrust("s", "seller"), ...over });
+    expect(sellerReliability(undefined)).toBe(1);
+    expect(sellerReliability(t({ completed: 5 }))).toBe(1);
+    expect(sellerReliability(t({ completed: 9, noShow: 1 }))).toBe(0.95);
+    expect(sellerReliability(t({ noShow: 1 }))).toBe(0.5);
+    expect(sellerReliability(t({ completed: 3, canceled: 1, mismatch: 1 }))).toBe(0.8);
+  });
+
+  it("점수에 곱해져 같은 조건이면 신뢰가 낮은 판매자가 뒤로 간다", () => {
+    const base = evaluate(input({ ignoreWindow: true })).candidates.find((c) => c.listingId === "carseat")!;
+    const low = evaluate(input({ ignoreWindow: true, sellerTrust: { [base.sellerId]: { ...emptyTrust(base.sellerId, "seller"), noShow: 1 } } })).candidates.find((c) => c.listingId === "carseat")!;
+    expect(low.parts.R).toBe(0.5);
+    expect(low.score).toBeCloseTo(base.score * 0.5, 2);
   });
 });

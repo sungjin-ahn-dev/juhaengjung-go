@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { DEMO_NET, DEMO_PLACES, Graph, GraphRouter, pointAtAlong, timeAtAlong, type DriveContext } from "@jhgo/core";
-import { createBackend, createLocalClient, DEMO_SERVICE_CONFIG, DEMO_START, ManualClock, type AppEvent, type ApiClient } from "../src/index.ts";
+import { createBackend, createLocalClient, DEMO_SERVICE_CONFIG, DEMO_START, ManualClock, parseAiSize, type AppEvent, type ApiClient, type PushPayload, type PushSender, type SizeEstimator } from "../src/index.ts";
 import { SqliteStore } from "../src/store-sqlite.ts";
 
 const router = new GraphRouter(new Graph(DEMO_NET));
@@ -13,9 +13,9 @@ function at(min: number) {
   return { location: pointAtAlong(base.line, s).point, remainTimeS: Math.round(base.durationS - timeAtAlong(base, s)) };
 }
 
-function setup(includeCarSeat = true) {
+function setup(includeCarSeat = true, extra: { push?: PushSender; sizeAI?: SizeEstimator } = {}) {
   const clock = new ManualClock(DEMO_START);
-  const b = createBackend({ demo: true, clock, config: DEMO_SERVICE_CONFIG });
+  const b = createBackend({ demo: true, clock, config: DEMO_SERVICE_CONFIG, ...extra });
   const anon = createLocalClient(b);
   return { ...b, clock, anon, includeCarSeat };
 }
@@ -271,6 +271,176 @@ describe("거래 흐름 (T9~T13)", () => {
     expect(bt.trade).toMatchObject({ status: "no_show", payment: { status: "refunded" } });
     const me = await car.call<{ trust: { noShow: number } }>("GET", "/v1/me");
     expect(me.trust.noShow).toBe(1);
+  });
+
+  it("판매자가 안 나오면: 다시 알리기 → 5분 기다린 뒤 끝내기 → 전액 환불·판매자 신뢰도(T20)", async () => {
+    const sellerEv = collect(park);
+    const scoreOf = async () =>
+      (await car.call<{ items: { categoryLabel: string; score: number }[] }>("POST", "/v1/drive/briefing", { ctx: ctx(s, 0) })).items.find((i) => i.categoryLabel === "카시트")!.score;
+    const before = await scoreOf();
+    const t = await requestCarSeat();
+    await park.call("POST", `/v1/seller/trades/${t.id}/accept`);
+    const arr = await car.call<{ trade: { status: string; sellerWaitUntil: number } }>("POST", `/v1/buyer/trades/${t.id}/arrived`);
+    expect(arr.trade.sellerWaitUntil).toBe(s.clock.now() + DEMO_SERVICE_CONFIG.trade!.sellerWaitMs);
+    await car.call("POST", `/v1/buyer/trades/${t.id}/nudge`);
+    await expect(car.call("POST", `/v1/buyer/trades/${t.id}/nudge`)).rejects.toMatchObject({ status: 409, code: "too_soon" });
+    await expect(car.call("POST", `/v1/buyer/trades/${t.id}/seller-absent`)).rejects.toMatchObject({ status: 409, code: "too_early" });
+    s.clock.advance(DEMO_SERVICE_CONFIG.trade!.sellerWaitMs);
+    const r = await car.call<{ trade: { status: string; payment: { status: string } } }>("POST", `/v1/buyer/trades/${t.id}/seller-absent`);
+    expect(r.trade).toMatchObject({ status: "seller_no_show", payment: { status: "refunded" } });
+    await sellerEv.flush();
+    expect(sellerEv.types()).toEqual(expect.arrayContaining(["trade.waiting", "trade.seller_no_show"]));
+    const sum = await park.call<{ trust: { noShow: number }; refunded: number }>("GET", "/v1/seller/summary");
+    expect(sum.trust.noShow).toBe(1);
+    expect(sum.refunded).toBe(35000);
+    const ls = await park.call<{ listings: { status: string; title: string }[] }>("GET", "/v1/seller/listings");
+    expect(ls.listings.find((l) => l.title.includes("카시트"))!.status).toBe("active");
+    // 판매자 신뢰(R)가 0.5로 내려가 같은 매물의 추천 점수가 절반이 된다
+    expect(await scoreOf()).toBeCloseTo(before * 0.5, 2);
+  });
+
+  it("현장 거절 뒤 폰에서 사진을 남기면 판매자 지난 거래에 보인다(T12)", async () => {
+    const t = await requestCarSeat();
+    await park.call("POST", `/v1/seller/trades/${t.id}/accept`);
+    await car.call("POST", `/v1/buyer/trades/${t.id}/arrived`);
+    await car.call("POST", `/v1/buyer/trades/${t.id}/decline`, { reason: "파손이 있어요" });
+    await expect(car.call("POST", `/v1/buyer/trades/${t.id}/evidence`, { photos: ["data:image/svg+xml,<svg/>"] })).rejects.toMatchObject({ status: 422 });
+    const jpeg = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==";
+    await car.call("POST", `/v1/buyer/trades/${t.id}/evidence`, { photos: [jpeg] });
+    const st = await park.call<{ trades: { id: string; mismatch?: { photos?: string[] } }[] }>("GET", "/v1/seller/trades");
+    expect(st.trades.find((x) => x.id === t.id)!.mismatch!.photos).toHaveLength(1);
+  });
+
+  it("구매자가 받았어요 뒤 판매자를 평가하면 판매자 평점이 생긴다(T21)", async () => {
+    const t = await requestCarSeat();
+    await park.call("POST", `/v1/seller/trades/${t.id}/accept`);
+    await car.call("POST", `/v1/buyer/trades/${t.id}/arrived`);
+    await car.call("POST", `/v1/buyer/trades/${t.id}/received`);
+    await car.call("POST", `/v1/buyer/trades/${t.id}/rate`, { stars: 4 });
+    const sum = await park.call<{ trust: { rating: number } }>("GET", "/v1/seller/summary");
+    expect(sum.trust.rating).toBe(4);
+    const bt = await car.call<{ trades: { id: string; ratings: { buyerToSeller?: number } }[] }>("GET", "/v1/buyer/trades");
+    expect(bt.trades.find((x) => x.id === t.id)!.ratings.buyerToSeller).toBe(4);
+  });
+
+  it("결제 수단이 없으면 알리지 않고 요청도 막는다(T23)", async () => {
+    await car.call("DELETE", "/v1/buyer/payment-method");
+    const ev = await car.call<{ top: unknown; block: { reason: string; text: string } }>("POST", "/v1/drive/context", { ctx: ctx(s, 0) });
+    expect(ev.top).toBeNull();
+    expect(ev.block.reason).toBe("payment");
+    await expect(requestCarSeat()).rejects.toMatchObject({ status: 409, code: "payment_required" });
+    await expect(car.call("PUT", "/v1/buyer/payment-method", { kind: "card", number: "1234" })).rejects.toMatchObject({ status: 422 });
+    const pm = await car.call<{ paymentMethod: { kind: string; label: string } }>("PUT", "/v1/buyer/payment-method", { kind: "test" });
+    expect(pm.paymentMethod.kind).toBe("test");
+    const prof = await car.call<{ user: { paymentMethod: { kind: string } }; block: unknown }>("GET", "/v1/buyer/profile");
+    expect(prof.user.paymentMethod.kind).toBe("test");
+    expect(prof.block).toBeNull();
+  });
+
+  it("수락 뒤 구매자 취소가 30일에 3번이면 7일 동안 요청 제한, 차 쪽 실패 취소는 세지 않는다(T22)", async () => {
+    const cancelOnce = async (system = false) => {
+      const t = await requestCarSeat();
+      await park.call("POST", `/v1/seller/trades/${t.id}/accept`);
+      await car.call("POST", `/v1/buyer/trades/${t.id}/cancel`, { reason: system ? "차 내비가 경유지를 받지 못했어요" : "급한 일", system });
+    };
+    await cancelOnce();
+    await cancelOnce();
+    await cancelOnce(true);
+    const mid = await car.call<{ block: unknown }>("POST", "/v1/drive/context", { ctx: ctx(s, 13) });
+    expect(mid.block).toBeNull();
+    await cancelOnce();
+    const ev = await car.call<{ top: unknown; block: { reason: string; until: number; text: string } }>("POST", "/v1/drive/context", { ctx: ctx(s, 13) });
+    expect(ev.block.reason).toBe("limit");
+    expect(ev.block.text).toContain("3번");
+    expect(ev.top).toBeNull();
+    await expect(requestCarSeat()).rejects.toMatchObject({ status: 409, code: "request_limited" });
+  });
+});
+
+describe("3열 착석(T26)", () => {
+  it("3열 차에서 3열에 사람이 있으면 '3열 접으면 가능' 매물은 제외 이유와 함께", async () => {
+    await car.call("PUT", "/v1/buyer/vehicle", { model: "EV9" });
+    const r = await car.call<{ items: { categoryLabel: string; fit: { kind: string }; exclusions: string[] }[] }>("POST", "/v1/drive/briefing", {
+      ctx: ctx(s, 0, { seats: { row2Occupied: false, row3Occupied: true } }),
+    });
+    const seat = r.items.find((i) => i.categoryLabel === "카시트")!;
+    expect(seat.fit.kind).toBe("folded3");
+    expect(seat.exclusions).toContain("load_seat3");
+  });
+});
+
+describe("판매자 웹 푸시(T24)", () => {
+  it("구독하면 판매자 알림이 푸시로도 가고, 끝난 구독은 지운다", async () => {
+    const sent: { endpoint: string; p: PushPayload }[] = [];
+    let gone = false;
+    const push: PushSender = {
+      publicKey: () => "test-public-key",
+      send: async (sub, p) => {
+        sent.push({ endpoint: sub.endpoint, p });
+        return gone ? "gone" : "ok";
+      },
+    };
+    s = setup(true, { push });
+    await s.anon.call("POST", "/v1/demo/reset", {});
+    car = await login(s, "김주행");
+    park = await login(s, "박서연");
+    const cat = await s.anon.call<{ push: boolean; tradeConfig: { sellerWaitMin: number } }>("GET", "/v1/catalog");
+    expect(cat.push).toBe(true);
+    expect(cat.tradeConfig.sellerWaitMin).toBe(5);
+    expect((await s.anon.call<{ publicKey: string }>("GET", "/v1/push/key")).publicKey).toBe("test-public-key");
+    await expect(park.call("POST", "/v1/push/subscribe", { subscription: { endpoint: "http://x" } })).rejects.toMatchObject({ status: 422 });
+    const sub = { endpoint: "https://push.example/abc", keys: { p256dh: "p", auth: "a" } };
+    await park.call("POST", "/v1/push/subscribe", { subscription: sub });
+    expect((await park.call<{ count: number }>("GET", "/v1/push/status")).count).toBe(1);
+    s.clock.advance(13 * 60_000);
+    const ev = await car.call<{ candidates: { listingId: string; categoryLabel: string }[] }>("POST", "/v1/drive/context", { ctx: ctx(s, 13) });
+    const id = ev.candidates.find((c) => c.categoryLabel === "카시트")!.listingId;
+    const t = await car.call<{ trade: { id: string } }>("POST", "/v1/drive/request", { ctx: ctx(s, 13), listingId: id });
+    await new Promise((r) => setTimeout(r, 5));
+    expect(sent[0]).toMatchObject({ endpoint: sub.endpoint, p: { title: "카시트 사러 오는 차가 있어요", urgent: true, url: "/seller/" } });
+    gone = true;
+    await park.call("POST", `/v1/seller/trades/${t.trade.id}/accept`);
+    await new Promise((r) => setTimeout(r, 5));
+    expect((await park.call<{ count: number }>("GET", "/v1/push/status")).count).toBe(0);
+  });
+
+  it("푸시를 쓰지 않는 서버는 404", async () => {
+    await expect(s.anon.call("GET", "/v1/push/key")).rejects.toMatchObject({ status: 404 });
+    expect((await s.anon.call<{ push: boolean }>("GET", "/v1/catalog")).push).toBe(false);
+  });
+});
+
+describe("사진으로 크기 추정(T25)", () => {
+  const jpeg = "data:image/jpeg;base64,/9j/4AAQSkZJRg==";
+  it("추정기가 있으면 사진으로, 사진이 없거나 실패하면 품목 대표 크기라고 알린다", async () => {
+    let fail = false;
+    const sizeAI: SizeEstimator = {
+      name: "fake",
+      estimate: async ({ photo }) => (fail ? null : photo.mediaType === "image/jpeg" ? { sizeCm: { w: 44, d: 50, h: 66 }, category: "car_seat", confidence: 0.7, note: "카시트로 보여요" } : null),
+    };
+    s = setup(true, { sizeAI });
+    await s.anon.call("POST", "/v1/demo/reset", {});
+    park = await login(s, "박서연");
+    expect((await s.anon.call<{ aiSize: boolean }>("GET", "/v1/catalog")).aiSize).toBe(true);
+    const ai = await park.call<{ estimate: { method: string; sizeCm: { w: number } }; category: string }>("POST", "/v1/seller/estimate-size", { title: "카시트", photo: jpeg });
+    expect(ai.estimate).toMatchObject({ method: "ai_photo", sizeCm: { w: 44 } });
+    expect(ai.category).toBe("car_seat");
+    const noPhoto = await park.call<{ estimate: { method: string } }>("POST", "/v1/seller/estimate-size", { title: "카시트" });
+    expect(noPhoto.estimate.method).toBe("category_table");
+    fail = true;
+    const failed = await park.call<{ estimate: { method: string; note: string } }>("POST", "/v1/seller/estimate-size", { title: "카시트", photo: jpeg });
+    expect(failed.estimate.method).toBe("category_table");
+    expect(failed.estimate.note).toMatch(/^사진으로 추정하지 못해/);
+  });
+
+  it("모델 답에서 JSON을 꺼내고 이상한 값은 버린다", () => {
+    expect(parseAiSize('크기는 {"category":"car_seat","width_cm":44.4,"depth_cm":50,"height_cm":66,"confidence":0.8,"note":"카시트"} 예요', ["car_seat"])).toMatchObject({
+      sizeCm: { w: 44, d: 50, h: 66 },
+      category: "car_seat",
+    });
+    expect(parseAiSize('{"width_cm":0,"depth_cm":50,"height_cm":66}', [])).toBeNull();
+    expect(parseAiSize("모르겠어요", [])).toBeNull();
+    expect(parseAiSize('{"category":"tank","width_cm":10,"depth_cm":10,"height_cm":10}', ["car_seat"])?.category).toBeNull();
   });
 });
 

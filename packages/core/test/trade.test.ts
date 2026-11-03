@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyTradeEvent, createTrade, DEFAULT_TRADE_CONFIG as C, TradeError, type Trade } from "../src/index.ts";
+import { applyTradeEvent, createTrade, DEFAULT_TRADE_CONFIG as C, requestBlock, sellerAbsentAllowedAt, TradeError, type Trade } from "../src/index.ts";
 
 const T0 = 1_800_000_000_000;
 
@@ -169,5 +169,76 @@ describe("T13 정산·취소·노쇼·평가", () => {
 
   it("잘못된 순서는 막는다", () => {
     expect(() => applyTradeEvent(newTrade().trade, { type: "ARRIVED" }, T0)).toThrow(/응답 대기 상태에서는 도착 처리할 수 없어요/);
+  });
+});
+
+describe("T20 판매자 미응대 — 도착하고 기다려도 안 나오면 구매자가 끝낸다", () => {
+  const arrivedAt = T0 + 600_000;
+  const arrived = () => {
+    const a = applyTradeEvent(newTrade().trade, { type: "SELLER_ACCEPT" }, T0).trade;
+    return applyTradeEvent(a, { type: "ARRIVED" }, arrivedAt).trade;
+  };
+
+  it("기다리는 동안 다시 알리기는 1분에 한 번", () => {
+    const n = applyTradeEvent(arrived(), { type: "BUYER_NUDGE" }, arrivedAt + 10_000);
+    expect(kinds(n.effects)).toEqual(["notify:trade.waiting"]);
+    expect(() => applyTradeEvent(n.trade, { type: "BUYER_NUDGE" }, arrivedAt + 30_000)).toThrow(/방금 알렸어요/);
+    expect(applyTradeEvent(n.trade, { type: "BUYER_NUDGE" }, arrivedAt + 10_000 + C.nudgeEveryMs).trade.nudgedAt).toBe(arrivedAt + 10_000 + C.nudgeEveryMs);
+  });
+
+  it("도착하고 5분 전에는 끝낼 수 없고, 지나면 전액 환불·판매자 신뢰도 반영", () => {
+    const a = arrived();
+    expect(sellerAbsentAllowedAt(a)).toBe(arrivedAt + C.sellerWaitMs);
+    expect(() => applyTradeEvent(a, { type: "BUYER_REPORT_SELLER_ABSENT" }, arrivedAt + C.sellerWaitMs - 1)).toThrow(/기다려 주세요/);
+    const r = applyTradeEvent(a, { type: "BUYER_REPORT_SELLER_ABSENT" }, arrivedAt + C.sellerWaitMs);
+    expect(r.trade.status).toBe("seller_no_show");
+    expect(r.trade.payment.status).toBe("refunded");
+    expect(r.effects).toContainEqual({ kind: "trust", who: "seller", field: "noShow" });
+    expect(r.effects).toContainEqual({ kind: "listing", status: "active" });
+    expect(kinds(r.effects)).toEqual(["payment", "listing", "trust", "notify:trade.seller_no_show", "notify:trade.refunded"]);
+  });
+
+  it("판매자가 건넸다고 표시했으면 미응대로 끝낼 수 없다", () => {
+    const h = applyTradeEvent(arrived(), { type: "SELLER_HANDED" }, arrivedAt + 60_000).trade;
+    expect(() => applyTradeEvent(h, { type: "BUYER_REPORT_SELLER_ABSENT" }, arrivedAt + C.sellerWaitMs)).toThrow(/건넸다고/);
+  });
+
+  it("현장 거절 뒤 사진은 3장까지 남긴다", () => {
+    const d = applyTradeEvent(arrived(), { type: "BUYER_DECLINE_MISMATCH", reason: "파손이 있어요" }, arrivedAt + 60_000).trade;
+    const e = applyTradeEvent(d, { type: "BUYER_EVIDENCE", photos: ["a", "b"] }, arrivedAt + 120_000);
+    expect(e.trade.mismatch?.photos).toEqual(["a", "b"]);
+    expect(kinds(e.effects)).toEqual(["notify:trade.evidence"]);
+    expect(applyTradeEvent(e.trade, { type: "BUYER_EVIDENCE", photos: ["c", "d"] }, arrivedAt + 130_000).trade.mismatch?.photos).toEqual(["a", "b", "c"]);
+  });
+});
+
+describe("T22 요청 제한 — 수락 뒤 취소·노쇼가 잦으면", () => {
+  const DAY = 24 * 3600_000;
+  const accepted = (at: number) => applyTradeEvent(newTrade({ now: at }).trade, { type: "SELLER_ACCEPT" }, at).trade;
+  const canceled = (at: number, system = false) => applyTradeEvent(accepted(at), { type: "BUYER_CANCEL", system }, at + 1000).trade;
+
+  it("최근 30일에 3번이면 마지막 건부터 7일 동안 막고, 차 쪽 실패·수락 전 취소는 세지 않는다", () => {
+    const two = [canceled(T0), canceled(T0 + DAY)];
+    expect(requestBlock(two, T0 + 2 * DAY)).toBeNull();
+    const withSystem = [...two, canceled(T0 + 2 * DAY, true)];
+    expect(withSystem[2].canceledBy).toBe("system");
+    expect(requestBlock(withSystem, T0 + 3 * DAY)).toBeNull();
+    const early = applyTradeEvent(newTrade({ now: T0 + 2 * DAY }).trade, { type: "BUYER_CANCEL" }, T0 + 2 * DAY + 1).trade;
+    expect(requestBlock([...two, early], T0 + 3 * DAY)).toBeNull();
+    const three = [...two, canceled(T0 + 2 * DAY)];
+    const b = requestBlock(three, T0 + 3 * DAY)!;
+    expect(b.count).toBe(3);
+    expect(b.until).toBe(T0 + 2 * DAY + 1000 + 7 * DAY);
+    expect(requestBlock(three, b.until)).toBeNull();
+  });
+
+  it("노쇼도 센다", () => {
+    const ns = (at: number) => {
+      const a = applyTradeEvent(accepted(at), { type: "ETA", remainS: 60 }, at).trade;
+      return applyTradeEvent(a, { type: "TICK" }, a.etaAt! + C.noShowGraceMs).trade;
+    };
+    const list = [ns(T0), ns(T0 + DAY), canceled(T0 + 2 * DAY)];
+    expect(list[0].status).toBe("no_show");
+    expect(requestBlock(list, T0 + 3 * DAY)?.count).toBe(3);
   });
 });

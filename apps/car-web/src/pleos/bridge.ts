@@ -144,7 +144,18 @@ export function createBridgePlatform(voice: VoicePort, now: () => number = () =>
   const vehicle: VehiclePort = {
     carInfo: () => call<CarInfo>("Vehicle.getCarInfo"),
     capabilities: () => call<Record<string, AccessType>>("Vehicle.capabilities"),
-    registerSeatOccupancy: (area: SeatValue[], cb) => sub("Vehicle.registerSeatOccupancy", "Vehicle.onSeatOccupancyUpdated", cb, { area }),
+    // 줄마다 따로 등록하고 이벤트에 tag를 붙여 받는다(docs/BRIDGE.md). tag 없는 예전 셸 이벤트는 2열로 본다
+    registerSeatOccupancy: (area: SeatValue[], cb) => {
+      const tag = area.some((a) => a.startsWith("ROW_3")) ? "row3" : area.some((a) => a.startsWith("ROW_1")) ? "row1" : "row2";
+      const off = on("Vehicle.onSeatOccupancyUpdated", (v) => {
+        if (v !== null && typeof v === "object") {
+          const e = v as { tag?: string; occupied?: boolean | null };
+          if ((e.tag ?? "row2") === tag) cb(e.occupied ?? null);
+        } else if (tag === "row2") cb(v as boolean | null);
+      });
+      call("Vehicle.registerSeatOccupancy", { area, tag }).catch(() => cb(null));
+      return off;
+    },
     getEvBatteryStateOfCharge: () => call<number | null>("Vehicle.getEvBatteryStateOfCharge"),
     registerEvBatteryStateOfCharge: (cb) => sub("Vehicle.registerEvBatteryStateOfCharge", "Vehicle.onEvBatteryStateOfChargeUpdated", cb),
     getFuelRangeKm: () => call<number | null>("Vehicle.getFuelRangeKm"),
@@ -152,7 +163,8 @@ export function createBridgePlatform(voice: VoicePort, now: () => number = () =>
     registerSteeringWheelAngle: (cb) => sub("Vehicle.registerSteeringWheelAngle", "Vehicle.onSteeringWheelAngleUpdated", cb),
     registerBrakePedalStatus: (cb) => sub("Vehicle.registerBrakePedalStatus", "Vehicle.onBrakePedalStatusUpdated", cb),
     getOdometerKm: () => call<number | null>("Vehicle.getOdometerKm"),
-    registerTrunkOpen: (cb) => sub("Vehicle.registerTrunkOpen", "Vehicle.onTrunkOpenUpdated", cb),
+    // Door(트렁크)는 레퍼런스에서 확인하지 못했다 — 셸에 묻지 않는다(docs/BRIDGE.md). 트렁크 장면은 시뮬레이터에만
+    registerTrunkOpen: () => () => {},
   };
 
   const restriction: DrivingRestrictionPort = {

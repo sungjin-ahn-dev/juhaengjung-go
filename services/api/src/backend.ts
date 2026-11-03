@@ -2,6 +2,8 @@
 import { DEMO_NET, Graph, GraphRouter, type RoutingProvider } from "@jhgo/core";
 import { createApp } from "./app.ts";
 import { DemoClock, EventBus, MemoryStore, RealClock, type Clock, type Store } from "./infra.ts";
+import type { PushSender } from "./push.ts";
+import type { SizeEstimator } from "./size-ai.ts";
 import { DEMO_START, seedDemo } from "./seed.ts";
 import { Service, type ServiceConfig } from "./service.ts";
 
@@ -17,6 +19,10 @@ export interface BackendOptions {
   /** 시연 시계 배속 */
   rate?: number;
   sseHeartbeatMs?: number;
+  /** 판매자 웹 푸시(Node 서버만). 저장소를 받아 키를 만든다 */
+  push?: PushSender | ((store: Store) => PushSender | undefined);
+  /** 사진으로 크기 추정(Node 서버, API 키가 있을 때) */
+  sizeAI?: SizeEstimator;
 }
 
 /** 시연 모드 기본값: 정산·자동 확인을 짧게(가상 시간) */
@@ -29,6 +35,8 @@ export const DEMO_SERVICE_CONFIG: Partial<ServiceConfig> = {
     etaNotifyDeltaMs: 60_000,
     minRequestTtlMs: 2 * 60_000,
     maxRequestTtlMs: 20 * 60_000,
+    sellerWaitMs: 5 * 60_000,
+    nudgeEveryMs: 60_000,
   },
 };
 
@@ -42,7 +50,8 @@ export function createBackend(o: BackendOptions = {}) {
   const store = o.store ?? new MemoryStore();
   const clock = o.clock ?? (demo ? new DemoClock(DEMO_START, o.rate ?? 1) : new RealClock());
   const bus = new EventBus();
-  const svc = new Service({ store, bus, clock, router: o.router ?? createRouter(), config: o.config ?? (demo ? DEMO_SERVICE_CONFIG : undefined) });
+  const push = typeof o.push === "function" ? o.push(store) : o.push;
+  const svc = new Service({ store, bus, clock, router: o.router ?? createRouter(), config: o.config ?? (demo ? DEMO_SERVICE_CONFIG : undefined), push, sizeAI: o.sizeAI });
   if (o.seed && store.list("users").length === 0) seedDemo(svc, { includeCarSeat: o.includeCarSeat });
   const app = createApp(svc, { demo, sseHeartbeatMs: o.sseHeartbeatMs });
   return { app, svc, store, clock, bus };

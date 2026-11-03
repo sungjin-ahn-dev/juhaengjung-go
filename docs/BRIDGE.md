@@ -36,7 +36,7 @@ Kotlin → JS   window.__pleos.resolve(id, json)      결과(JSON 글)
 | `NaviHelper.requestRoute`, `requestRouteWithWaypoints` | — | 항상 실패 `UNVERIFIED_ROUTE_INFO` | `RouteInfo` 필드 미확인 → 부르지 않는다. 목적지는 Pleos 내비에서 정한다 |
 | `Vehicle.getCarInfo` | — | `{manufacturer: null, model: null, modelYear: null}` | CarInfo는 VIN·CRN만 확인 → 앱이 차종을 한 번 고르게 한다 |
 | `Vehicle.capabilities` | — | `{steeringWheelAngle, evBatteryStateOfCharge}` = AccessType 이름 | `checkSteeringWheelAngleCapabilities`, `checkEvBatteryStateOfChargeCapabilities` |
-| `Vehicle.registerSeatOccupancy` | `{area: ["ROW_2_LEFT","ROW_2_CENTER","ROW_2_RIGHT"]}` | `null` | 좌석마다 `registerSeatOccupancy(SeatArea(sv), listener)`. 이벤트는 한 곳이라도 앉았는지 |
+| `Vehicle.registerSeatOccupancy` | `{area: ["ROW_2_LEFT","ROW_2_CENTER","ROW_2_RIGHT"], tag: "row2"}` 또는 `{area: ["ROW_3_LEFT","ROW_3_RIGHT"], tag: "row3"}` | `{tag, registered: [실제로 등록한 이름]}` | 줄(tag)마다 한 번. 좌석마다 `registerSeatOccupancy(SeatArea(sv), listener)`. `SeatValue.valueOf`가 모르는 이름은 건너뛴다 |
 | `Vehicle.getEvBatteryStateOfCharge` | — | `%` 또는 `null` | `getEvBatteryStateOfCharge(onComplete, onFailed)` |
 | `Vehicle.registerEvBatteryStateOfCharge` | — | `null` | `registerEvBatteryStateOfCharge(listener)` |
 | `Vehicle.registerTurnSignalState` | — | `null` | `registerTurnSignalState(listener)` |
@@ -44,7 +44,7 @@ Kotlin → JS   window.__pleos.resolve(id, json)      결과(JSON 글)
 | `Vehicle.registerBrakePedalStatus` | — | `null` | `registerBrakePedalStatus(listener)` |
 | `Vehicle.getOdometerKm` | — | km | Odometer 미확인 → 대체: NaviHelper 위치를 1초마다 누적한 거리(순간 이동·제자리 흔들림 제외) |
 | `Vehicle.getFuelRangeKm` | — | `null` | Fuel 미확인 |
-| `Vehicle.registerTrunkOpen` | — | `null`(이벤트 없음) | Door 트렁크 미확인 |
+| `Vehicle.registerTrunkOpen` | — | `null`(이벤트 없음) | Door 트렁크 미확인. 웹은 이 메서드를 부르지 않는다(브리지 계약 시험이 확인). 셸의 `null` 응답은 예전 웹을 위한 것 |
 | `CarUx.current` | — | `true`(주행 중) / `false` | AAOS `CarUxRestrictionsManager.isRequiresDistractionOptimization`. 못 쓰면 대체: 위치 변화 속도 > 5km/h |
 | `Voice.capabilities` | — | `{tts, stt, ttsEngine: "pleos" \| "android" \| "none"}` | |
 | `Voice.speak` | `{text}` | `null`(말이 끝나면) | Pleos TextToSpeech(ON_DEVICE) → 안 되면 안드로이드 TextToSpeech |
@@ -64,7 +64,7 @@ Kotlin → JS   window.__pleos.resolve(id, json)      결과(JSON 글)
 | `NaviHelper.onTripInfo` | Trip 결과 | 리스너 |
 | `NaviHelper.onRouteOptionChanged` | 옵션 이름 | 리스너 |
 | `NaviHelper.onError` | NaviErrorCode 이름 | 리스너 |
-| `Vehicle.onSeatOccupancyUpdated` | 2열에 앉은 사람이 있으면 `true` | 리스너 |
+| `Vehicle.onSeatOccupancyUpdated` | `{tag: "row2" \| "row3", occupied}` — 그 줄에 한 곳이라도 앉았으면 `true`. (예전 셸의 태그 없는 `true/false`는 웹이 2열로 본다) | 리스너 |
 | `Vehicle.onEvBatteryStateOfChargeUpdated` | % | 리스너 |
 | `Vehicle.onTurnSignalStateUpdated` | `"OFF" \| "LEFT" \| "RIGHT"` | 리스너 |
 | `Vehicle.onSteeringWheelAngleUpdated` | ° (좌측 음수) | 리스너 |

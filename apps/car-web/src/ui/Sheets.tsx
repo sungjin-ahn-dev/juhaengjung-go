@@ -1,8 +1,25 @@
 /** 정차 중에만 여는 화면 — 목적지, 관심사, 현장 확인, 결과, 차종 고르기 (출발 전 브리핑은 오른쪽 추천 목록) */
-import { useState } from "react";
-import { DEMO_PLACES, VEHICLE_TABLE, type GoLevel } from "@jhgo/core";
-import type { CarController, CarState } from "../controller.ts";
+import { useEffect, useState } from "react";
+import { DEMO_PLACES, VEHICLE_TABLE, type GoLevel, type VehicleProfile } from "@jhgo/core";
+import type { CarController, CarState, TradeView } from "../controller.ts";
 import { CONDITION_KO, fmtWon, GO_KO } from "./format.ts";
+
+/** 시연 시계 기준 지금 시각 — 1초마다 다시 그린다 */
+function useNow(c: CarController) {
+  const [now, setNow] = useState(() => c.clock.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(c.clock.now()), 1000);
+    return () => clearInterval(id);
+  }, [c]);
+  return now;
+}
+
+/** 차종 적재 공간 한 줄(추정치) */
+export function vehicleSpaceText(v: VehicleProfile): string {
+  if (v.seatRows === 3 && v.row3Up)
+    return `${v.model} — 3열 세우면 트렁크 깊이 ${v.row3Up.d}cm, 3열 접으면 ${v.trunk.d}cm, 2·3열 접으면 ${v.folded.d}cm (추정치)`;
+  return `${v.model} — 트렁크 ${v.trunk.w}×${v.trunk.d}×${v.trunk.h}cm, 2열 접으면 깊이 ${v.folded.d}cm (추정치)`;
+}
 
 function Head({ title, sub, onClose }: { title: string; sub?: string; onClose: () => void }) {
   return (
@@ -93,12 +110,21 @@ function InterestsSheet({ s, c, close }: { s: CarState; c: CarController; close:
         {s.interests.map((it) => (
           <div className="c-row" key={it.id} style={{ gridTemplateColumns: "1fr auto auto" }}>
             <div>
-              <div className="c-row-title">{it.type === "keyword" ? it.keyword : "찜한 매물"}</div>
-              <div className="c-row-meta">{it.type === "keyword" ? "키워드" : "찜"}</div>
+              <div className="c-row-title">{it.type === "keyword" ? it.keyword : it.title ?? "찜한 매물"}</div>
+              <div className="c-row-meta">{it.type === "keyword" ? "키워드" : it.listingStatus && it.listingStatus !== "active" ? "찜, 지금은 판매 중이 아니에요" : "찜"}</div>
             </div>
             <div className="c-seg" role="radiogroup" aria-label="GO 등급">
               {(["must", "likely", "near"] as GoLevel[]).map((g) => (
-                <button key={g} className={it.goLevel === g ? "on" : ""} role="radio" aria-checked={it.goLevel === g} onClick={() => it.keyword && void c.addInterest(it.keyword, g)}>
+                <button
+                  key={g}
+                  className={it.goLevel === g ? "on" : ""}
+                  role="radio"
+                  aria-checked={it.goLevel === g}
+                  onClick={() => {
+                    if (it.type === "keyword" && it.keyword) void c.addInterest(it.keyword, g);
+                    else if (it.type === "wish" && it.listingId) void c.setWishLevel(it.listingId, g);
+                  }}
+                >
                   {GO_KO[g]}
                 </button>
               ))}
@@ -164,12 +190,16 @@ function InterestsSheet({ s, c, close }: { s: CarState; c: CarController; close:
           </>
         )}
         <div className="c-sub">차종</div>
-        <p className="c-note">
-          {s.vehicle ? `${s.vehicle.model} — 트렁크 ${s.vehicle.trunk.w}×${s.vehicle.trunk.d}×${s.vehicle.trunk.h}cm, 2열 접으면 깊이 ${s.vehicle.folded.d}cm (추정치)` : "차종 정보가 없어요"}
-        </p>
+        <p className="c-note">{s.vehicle ? vehicleSpaceText(s.vehicle) : "차종 정보가 없어요"}</p>
         <button className="c-btn" onClick={() => c.open("vehicle")}>
           차종 바꾸기
         </button>
+        <div className="c-sub">결제 수단</div>
+        <p className="c-note" data-testid="payment-line">
+          {s.paymentMethod ? s.paymentMethod.label : "등록된 결제 수단이 없어요. 없으면 판매자에게 요청할 수 없어요."}
+          <br />
+          결제 수단은 폰의 주행중GO!(구매자)에서 등록하고 바꿔요. 판매자가 수락하는 순간 대금이 보관돼요.
+        </p>
       </div>
     </div>
   );
@@ -193,6 +223,7 @@ function InspectSheet({ s, c, close }: { s: CarState; c: CarController; close: (
       <div className="c-sheet-body">
         {s.loadedPrompt && <div className="c-banner kraft">트렁크를 닫았어요. 실으셨나요?</div>}
         {t.handedAt && <div className="c-banner">판매자가 건넸다고 표시했어요. 확인되면 받았어요를 눌러 주세요.</div>}
+        {t.status === "arrived" && !t.handedAt && <WaitPanel t={t} c={c} />}
         <div className="c-inspect-grid">
           <div>{t.photos[0] ? <img className="c-photo" src={t.photos[0]} alt={t.title} /> : <div className="c-photo" />}</div>
           <div>
@@ -220,7 +251,7 @@ function InspectSheet({ s, c, close }: { s: CarState; c: CarController; close: (
         ) : (
           <>
             <div className="c-sub">등록 정보와 무엇이 다른가요?</div>
-            <p className="c-note">고르면 거래가 끝나고 대금은 전액 환불돼요. 판매자 신뢰도에 반영돼요.</p>
+            <p className="c-note">고르면 거래가 끝나고 대금은 전액 환불돼요. 판매자 신뢰도에 반영돼요. 현장 사진은 폰의 주행중GO!에서 남길 수 있어요.</p>
             <div className="c-reasons">
               {REASONS.map((r) => (
                 <button key={r} className="c-btn" onClick={() => void c.declineMismatch(r)}>
@@ -234,6 +265,48 @@ function InspectSheet({ s, c, close }: { s: CarState; c: CarController; close: (
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/** T20 도착했는데 판매자가 안 나올 때 — 다시 알리기, 기다린 뒤 끝내기 */
+function WaitPanel({ t, c }: { t: TradeView; c: CarController }) {
+  const now = useNow(c);
+  const [confirm, setConfirm] = useState(false);
+  const until = t.sellerWaitUntil ?? null;
+  const left = until !== null ? until - now : null;
+  const can = left !== null && left <= 0;
+  const waited = t.arrivedAt ? Math.max(0, Math.floor((now - t.arrivedAt) / 60000)) : 0;
+  const nudgedRecently = t.nudgedAt ? now - t.nudgedAt < 60_000 : false;
+  const mmss = left !== null && left > 0 ? `${Math.floor(left / 60000)}:${String(Math.floor((left % 60000) / 1000)).padStart(2, "0")}` : "";
+  return (
+    <div className="c-wait" data-testid="seller-wait">
+      <div className="c-wait-head">
+        <b>판매자를 기다리는 중</b>
+        <span>{can ? `도착하고 ${waited}분이 지났어요` : left !== null ? `${mmss} 뒤에도 안 나오면 거래를 끝낼 수 있어요` : ""}</span>
+      </div>
+      {!confirm ? (
+        <div className="c-wait-actions">
+          <button className="c-btn" disabled={nudgedRecently} onClick={() => void c.nudgeSeller()} data-testid="nudge">
+            {nudgedRecently ? "다시 알렸어요" : "판매자에게 다시 알리기"}
+          </button>
+          <button className="c-btn" disabled={!can} onClick={() => setConfirm(true)} data-testid="seller-absent">
+            판매자가 안 나왔어요
+          </button>
+        </div>
+      ) : (
+        <div className="c-wait-confirm">
+          <p>거래를 끝낼까요? 대금은 전액 환불되고 판매자 신뢰도에 반영돼요. 경유지도 해제해요.</p>
+          <div className="c-wait-actions">
+            <button className="c-btn kraft" onClick={() => void c.sellerAbsent()} data-testid="seller-absent-confirm">
+              끝내기
+            </button>
+            <button className="c-btn" onClick={() => setConfirm(false)}>
+              더 기다리기
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -262,12 +335,28 @@ function ResultSheet({ s, c }: { s: CarState; c: CarController }) {
             </div>
           </div>
         )}
+        {r.items.map((i) => (
+          <div className="c-rate" key={i.tradeId} data-testid={`review-${i.categoryLabel}`}>
+            <span>{i.categoryLabel} 판매자는 어땠나요?</span>
+            {s.ratings[i.tradeId] ? (
+              <b>★ {s.ratings[i.tradeId]}점을 남겼어요</b>
+            ) : (
+              <div className="c-stars" role="group" aria-label={`${i.categoryLabel} 판매자 평가`}>
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button key={n} onClick={() => void c.rate(i.tradeId, n)} aria-label={`${n}점`}>
+                    ★
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
         {r.notes.map((n) => (
           <div className="c-banner" key={n}>
             {n}
           </div>
         ))}
-        <p className="c-note">더 달린 거리는 주행거리계(Odometer) 차이로 쟀어요. 따로 다녀왔다면 걸렸을 시간은 집에서 판매자까지 왕복 경로로 계산했어요.</p>
+        <p className="c-note">더 달린 거리는 이번 주행에서 잰 거리와 원래 경로의 차이예요. 따로 다녀왔다면 걸렸을 시간은 목적지에서 판매자까지 왕복 경로로 계산했어요.</p>
         <button className="c-btn primary" onClick={() => c.dismissResult()}>
           닫기
         </button>
@@ -285,9 +374,7 @@ function VehicleSheet({ c, close }: { c: CarController; close: () => void }) {
           {VEHICLE_TABLE.map((v) => (
             <button key={v.model} onClick={() => void c.pickVehicle(v.model)}>
               <b>{v.model}</b>
-              <span>
-                트렁크 {v.trunk.w}×{v.trunk.d}×{v.trunk.h}cm
-              </span>
+              <span>{v.seatRows === 3 && v.row3Up ? `3열 차, 3열 세우면 깊이 ${v.row3Up.d}cm` : `트렁크 ${v.trunk.w}×${v.trunk.d}×${v.trunk.h}cm`}</span>
             </button>
           ))}
         </div>

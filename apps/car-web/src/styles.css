@@ -1202,3 +1202,87 @@ select:focus-visible {
 .c-shell.device .c-caption {
   display: none;
 }
+
+/* 판매자 기다림(T20) */
+.c-wait {
+  border: 1px solid #3a4a5e;
+  border-radius: 16px;
+  padding: 14px 16px;
+  margin: 0 0 16px;
+  background: #18212d;
+}
+.c-wait-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.c-wait-head b {
+  font-family: var(--font-sign);
+  font-weight: 400;
+  font-size: 22px;
+}
+.c-wait-head span {
+  color: var(--muted);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.c-wait-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.c-wait-confirm p {
+  margin: 10px 0 0;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+/* 결과 카드 판매자 평가(T21) */
+.c-rate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #1a2330;
+  border-radius: 16px;
+  padding: 12px 16px;
+  margin: 0 0 12px;
+  font-size: 17px;
+}
+.c-rate b {
+  color: var(--kraft);
+  font-weight: 600;
+}
+.c-stars {
+  display: flex;
+  gap: 6px;
+}
+.c-stars button {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  border: 1px solid #3a4a5e;
+  background: #222d3c;
+  color: var(--kraft);
+  font-size: 26px;
+  cursor: pointer;
+}
+.c-stars button:hover,
+.c-stars button:focus-visible {
+  background: var(--kraft);
+  color: var(--ink);
+}
+
+/* 요청을 막는 이유(결제 수단 없음·요청 제한) */
+.c-list-block {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(242, 166, 90, 0.14);
+  color: var(--warn);
+  font-size: 15px;
+  line-height: 1.45;
+}

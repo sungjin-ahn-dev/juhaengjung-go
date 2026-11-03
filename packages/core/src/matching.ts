@@ -69,6 +69,7 @@ export type Exclusion =
   | "detour"
   | "load"
   | "load_seat"
+  | "load_seat3"
   | "energy"
   | "availability"
   | "waypoints"
@@ -80,6 +81,7 @@ export const EXCLUSION_KO: Record<Exclusion, string> = {
   detour: "우회 시간이 설정보다 길어요",
   load: "차에 안 들어가요",
   load_seat: "2열에 사람이 있어 2열을 접을 수 없어요",
+  load_seat3: "3열에 사람이 있어 3열을 접을 수 없어요",
   energy: "들르면 배터리·연료가 부족해요",
   availability: "도착 시각이 판매자 거래 가능 시간 밖이에요",
   waypoints: "경유지가 이미 2개예요",
@@ -97,6 +99,17 @@ export interface ScoreParts {
   P: number;
   D: number;
   M: number;
+  /** 판매자 신뢰: 수락 뒤 취소·미응대·현장 불일치가 있으면 낮아진다(하한 0.5) */
+  R: number;
+}
+
+/** 판매자 신뢰 배수 R = 1 − 0.5 × (문제 거래 ÷ (정산된 거래 + 문제 거래)), 하한 0.5 */
+export function sellerReliability(t: Trust | undefined): number {
+  if (!t) return 1;
+  const incidents = t.canceled + t.noShow + t.mismatch;
+  if (incidents === 0) return 1;
+  const rate = incidents / Math.max(1, t.completed + incidents);
+  return Math.max(0.5, Math.round((1 - 0.5 * rate) * 100) / 100);
 }
 
 export interface Candidate {
@@ -249,6 +262,7 @@ export function evaluate(input: EvalInput): Evaluation {
     const detourMin = Math.max(1, Math.round(detourS / 60));
 
     const fit = fitItem(l.sizeCm, vehicle);
+    const row3 = vehicle.seatRows === 3 && ctx.seats.row3Occupied === true;
     const energy = checkEnergy({
       powertrain: vehicle.powertrain,
       socNowPct: ctx.socPct,
@@ -269,6 +283,7 @@ export function evaluate(input: EvalInput): Evaluation {
     if (detourS > input.settings.maxDetourMin[goLevel] * 60) exclusions.push("detour");
     if (fit.kind === "none") exclusions.push("load");
     else if (fit.kind === "folded" && ctx.seats.row2Occupied === true) exclusions.push("load_seat");
+    else if ((fit.kind === "folded" || fit.kind === "folded3") && row3) exclusions.push("load_seat3");
     if (!energy.ok) exclusions.push("energy");
     if (!available) exclusions.push("availability");
     if (ctx.waypointCount >= 2) exclusions.push("waypoints");
@@ -281,8 +296,9 @@ export function evaluate(input: EvalInput): Evaluation {
       P: priceAttractiveness(l.price, l.referencePrice),
       D: Math.max(0, Math.min(1, 1 - detourS / (input.settings.maxDetourMin[goLevel] * 60))),
       M: input.multipliers?.[l.category] ?? 1,
+      R: sellerReliability(input.sellerTrust?.[l.sellerId]),
     };
-    const score = (0.35 * parts.G + 0.2 * parts.W + 0.2 * parts.P + 0.25 * parts.D) * parts.M;
+    const score = (0.35 * parts.G + 0.2 * parts.W + 0.2 * parts.P + 0.25 * parts.D) * parts.M * parts.R;
 
     const inWindow =
       input.ignoreWindow || mode === "region"

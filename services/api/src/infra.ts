@@ -62,7 +62,8 @@ export class ManualClock implements Clock {
   }
 }
 
-export type Collection = "users" | "listings" | "interests" | "trades" | "trust" | "ledger" | "events";
+/** config: 서버 설정(웹 푸시 키 등 — 시연 초기화에도 남긴다), push: 판매자 웹 푸시 구독 */
+export type Collection = "users" | "listings" | "interests" | "trades" | "trust" | "ledger" | "events" | "push" | "config";
 
 export interface Store {
   get<T>(col: Collection, id: string): T | undefined;
@@ -106,8 +107,9 @@ export class MemoryStore implements Store {
   tx<R>(fn: () => R): R {
     return fn();
   }
+  /** 시연 초기화 — 설정(config)은 남긴다(웹 푸시 키가 바뀌면 판매자 폰 구독이 끊긴다) */
   clear() {
-    this.data.clear();
+    for (const k of [...this.data.keys()]) if (k !== "config") this.data.delete(k);
   }
 }
 

@@ -20,6 +20,7 @@ export const EXCLUSION_KO: Record<string, string> = {
   detour: "우회 시간이 설정보다 길어요",
   load: "차에 안 들어가요",
   load_seat: "2열에 사람이 있어 2열을 접을 수 없어요",
+  load_seat3: "3열에 사람이 있어 3열을 접을 수 없어요",
   energy: "들르면 배터리·연료가 부족해요",
   availability: "도착 시각이 판매자 거래 가능 시간 밖이에요",
   waypoints: "경유지가 이미 2개예요",

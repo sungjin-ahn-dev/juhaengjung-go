@@ -10,8 +10,8 @@
   ],
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc -p packages/core && tsc -p services/api && npm run typecheck -w apps/seller-web && npm run typecheck -w apps/car-web && npm run typecheck -w apps/demo",
-    "build:web": "npm run build -w apps/seller-web && npm run build -w apps/car-web",
+    "typecheck": "tsc -p packages/core && tsc -p services/api && npm run typecheck -w apps/seller-web && npm run typecheck -w apps/buyer-web && npm run typecheck -w apps/car-web && npm run typecheck -w apps/demo",
+    "build:web": "npm run build -w apps/seller-web && npm run build -w apps/buyer-web && npm run build -w apps/car-web",
     "start": "npm run start -w services/api",
     "dev": "npm run dev -w services/api",
     "e2e": "node tools/e2e.cjs",

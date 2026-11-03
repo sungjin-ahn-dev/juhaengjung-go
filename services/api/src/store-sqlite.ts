@@ -60,6 +60,6 @@ export class SqliteStore implements Store {
   }
 
   clear(): void {
-    this.db.exec("DELETE FROM docs");
+    this.db.exec("DELETE FROM docs WHERE col != 'config'");
   }
 }

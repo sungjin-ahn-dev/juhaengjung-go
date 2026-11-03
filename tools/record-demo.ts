@@ -108,7 +108,7 @@ interface Mark {
     await page.getByTestId("fill").click();
     await page.waitForTimeout(1300);
     await page.getByRole("button", { name: "샘플 사진" }).click();
-    await cap("판매자 폰", "크기는 품목으로 먼저 채우고, 60cm가 넘으면 판매자가 실측을 확인해야 올라가요");
+    await cap("판매자 폰", "크기는 품목 기본 크기로 먼저 채우고, 60cm가 넘으면 판매자가 실측을 확인해야 올라가요");
     await page.waitForTimeout(1800);
     await page.getByTestId("measured").check();
     await page.waitForTimeout(900);
@@ -190,13 +190,10 @@ interface Mark {
     await page.waitForTimeout(2500);
     const inspect = page.getByTestId("sheet-inspect");
     await inspect.waitFor({ timeout: 90000 });
-    await cap("차 화면", "정차하면 현장 확인 화면이 열려요. 트렁크를 열고 닫으면 '실으셨나요?'");
-    await page.waitForTimeout(1500);
-    await car("setTrunk", true);
-    await page.waitForTimeout(900);
-    await car("setTrunk", false);
-    await inspect.getByText("실으셨나요?").waitFor({ timeout: 5000 });
-    await page.waitForTimeout(1500);
+    await cap("차 화면", "정차하면 현장 확인 화면이 열려요. 판매자가 안 보이면 다시 알릴 수 있어요");
+    await page.waitForTimeout(1800);
+    await page.getByTestId("nudge").click();
+    await page.waitForTimeout(2400);
     await page.getByTestId("handed").click();
     await inspect.getByText("판매자가 건넸다고 표시했어요").waitFor({ timeout: 10000 });
     await page.waitForTimeout(1800);
@@ -216,9 +213,51 @@ interface Mark {
     const result = page.getByTestId("sheet-result");
     await result.waitFor({ timeout: 120000 });
     await mark("result");
-    await cap("차 화면", "목적지에 도착하면 따로 다녀왔다면 걸렸을 시간과 실제로 늘어난 시간·거리를 보여 줘요");
-    await page.waitForTimeout(4500);
+    await cap("차 화면", "목적지에 도착하면 늘어난 시간·거리를 보여 주고, 판매자를 평가해요");
+    await page.waitForTimeout(3200);
+    await result.getByRole("button", { name: "4점" }).click();
+    await page.waitForTimeout(2400);
     await mark("result-end");
+
+    // ⑧ 판매자가 안 나올 때 + 구매자 폰 — 새로 시작(자동 수락인 캠핑의자로)
+    await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: "load" });
+    await page.getByTestId("car-screen").waitFor();
+    await page.waitForTimeout(1500);
+    await page.getByRole("button", { name: "목적지", exact: true }).click();
+    await page.getByTestId("sheet-destination").getByRole("button", { name: /송파 집/ }).click();
+    await page.getByTestId("go-list").getByText("찾았어요").waitFor();
+    await page.getByRole("button", { name: "지도", exact: true }).click();
+    await car("rate", 10);
+    await car("setGear", "D");
+    const alert2 = page.getByTestId("alert");
+    await alert2.waitFor({ timeout: 40000 });
+    await mark("absent");
+    await cap("판매자가 안 나올 때", "자동 수락 매물이라 들를게요를 누르면 바로 경유지가 들어가요");
+    await page.waitForTimeout(1600);
+    await alert2.getByRole("button", { name: "들를게요" }).click();
+    await page.waitForTimeout(1800);
+    await mark("absent-a-end");
+    const inspect2 = page.getByTestId("sheet-inspect");
+    await inspect2.waitFor({ timeout: 90000 });
+    await mark("absent-b");
+    await cap("판매자가 안 나올 때", "다시 알려도 안 나오면 도착 5분 뒤에 거래를 끝낼 수 있어요. 전액 환불, 판매자 신뢰도에 반영");
+    await page.waitForTimeout(1500);
+    await page.getByTestId("nudge").click();
+    await page.waitForTimeout(1200);
+    await car("rate", 60);
+    await page.waitForFunction(() => !document.querySelector('[data-testid="seller-absent"]')?.hasAttribute("disabled"), null, { timeout: 30000 });
+    await car("rate", 1);
+    await page.waitForTimeout(900);
+    await page.getByTestId("seller-absent").click();
+    await page.waitForTimeout(1600);
+    await page.getByTestId("seller-absent-confirm").click();
+    await page.waitForTimeout(1800);
+    await page.getByTestId("phone-buyer").click();
+    await cap("구매자 폰", "결제 수단, 거래 내역과 판매자 평가, 현장 사진은 폰에서 다뤄요");
+    await page.waitForTimeout(2600);
+    await page.locator(".phone").getByTestId("btab-pay").click();
+    await page.waitForTimeout(2600);
+    await mark("absent-end");
   } finally {
     const v = page.video();
     await ctx.close();
@@ -251,6 +290,13 @@ interface Mark {
         segs: [
           ["settle", "settle-end"],
           ["result", "result-end"],
+        ],
+      },
+      {
+        id: "08-seller-absent",
+        segs: [
+          ["absent", "absent-a-end"],
+          ["absent-b", "absent-end", -0.4],
         ],
       },
     ],

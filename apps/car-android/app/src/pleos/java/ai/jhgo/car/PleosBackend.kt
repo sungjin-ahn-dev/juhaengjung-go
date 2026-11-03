@@ -106,7 +106,7 @@ class PleosBackend(private val context: Context) : SdkBackend {
         // ── Vehicle ──
         "Vehicle.getCarInfo" -> JSONObject().put("manufacturer", JSONObject.NULL).put("model", JSONObject.NULL).put("modelYear", JSONObject.NULL)
         "Vehicle.capabilities" -> capabilities()
-        "Vehicle.registerSeatOccupancy" -> registerSeats(args.optJSONArray("area"))
+        "Vehicle.registerSeatOccupancy" -> registerSeats(args.optJSONArray("area"), args.optString("tag", "row2"))
         "Vehicle.getEvBatteryStateOfCharge" -> soc()
         "Vehicle.registerEvBatteryStateOfCharge" -> registerSoc()
         "Vehicle.getFuelRangeKm" -> null
@@ -516,31 +516,46 @@ class PleosBackend(private val context: Context) : SdkBackend {
         return null
     }
 
-    private val seatState = HashMap<String, Boolean>()
+    /** 줄(tag)마다 좌석별 착석 — 한 곳이라도 앉아 있으면 그 줄은 true */
+    private val seatState = HashMap<String, HashMap<String, Boolean>>()
     private val seatListeners = ArrayList<Pair<SeatValue, SeatOccupancyListener>>()
     private var socListener: EvBatteryStateOfChargeListener? = null
     private var turnListener: TurnSignalStateListener? = null
     private var steerListener: SteeringWheelAngleListener? = null
     private var brakeListener: BrakePedalStatusListener? = null
 
-    /** 2열 좌석(ROW_2_LEFT·CENTER·RIGHT) 중 한 곳이라도 앉아 있으면 true */
-    private fun registerSeats(area: JSONArray?): Any? = once("seat") {
-        val seat = vehicle().getSeat()
-        val names = (0 until (area?.length() ?: 0)).map { area!!.getString(it) }.ifEmpty { listOf("ROW_2_LEFT", "ROW_2_CENTER", "ROW_2_RIGHT") }
-        for (name in names) {
-            val sv = SeatValue.valueOf(name)
-            val l = object : SeatOccupancyListener {
-                override fun onSeatOccupancyUpdated(occupancy: Boolean?) {
-                    if (occupancy == null) return
-                    val any = synchronized(seatState) {
-                        seatState[name] = occupancy
-                        seatState.values.any { it }
+    /**
+     * 좌석 착석: 줄(tag)마다 따로 등록한다(row2: ROW_2_LEFT·CENTER·RIGHT, row3: ROW_3_LEFT·RIGHT).
+     * 결과는 실제로 등록한 SeatValue 이름 목록. 이 SDK 버전에 없는 이름은 건너뛴다(TODO(G0): ROW_3_CENTER 유무 확인).
+     * 이벤트: Vehicle.onSeatOccupancyUpdated {tag, occupied}
+     */
+    private fun registerSeats(area: JSONArray?, tag: String): Any? {
+        if (!registered.add("seat:$tag")) return JSONObject().put("tag", tag).put("registered", JSONArray())
+        try {
+            val seat = vehicle().getSeat()
+            val names = (0 until (area?.length() ?: 0)).map { area!!.getString(it) }.ifEmpty { listOf("ROW_2_LEFT", "ROW_2_CENTER", "ROW_2_RIGHT") }
+            val done = JSONArray()
+            for (name in names) {
+                val sv = runCatching { SeatValue.valueOf(name) }.getOrNull() ?: continue
+                val l = object : SeatOccupancyListener {
+                    override fun onSeatOccupancyUpdated(occupancy: Boolean?) {
+                        if (occupancy == null) return
+                        val any = synchronized(seatState) {
+                            val row = seatState.getOrPut(tag) { HashMap() }
+                            row[name] = occupancy
+                            row.values.any { it }
+                        }
+                        emit("Vehicle.onSeatOccupancyUpdated", JSONObject().put("tag", tag).put("occupied", any))
                     }
-                    emit("Vehicle.onSeatOccupancyUpdated", any)
                 }
+                seat.registerSeatOccupancy(SeatArea(sv), l)
+                seatListeners.add(sv to l)
+                done.put(name)
             }
-            seat.registerSeatOccupancy(SeatArea(sv), l)
-            seatListeners.add(sv to l)
+            return JSONObject().put("tag", tag).put("registered", done)
+        } catch (e: Exception) {
+            registered.remove("seat:$tag")
+            throw e
         }
     }
 
