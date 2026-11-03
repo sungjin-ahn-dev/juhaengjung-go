@@ -70,3 +70,37 @@ export function describeAvailability(windows: Availability[]): string {
     })
     .join(", ");
 }
+
+/** 다음 한국 시간 자정 */
+export function nextKstMidnight(ms: number): number {
+  const p = kstParts(ms);
+  return kstToMs(p.year, p.month, p.day + 1, 0, 0);
+}
+
+/** 지금 거래 가능 시간이면 지금, 아니면 다음으로 시작하는 시각(8일 안). 비어 있으면(언제든) 지금 */
+export function nextAvailableAt(windows: Availability[], ms: number): number | null {
+  if (!windows || windows.length === 0 || isAvailableAt(windows, ms)) return ms;
+  const p = kstParts(ms);
+  for (let off = 0; off <= 7; off++) {
+    const dayStart = kstToMs(p.year, p.month, p.day + off, 0, 0);
+    const dow = (p.dow + off) % 7;
+    let best: number | null = null;
+    for (const w of windows) {
+      if (!w.days.includes(dow)) continue;
+      const t = dayStart + toMin(w.from) * 60_000;
+      if (t > ms && (best === null || t < best)) best = t;
+    }
+    if (best !== null) return best;
+  }
+  return null;
+}
+
+/** 판매자 쉬기(T27) — until이 null이면 직접 다시 켤 때까지 */
+export interface SellerPause {
+  until: number | null;
+  at: number;
+}
+
+export function pauseActive(p: SellerPause | null | undefined, ms: number): boolean {
+  return !!p && (p.until === null || ms < p.until);
+}

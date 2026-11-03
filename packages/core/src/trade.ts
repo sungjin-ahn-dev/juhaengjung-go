@@ -1,6 +1,6 @@
 /**
  * 거래 상태 머신 — T9 요청, T10 수락·대금 보관, T11 도착 예정·도착, T12 현장 확인, T13 정산·환불·취소·노쇼,
- * T20 판매자 미응대(도착 뒤 기다려도 안 나옴), T22 반복 취소·노쇼 요청 제한.
+ * T20 판매자 미응대(도착 뒤 기다려도 안 나옴), T22 반복 취소·노쇼 요청 제한, T28 판매자 '지금 나가요'.
  * 순수 함수: (거래, 이벤트, 시각) → (새 거래, 효과 목록). 서버는 효과를 저장·알림·신뢰도에 반영한다.
  */
 export type TradeStatus =
@@ -63,6 +63,8 @@ export interface Trade {
   arrivedAt?: number;
   /** 도착 뒤 구매자가 판매자에게 다시 알린 시각 */
   nudgedAt?: number;
+  /** 판매자가 '지금 나가요'를 누른 시각 — 구매자 차에 보인다 */
+  sellerComingAt?: number;
   /** 판매자가 안 나와 구매자가 거래를 끝낸 시각 */
   sellerAbsentAt?: number;
   /** 구매자 미도착으로 끝난 시각 */
@@ -137,6 +139,8 @@ export type TradeEvent =
   | { type: "BUYER_REPORT_SELLER_ABSENT" }
   /** 현장 거절 뒤 사진 남기기(폰) */
   | { type: "BUYER_EVIDENCE"; photos: string[] }
+  /** 판매자가 물건을 들고 나간다 — 구매자 차에 알린다(거래마다 한 번) */
+  | { type: "SELLER_COMING" }
   | { type: "TICK" }
   | { type: "RATE"; by: "buyer" | "seller"; stars: number };
 
@@ -382,6 +386,11 @@ export function applyTradeEvent(t: Trade, ev: TradeEvent, now: number, cfg: Trad
           { kind: "notify", to: "buyer", type: "trade.refunded" },
         ],
       };
+    }
+    case "SELLER_COMING": {
+      need(t, ["accepted", "arrived"], "나간다고 알리기");
+      if (t.handedAt || t.sellerComingAt) return { trade: t, effects: [] };
+      return { trade: { ...t, sellerComingAt: now }, effects: [{ kind: "notify", to: "buyer", type: "trade.seller_coming" }] };
     }
     case "BUYER_EVIDENCE": {
       need(t, ["declined_mismatch"], "사진 남기기");

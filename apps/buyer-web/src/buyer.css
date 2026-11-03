@@ -1,19 +1,425 @@
-/* 구매자 폰 — 판매자 폰과 같은 틀(s-*)에 파란 머리띠만 바꾼다. 크라프트는 판매자 쪽 신호라 여기서는 쓰지 않는다. */
-.b-root .s-brand {
-  color: var(--blue);
+/*
+ * 구매자 폰 — 판매자 폰과 같은 시스템(s-*). 구매자의 '내 차'만 차 화면의 아스팔트·경로색으로 그린다.
+ * 크라프트는 판매자 쪽 신호라 여기서는 쓰지 않는다.
+ */
+.b-root .s-mark em {
+  color: #1f8fa3;
 }
-.b-setting {
+
+/* 내 차 */
+.b-car {
+  margin: 0 var(--pad) 14px;
+  padding: 20px 18px 8px;
+  border-radius: 22px;
+  background: var(--asphalt);
+  color: #e8edf3;
+  position: relative;
+  overflow: hidden;
+}
+.b-car-route {
+  /* 차 화면의 경로선과 경유지 — 이 카드가 '내 차'라는 표시 */
+  position: absolute;
+  right: 0;
+  top: -12px;
+  width: 168px;
+  height: 92px;
+  pointer-events: none;
+}
+.b-car-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px 14px;
+}
+.b-car-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #8e9bad;
+}
+.b-car-head b {
+  display: block;
+  margin-top: 2px;
+  font-size: 22px;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  color: #ffffff;
+}
+.b-car-btn {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 650;
+  background: rgba(255, 255, 255, 0.1);
+  color: #e8edf3;
+  position: relative;
+  z-index: 1;
+}
+.b-checks {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.b-check {
+  width: 100%;
+  display: flex;
   align-items: center;
-  margin-top: 8px;
+  gap: 12px;
+  padding: 14px 2px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: inherit;
 }
-.b-setting > span {
+.b-check:last-child {
+  border-bottom: 0;
+}
+.b-check-mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  background: rgba(87, 210, 230, 0.16);
+  color: var(--route);
+}
+.b-check.todo .b-check-mark {
+  background: rgba(242, 166, 90, 0.18);
+  color: #f2a65a;
+}
+.b-check-main {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: 15.5px;
+  font-weight: 650;
+  color: #ffffff;
 }
-.b-setting > b {
-  min-width: 56px;
+.b-check-main small {
+  margin-top: 1px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #8e9bad;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.b-check-act {
+  font-size: 14px;
+  font-weight: 650;
+  color: #c7d0db;
+}
+.b-check.todo .b-check-act {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  background: #f2a65a;
+  color: #1d1a16;
+}
+.b-check.static {
+  cursor: default;
+}
+
+/* 진행 중 거래(차에서 진행) */
+.b-active {
+  margin: 0 var(--pad) 14px;
+  width: calc(100% - 2 * var(--pad));
+  display: grid;
+  grid-template-columns: 56px 1fr 20px;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: var(--g100);
+  text-align: left;
+}
+.b-active img,
+.b-active .s-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  object-fit: cover;
+}
+.b-active .s-row-main {
+  font-size: 15.5px;
+  font-weight: 650;
+}
+.b-active .s-row-main small {
+  font-size: 13px;
+  font-weight: 650;
+  color: #1f8fa3;
+}
+.b-active em {
+  font-style: normal;
+  font-size: 13px;
+  color: var(--g600);
+  font-weight: 500;
+}
+.b-active > svg {
+  color: var(--g400);
+}
+
+/* 거래 줄 */
+.b-trade {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 60px 1fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--g150);
+  text-align: left;
+}
+.b-trade:last-of-type {
+  border-bottom: 0;
+}
+.b-trade > img,
+.b-trade > .s-thumb {
+  width: 60px;
+  height: 60px;
+  border-radius: 12px;
+  object-fit: cover;
+}
+.b-trade-title {
+  font-size: 15.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.b-trade-meta {
+  margin-top: 5px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-size: 13px;
+  color: var(--g500);
+  font-weight: 500;
+}
+.b-trade-price {
+  align-self: flex-start;
+  margin-top: 1px;
+  font-weight: 700;
+}
+.b-trust {
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--g500);
+  line-height: 1.5;
+}
+
+/* 관심 물건 */
+.b-interest,
+.b-setting {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--g150);
+  text-align: left;
+  font-size: 16px;
+  font-weight: 600;
+}
+.b-interest > svg {
+  color: var(--g400);
+}
+.b-level {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--g300);
+}
+.b-level.must {
+  background: #e5484d;
+}
+.b-level.likely {
+  background: #f2a65a;
+}
+.b-level.near {
+  background: #1f8fa3;
+}
+.b-level.battery {
+  background: var(--go);
+}
+.b-level-chip {
+  flex: none;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 12.5px;
+  font-weight: 700;
+  background: var(--g100);
+  color: var(--g700);
+}
+.b-level-chip.must {
+  background: #fdeeee;
+  color: #c22f35;
+}
+.b-level-chip.likely {
+  background: #fdf1e4;
+  color: #b0621a;
+}
+.b-level-chip.near {
+  background: #e4f4f7;
+  color: #18788a;
+}
+.b-setting:last-child {
+  border-bottom: 0;
+}
+.b-mini-stepper {
+  flex: none;
+  display: grid;
+  grid-template-columns: 38px 64px 38px;
+  align-items: center;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--g100);
+}
+.b-mini-stepper button {
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--g700);
+  border-radius: 12px;
+}
+.b-mini-stepper button:active {
+  background: var(--g200);
+}
+.b-mini-stepper b {
   text-align: center;
-  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  font-weight: 750;
+}
+
+/* 거래 상세 */
+.b-money {
+  margin-top: 16px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: #e8f5f8;
+  color: #12515c;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.b-money svg {
+  color: #1f8fa3;
+}
+.b-money.refund {
+  background: var(--g100);
+  color: var(--g800);
+}
+.b-money.refund svg {
+  color: var(--g600);
+}
+.b-timeline {
+  margin: 18px 0 4px;
+  padding: 0;
+  list-style: none;
+}
+.b-timeline li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 0;
+  font-size: 15px;
+  color: var(--g400);
+  font-weight: 550;
+}
+.b-timeline li::before {
+  content: "";
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  height: 100%;
+  width: 2px;
+  background: var(--g200);
+}
+.b-timeline li:last-child::before {
+  display: none;
+}
+.b-timeline li i {
+  width: 12px;
+  height: 12px;
+  margin-left: 5px;
+  border-radius: 50%;
+  background: var(--white);
+  border: 2px solid var(--g300);
+  position: relative;
+  z-index: 1;
+}
+.b-timeline li.done {
+  color: var(--g800);
+}
+.b-timeline li.done i {
+  background: var(--g800);
+  border-color: var(--g800);
+}
+.b-timeline li.done::before {
+  background: var(--g800);
+}
+.b-timeline li.now {
+  color: #18788a;
+  font-weight: 700;
+}
+.b-timeline li.now i {
+  border-color: #1f8fa3;
+  box-shadow: 0 0 0 4px rgba(31, 143, 163, 0.16);
+}
+.b-timeline li.bad {
+  color: var(--red);
+  font-weight: 700;
+}
+.b-timeline li.bad i {
+  background: var(--red);
+  border-color: var(--red);
+}
+.b-timeline time {
+  font-size: 13.5px;
+  color: var(--g500);
+  font-weight: 500;
 }
 .b-evidence {
-  margin-top: 6px;
+  margin-top: 8px;
+}
+
+/* 결제 수단 */
+.b-paycard {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 18px;
+  background: var(--g100);
+  font-size: 16px;
+  font-weight: 650;
+}
+.b-paycard.on {
+  background: var(--asphalt);
+  color: #ffffff;
+}
+.b-paycard.on svg {
+  color: var(--route);
+}
+.b-paycard.on .s-row-main small {
+  color: #8e9bad;
 }

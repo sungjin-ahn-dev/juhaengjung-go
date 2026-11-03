@@ -1,5 +1,5 @@
 /** 시연 데이터 — 금요일 퇴근길(수원 → 송파) 시나리오. 인물·매물은 모두 가상이다. */
-import { DEMO_NET, kstToMs, type Availability } from "@jhgo/core";
+import { DEMO_NET, kstToMs, productArt, type Availability } from "@jhgo/core";
 import type { Service, User } from "./service.ts";
 
 /** 시연 시작 시각: 2026-11-06(금) 18:05 KST */
@@ -29,12 +29,6 @@ export function placePoint(id: string) {
 
 const WEEKDAY_EVENING: Availability[] = [{ days: [1, 2, 3, 4, 5], from: "18:00", to: "21:00" }];
 const EVERY_EVENING: Availability[] = [{ days: [0, 1, 2, 3, 4, 5, 6], from: "17:00", to: "22:00" }];
-
-/** 품목 그림 대신 쓰는 간단한 사진 자리(SVG) */
-export function placeholderPhoto(label: string, hue: number): string {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${hue},45%,86%)"/><stop offset="1" stop-color="hsl(${hue},40%,72%)"/></linearGradient></defs><rect width="320" height="240" fill="url(#g)"/><rect x="96" y="58" width="128" height="104" rx="18" fill="hsl(${hue},35%,58%)" opacity=".55"/><text x="160" y="205" font-family="sans-serif" font-size="22" text-anchor="middle" fill="hsl(${hue},40%,25%)">${label}</text></svg>`;
-  return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
-}
 
 export interface SeedResult {
   buyer: User;
@@ -68,7 +62,7 @@ export function seedDemo(svc: Service, opts: { includeCarSeat?: boolean } = {}):
     condition: "good",
     sizeCm: { w: 18, d: 18, h: 95 },
     sizeSource: "seller_measured",
-    photos: [placeholderPhoto("캠핑의자", 140)],
+    photos: [productArt("camping_chair")],
     pickupPoint: placePoint("yeongtong_side"),
     availability: EVERY_EVENING,
     autoAccept: true,
@@ -81,7 +75,7 @@ export function seedDemo(svc: Service, opts: { includeCarSeat?: boolean } = {}):
     condition: "fair",
     sizeCm: { w: 125, d: 68, h: 22 },
     sizeSource: "seller_measured",
-    photos: [placeholderPhoto("아기 침대", 30)],
+    photos: [productArt("baby_bed")],
     pickupPoint: placePoint("bojeong"),
     availability: WEEKDAY_EVENING,
   });
@@ -93,7 +87,7 @@ export function seedDemo(svc: Service, opts: { includeCarSeat?: boolean } = {}):
     condition: "good",
     sizeCm: { w: 55, d: 38, h: 92 },
     sizeSource: "seller_measured",
-    photos: [placeholderPhoto("유모차", 200)],
+    photos: [productArt("stroller")],
     pickupPoint: placePoint("jeongja_side"),
     availability: [{ days: [0, 1, 2, 3, 4, 5, 6], from: "18:00", to: "22:00" }],
   });
@@ -106,7 +100,7 @@ export function seedDemo(svc: Service, opts: { includeCarSeat?: boolean } = {}):
       condition: "good",
       sizeCm: { w: 45, d: 55, h: 68 },
       sizeSource: "seller_measured",
-      photos: [placeholderPhoto("카시트", 260)],
+      photos: [productArt("car_seat")],
       pickupPoint: placePoint("baekhyeon"),
       availability: WEEKDAY_EVENING,
     });
@@ -118,7 +112,7 @@ export function seedDemo(svc: Service, opts: { includeCarSeat?: boolean } = {}):
     condition: "good",
     sizeCm: { w: 200, d: 90, h: 85 },
     sizeSource: "seller_measured",
-    photos: [placeholderPhoto("소파", 10)],
+    photos: [productArt("sofa")],
     pickupPoint: placePoint("suseo"),
   });
   svc.createListing(sofa, {
@@ -128,7 +122,7 @@ export function seedDemo(svc: Service, opts: { includeCarSeat?: boolean } = {}):
     condition: "fair",
     sizeCm: { w: 80, d: 40, h: 65 },
     sizeSource: "seller_measured",
-    photos: [placeholderPhoto("자전거", 90)],
+    photos: [productArt("bicycle")],
     pickupPoint: placePoint("garak"),
   });
   return { buyer, sellers: { park, camp, bed, stroller, sofa } };

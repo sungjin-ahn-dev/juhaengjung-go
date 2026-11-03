@@ -78,6 +78,8 @@ export interface TradeView {
   waypointConfirmedAt?: number;
   arrivedAt?: number;
   nudgedAt?: number;
+  /** 판매자가 '지금 나가요'를 누른 시각(T28) */
+  sellerComingAt?: number;
   /** 도착 뒤 이 시각이 지나면 '판매자가 안 나왔어요'로 끝낼 수 있다 */
   sellerWaitUntil?: number | null;
   ratings?: { buyerToSeller?: number; sellerToBuyer?: number };
@@ -655,6 +657,11 @@ export class CarController {
         this.set({ trade: null, screen: this.state.restricted ? "map" : this.state.screen === "inspect" ? "map" : this.state.screen });
         this.toast(e.title, "warn");
         this.say(e.title + ". 경유지를 해제했어요.");
+        break;
+      case "trade.seller_coming":
+        // 판매자가 물건을 들고 나오는 중 — 기다림 패널·거래 카드에 표시, 짧게 알린다
+        if (trade) this.set({ trade });
+        this.toast("판매자가 나오고 있어요", "info");
         break;
       case "trade.handed":
         if (trade) this.set({ trade });

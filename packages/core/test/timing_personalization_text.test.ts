@@ -11,6 +11,9 @@ import {
   keywordMatches,
   kstToMs,
   needsMeasuredSize,
+  nextAvailableAt,
+  nextKstMidnight,
+  pauseActive,
   parsePastedListing,
   personalizationNote,
   recordSkip,
@@ -120,6 +123,25 @@ describe("거래 가능 시간 (한국 시간)", () => {
     expect(isAvailableAt(late, kstToMs(2026, 11, 6, 23, 0))).toBe(true);
     expect(isAvailableAt(late, kstToMs(2026, 11, 7, 0, 30))).toBe(true);
     expect(isAvailableAt(late, kstToMs(2026, 11, 7, 1, 30))).toBe(false);
+  });
+});
+
+describe("판매자 쉬기·다음 거래 가능 시각(T27)", () => {
+  const weekday = [{ days: [1, 2, 3, 4, 5], from: "18:00", to: "21:00" }];
+  it("다음 거래 가능 시각: 지금이면 지금, 오늘 늦게·다음 평일·언제든", () => {
+    const fri1830 = kstToMs(2026, 11, 6, 18, 30);
+    expect(nextAvailableAt(weekday, fri1830)).toBe(fri1830);
+    expect(nextAvailableAt(weekday, kstToMs(2026, 11, 6, 9, 0))).toBe(kstToMs(2026, 11, 6, 18, 0));
+    expect(nextAvailableAt(weekday, kstToMs(2026, 11, 6, 22, 0))).toBe(kstToMs(2026, 11, 9, 18, 0)); // 금 밤 → 월 저녁
+    expect(nextAvailableAt([], fri1830)).toBe(fri1830);
+  });
+  it("쉬기는 정한 시각까지, until이 없으면 끌 때까지. 오늘은 = 다음 자정", () => {
+    const t = kstToMs(2026, 11, 6, 18, 30);
+    expect(nextKstMidnight(t)).toBe(kstToMs(2026, 11, 7, 0, 0));
+    expect(pauseActive({ until: t + 3600_000, at: t }, t + 10)).toBe(true);
+    expect(pauseActive({ until: t + 3600_000, at: t }, t + 3600_000)).toBe(false);
+    expect(pauseActive({ until: null, at: t }, t + 99 * 86400_000)).toBe(true);
+    expect(pauseActive(undefined, t)).toBe(false);
   });
 });
 

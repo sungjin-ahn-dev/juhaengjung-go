@@ -62,19 +62,32 @@ async function waitHealth() {
     await phone.getByTestId("login-박서연").click();
     await phone.getByTestId("compose").click();
     await phone.locator("#paste").fill("[판매] 회전형 카시트 (신생아~4세)\n35,000원\n아이가 커서 정리해요. 커버 세탁했어요.");
-    await phone.getByTestId("fill").click();
+    // 붙여 넣으면 '채우기'를 누르지 않아도 바로 채운다
     await phone.waitForFunction(() => document.querySelector("#title")?.value?.includes("카시트"));
-    check((await phone.locator("#title").inputValue()).includes("회전형 카시트"), "붙여넣기로 제목이 채워짐");
-    check((await phone.locator(".s-badge-ai").innerText()) === "품목 기본 크기", "크기는 품목 기본 크기로 채웠다고 표시(사진 AI가 아님)");
+    check((await phone.locator("#title").inputValue()).includes("회전형 카시트"), "붙여 넣으면 바로 제목·가격·품목·크기가 채워짐");
+    check((await phone.getByTestId("size-source").innerText()) === "품목 기본 크기", "크기는 품목 기본 크기로 채웠다고 표시(사진 AI가 아님)");
+    check((await phone.getByTestId("place-open").innerText()).includes("판교 백현동"), "거래 장소는 판매자 기본 장소로 미리 채움");
     await phone.getByRole("button", { name: "샘플 사진" }).click();
     check((await phone.getByTestId("fill-size").innerText()) === "품목 기본 크기로 채우기", "샘플 그림·AI 없는 서버에서는 '품목 기본 크기로 채우기'");
     // AI 추정 크기(45×55×68)는 60cm 이상 → 실측 확인 전에는 올릴 수 없다
     check(await phone.getByTestId("submit").isDisabled(), "큰 물건은 실측 확인 전 '올리기' 비활성");
-    await phone.getByTestId("measured").check();
+    await phone.getByTestId("measured").click();
     await snapP("compose");
+    check((await phone.getByTestId("submit").innerText()).includes("35,000원에 올리기"), "확인할 것이 끝나면 '35,000원에 올리기'");
     await phone.getByTestId("submit").click();
-    await phone.getByText("올렸어요").waitFor();
+    await phone.getByTestId("posted").getByText("올렸어요").waitFor();
+    await snapP("posted");
+    await phone.getByTestId("posted-done").click();
     check((await phone.getByTestId("listing-row").count()) === 1, "카시트가 내 물건에 올라감");
+    check((await phone.getByTestId("status").innerText()).includes("지금 요청을 받고 있어요"), "판매자 홈: 지금 요청을 받고 있어요");
+    // 잠깐 쉬기(T27) → 다시 받기
+    await phone.getByTestId("pause-open").click();
+    await phone.getByTestId("pause-1h").click();
+    await phone.getByTestId("status").getByText("쉬는 중이에요").waitFor();
+    check(true, "잠깐 쉬기 1시간 → '쉬는 중이에요'");
+    await phone.getByTestId("pause-off").click();
+    await phone.getByTestId("status").getByText("지금 요청을 받고 있어요").waitFor();
+    check(true, "다시 받기 → '지금 요청을 받고 있어요'");
     await snapP("listings");
 
     // ── 차량 화면 ──
@@ -102,6 +115,10 @@ async function waitHealth() {
     check(await car.locator('[data-testid="go-row-카시트"].on').count() === 1, "지도 핀을 누르면 목록의 같은 매물이 표시됨");
     await snapC("briefing");
     await car.getByRole("button", { name: "지도", exact: true }).click();
+    // 노출 수(T29): 판매자 폰에 '지나간 차 1대에 보였어요'
+    await phone.reload({ waitUntil: "load" });
+    await phone.getByTestId("listing-stats").getByText(/지나간 차 1대에 보였어요/).waitFor({ timeout: 10000 });
+    check(true, "판매자 물건 줄: 지나간 차 1대에 보였어요(누가 봤는지는 없음)");
 
     // 출발 — 방향지시등을 켠 동안에는 알림을 미룬다(T8). 첫 알림 구간은 10배속으로 여유 있게
     await car.getByTestId("rate-10").click();
@@ -151,20 +168,27 @@ async function waitHealth() {
     check(pushRow.includes("알림 받기"), `판매자 거래 탭: 페이지를 닫아도 받는 알림 켜기(웹 푸시) — ${pushRow}`);
     await snapP("on-the-way");
 
-    // 도착 3분 전 '나오세요' → 도착 → 정차 → 현장 확인
-    await phone.getByText("곧 도착해요. 물건을 들고 나와 주세요").waitFor({ timeout: 90000 });
-    check(true, "판매자: 도착 3분 전 '나오세요'");
+    // 도착 3분 전 '나오세요'(만남 화면) → 지금 나가요 → 차 화면에 표시
+    const handoff = phone.getByTestId("handoff");
+    await handoff.getByText("곧 도착해요").waitFor({ timeout: 90000 });
+    check(true, "판매자: 도착 3분 전 만남 화면 '곧 도착해요, 물건을 들고 나와 주세요'");
     await snapP("come-out");
+    await handoff.getByTestId("coming").click();
+    await car.getByTestId("trade-seller-coming").waitFor({ timeout: 10000 });
+    check(true, "판매자 '지금 나가요' → 차 화면 거래 카드에 '판매자가 나오고 있어요'");
     const inspect = car.getByTestId("sheet-inspect");
     await inspect.waitFor({ timeout: 90000 });
     check(true, "경유지 도착(onWayPointArrived) → 정차 → 현장 확인 화면");
-    await phone.getByText("구매자가 도착했어요").waitFor({ timeout: 10000 });
+    await handoff.getByText("구매자가 도착했어요").waitFor({ timeout: 10000 });
+    check((await handoff.getByTestId("handoff-left").innerText()).includes("안에 나가 주세요"), "만남 화면: 구매자가 거래를 끝낼 수 있게 되기까지 남은 시간");
+    await inspect.getByTestId("seller-coming").waitFor({ timeout: 5000 });
+    check(true, "현장 확인 기다림 패널에도 '판매자가 나오고 있어요'");
     await car.getByTestId("trunk-open").click();
     await car.waitForTimeout(400);
     await car.getByTestId("trunk-close").click();
     await inspect.getByText("실으셨나요?").waitFor({ timeout: 5000 });
     check(true, "트렁크 열림→닫힘 → '실으셨나요?'");
-    await phone.getByTestId("handed").click();
+    await handoff.getByTestId("handed").click();
     await inspect.getByText("판매자가 건넸다고 표시했어요").waitFor({ timeout: 10000 });
     await snapC("inspect");
     await inspect.getByRole("button", { name: "받았어요" }).click();
@@ -236,12 +260,14 @@ async function waitHealth() {
     await bphone.goto(BASE + "/buyer/", { waitUntil: "load" });
     await bphone.getByTestId("blogin-김주행").click();
     await bphone.getByTestId("buyer-app").waitFor();
-    await bphone.getByText("판매자를 만나지 못함 · 환불").waitFor({ timeout: 10000 });
-    check(true, "구매자 폰 거래 내역: 판매자를 만나지 못함 · 환불");
-    await bphone.screenshot({ path: path.join(OUT, `${String(++shot).padStart(2, "0")}-buyer-trades.png`) });
-    await bphone.getByTestId("btab-pay").click();
-    check((await bphone.getByTestId("pay-method").innerText()).includes("테스트 결제 수단"), "구매자 폰: 결제 수단(테스트) 등록됨");
-    await bphone.screenshot({ path: path.join(OUT, `${String(++shot).padStart(2, "0")}-buyer-pay.png`) });
+    check((await bphone.getByTestId("pay-method").innerText()).includes("테스트 결제 수단"), "구매자 폰 홈: 결제 수단(테스트) 등록됨");
+    await bphone.getByText("판매자 못 만남, 환불").first().waitFor({ timeout: 10000 });
+    check(true, "구매자 폰 최근 거래: 판매자 못 만남, 환불");
+    await bphone.screenshot({ path: path.join(OUT, `${String(++shot).padStart(2, "0")}-buyer-home.png`) });
+    await bphone.getByTestId("b-trade-camping_chair").first().click();
+    const sheet = bphone.getByTestId("trade-sheet");
+    check((await sheet.innerText()).includes("전액 환불됐어요"), "거래 상세: 대금 흐름(전액 환불)과 시간순 기록");
+    await bphone.screenshot({ path: path.join(OUT, `${String(++shot).padStart(2, "0")}-buyer-trade.png`) });
     log("E2E 통과");
   } finally {
     await browser?.close();

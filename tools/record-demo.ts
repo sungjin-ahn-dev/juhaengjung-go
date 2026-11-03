@@ -96,25 +96,37 @@ interface Mark {
     await page.getByTestId("seller-app").waitFor();
     await page.waitForTimeout(1500);
 
-    // ① 같이 올리기
+    // ① 같이 올리기 → 판매자 홈(받는 중·잠깐 쉬기)
+    const phone = page.locator(".phone");
     await mark("compose");
-    await cap("판매자 폰", "다른 앱에 쓴 글을 붙여 넣으면 제목·가격·품목이 채워져요");
+    await cap("판매자 폰", "다른 앱에 쓴 글을 붙여 넣으면 제목·가격·품목·크기가 바로 채워져요");
     await page.waitForTimeout(1200);
-    await page.getByTestId("compose").click();
-    await page.waitForTimeout(500);
+    await phone.getByTestId("compose").click();
+    await page.waitForTimeout(600);
     await page.locator("#paste").click();
     await page.locator("#paste").pressSequentially("[판매] 회전형 카시트 (신생아~4세)\n35,000원\n아이가 커서 정리해요. 커버 세탁했어요.", { delay: 22 });
-    await page.waitForTimeout(500);
-    await page.getByTestId("fill").click();
-    await page.waitForTimeout(1300);
-    await page.getByRole("button", { name: "샘플 사진" }).click();
-    await cap("판매자 폰", "크기는 품목 기본 크기로 먼저 채우고, 60cm가 넘으면 판매자가 실측을 확인해야 올라가요");
-    await page.waitForTimeout(1800);
-    await page.getByTestId("measured").check();
+    await phone.getByTestId("size-source").waitFor();
+    await page.waitForTimeout(1400);
+    await phone.getByRole("button", { name: "샘플 사진" }).click();
+    await cap("판매자 폰", "크기는 품목 기본 크기로 먼저 채우고, 60cm가 넘으면 줄자로 확인해야 올라가요. 장소·시간은 지난번 그대로");
+    await page.locator("#title").scrollIntoViewIfNeeded();
+    await page.waitForTimeout(1600);
+    await phone.getByTestId("measured").scrollIntoViewIfNeeded();
+    await page.waitForTimeout(700);
+    await phone.getByTestId("measured").click();
     await page.waitForTimeout(900);
-    await page.getByTestId("submit").click();
-    await page.getByText("올렸어요").first().waitFor();
+    await phone.getByTestId("submit").click();
+    await phone.getByTestId("posted").waitFor();
     await page.waitForTimeout(2200);
+    await phone.getByTestId("posted-done").click();
+    await cap("판매자 폰", "지금 요청을 받는지 한 줄로 보여요. 못 나갈 때는 '잠깐 쉬기'로 지나가는 차에서 내려요");
+    await page.waitForTimeout(1600);
+    await phone.getByTestId("pause-open").click();
+    await page.waitForTimeout(1300);
+    await phone.getByTestId("pause-1h").click();
+    await page.waitForTimeout(2000);
+    await phone.getByTestId("pause-off").click();
+    await page.waitForTimeout(1600);
     await mark("compose-end");
 
     // ② 출발 전 브리핑 + 추천 목록
@@ -135,7 +147,11 @@ interface Mark {
     await cap("차 화면", "2열에 사람이 앉아 있어서, 2열을 접어야 실리는 아기 침대는 이유와 함께 빠져요");
     await page.getByTestId("go-row-아기 침대").scrollIntoViewIfNeeded();
     await page.getByTestId("go-row-아기 침대").click();
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(2600);
+    await phone.getByTestId("tab-items").click();
+    await phone.getByTestId("listing-stats").getByText(/지나간 차 1대/).waitFor({ timeout: 10000 });
+    await cap("판매자 폰", "판매자 폰에는 지나간 차 몇 대에 보였는지만 남아요. 누가 봤는지는 남기지 않아요");
+    await page.waitForTimeout(2600);
     await mark("brief-end");
 
     // ③ 주행 중: 목록이 줄고, 말할 때를 고른다
@@ -177,24 +193,26 @@ interface Mark {
     await page.waitForTimeout(3200);
     await take.getByTestId("accept").click();
     await cap("차 화면", "수락하면 내비에 경유지를 넣고(addWaypoint), 다시 조회해 들어간 걸 확인한 뒤 확정해요");
-    await page.getByText("가는 중").waitFor({ timeout: 15000 });
+    await page.getByTestId("trade").getByText("가는 중").waitFor({ timeout: 15000 });
     await page.waitForTimeout(1800);
-    await page.getByTestId("tab-trades").click();
+    await phone.getByTestId("tab-trades").click();
     await page.waitForTimeout(2200);
     await mark("accept-end");
 
     // ⑥ 만남과 현장 확인
-    await page.getByText("곧 도착해요. 물건을 들고 나와 주세요").waitFor({ timeout: 90000 });
+    const handoff = phone.getByTestId("handoff");
+    await handoff.getByText("곧 도착해요").waitFor({ timeout: 90000 });
     await mark("meet");
-    await cap("판매자 폰", "도착 3분 전에 '나오세요', 도착하면 '도착했어요'를 보내요");
-    await page.waitForTimeout(2500);
+    await cap("판매자 폰", "도착 3분 전에 만남 화면이 떠요. '지금 나가요'를 누르면 구매자 차에 보여요");
+    await page.waitForTimeout(2200);
+    await handoff.getByTestId("coming").click();
+    await page.getByTestId("trade-seller-coming").waitFor({ timeout: 10000 });
+    await page.waitForTimeout(1800);
     const inspect = page.getByTestId("sheet-inspect");
     await inspect.waitFor({ timeout: 90000 });
-    await cap("차 화면", "정차하면 현장 확인 화면이 열려요. 판매자가 안 보이면 다시 알릴 수 있어요");
-    await page.waitForTimeout(1800);
-    await page.getByTestId("nudge").click();
-    await page.waitForTimeout(2400);
-    await page.getByTestId("handed").click();
+    await cap("차 화면", "정차하면 현장 확인 화면이 열려요. 판매자가 나오는 중인지 보이고, 폰에는 남은 시간이 떠요");
+    await page.waitForTimeout(2600);
+    await handoff.getByTestId("handed").click();
     await inspect.getByText("판매자가 건넸다고 표시했어요").waitFor({ timeout: 10000 });
     await page.waitForTimeout(1800);
     await inspect.getByRole("button", { name: "받았어요" }).click();
@@ -253,10 +271,10 @@ interface Mark {
     await page.getByTestId("seller-absent-confirm").click();
     await page.waitForTimeout(1800);
     await page.getByTestId("phone-buyer").click();
-    await cap("구매자 폰", "결제 수단, 거래 내역과 판매자 평가, 현장 사진은 폰에서 다뤄요");
+    await cap("구매자 폰", "차에서 알림 받을 준비(결제 수단·관심 물건·차종)와 거래마다 대금이 어디 있는지를 폰에서 봐요");
     await page.waitForTimeout(2600);
-    await page.locator(".phone").getByTestId("btab-pay").click();
-    await page.waitForTimeout(2600);
+    await phone.getByTestId("b-trade-camping_chair").first().click();
+    await page.waitForTimeout(3000);
     await mark("absent-end");
   } finally {
     const v = page.video();

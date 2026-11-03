@@ -1203,6 +1203,30 @@ select:focus-visible {
   display: none;
 }
 
+/* 판매자가 나오는 중(T28) */
+.c-coming {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin: -4px 0 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(123, 211, 137, 0.12);
+  color: var(--ok);
+  font-size: 17px;
+  font-weight: 600;
+}
+.c-coming span {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 400;
+}
+.c-coming-line {
+  color: var(--ok);
+  font-weight: 600;
+}
+
 /* 판매자 기다림(T20) */
 .c-wait {
   border: 1px solid #3a4a5e;

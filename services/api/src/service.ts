@@ -26,7 +26,10 @@ import {
   isAvailableAt,
   kstClock,
   kstParts,
+  josa,
   needsMeasuredSize,
+  nextKstMidnight,
+  pauseActive,
   personalizationNote,
   projectOnPolyline,
   recordSkip,
@@ -53,6 +56,7 @@ import {
   type PersonalizationState,
   type Route,
   type RoutingProvider,
+  type SellerPause,
   type SizeCm,
   type Trade,
   type TradeConfig,
@@ -75,6 +79,10 @@ export interface User {
   personalization?: PersonalizationState;
   /** 판매자 기본 거래 지점 */
   homePlace?: { lat: number; lng: number; label: string };
+  /** 판매자가 마지막으로 정한 거래 장소·시간·자동 수락 — 다음 등록의 기본값(T27) */
+  sellerDefaults?: { pickupPoint: { lat: number; lng: number; label: string }; availability: Availability[]; autoAccept: boolean };
+  /** 판매자 쉬기(T27): 이 동안은 지나가는 차에 매물을 보이지 않는다 */
+  pause?: SellerPause;
   /**
    * 구매자 결제 수단(T23). 실서비스는 결제 대행사(PG) 결제창에서 카드를 등록하고 우리는 빌링 키만 받는다.
    * 시연은 실제 결제가 없는 테스트 수단만 쓴다. 카드 번호는 이 앱 어디에도 받지 않는다.
@@ -159,6 +167,8 @@ interface DriveSession {
   requested: Set<string>;
   dismissed: Set<string>;
   skipped: Set<string>;
+  /** 이번 주행에서 추천 목록에 든 매물(판매자 노출 수는 주행마다 한 번만 센다) */
+  shown: Set<string>;
   notices: { type: string; text: string; at: number; listingId?: string }[];
 }
 
@@ -293,7 +303,29 @@ export class Service {
       createdAt: this.now(),
     };
     this.d.store.put("listings", listing);
+    // 다음 등록 때 다시 고르지 않게 — 장소·시간·자동 수락을 판매자 기본값으로 둔다
+    this.d.store.put("users", { ...this.user(seller.id), sellerDefaults: { pickupPoint: listing.pickupPoint, availability, autoAccept: listing.autoAccept } });
     return listing;
+  }
+
+  /** 판매자 쉬기(T27): 1시간 / 오늘 / 직접 다시 켤 때까지 / 끄기 */
+  setPause(seller: User, b: { for?: string }) {
+    this.requireRole(seller, "seller");
+    const now = this.now();
+    let pause: SellerPause | null;
+    if (b.for === "1h") pause = { until: now + 3600_000, at: now };
+    else if (b.for === "today") pause = { until: nextKstMidnight(now), at: now };
+    else if (b.for === "manual") pause = { until: null, at: now };
+    else if (b.for === "off") pause = null;
+    else throw new ApiError(422, "bad_pause", "쉬는 시간을 골라 주세요");
+    const { pause: _old, ...rest } = this.user(seller.id);
+    void _old;
+    this.d.store.put("users", pause ? { ...rest, pause } : rest);
+    return { pause };
+  }
+
+  sellerPaused(sellerId: string, now = this.now()): boolean {
+    return pauseActive(this.d.store.get<User>("users", sellerId)?.pause, now);
   }
 
   /** 크기 채우기(T17·T25): 사진이 있고 추정기가 있으면 사진으로, 아니면 품목 대표 크기 */
@@ -467,6 +499,7 @@ export class Service {
         requested: new Set(),
         dismissed: new Set(),
         skipped: new Set(),
+        shown: new Set(),
         notices: [],
       };
       this.drives.set(buyer.id, s);
@@ -488,7 +521,9 @@ export class Service {
   }
 
   private evalFor(buyer: User, ctx: DriveContextInput, s: DriveSession | null, ignoreWindow: boolean) {
-    const listings = this.d.store.list<Listing>("listings", (l) => l.status === "active" && l.sellerId !== buyer.id);
+    // 쉬는 판매자의 매물은 지나가는 차에 보이지 않는다(T27)
+    const paused = new Set(this.d.store.list<User>("users", (u) => u.role === "seller" && pauseActive(u.pause, ctx.now)).map((u) => u.id));
+    const listings = this.d.store.list<Listing>("listings", (l) => l.status === "active" && l.sellerId !== buyer.id && !paused.has(l.sellerId));
     const sellerTrust: Record<string, Trust> = {};
     for (const l of listings) sellerTrust[l.sellerId] ??= this.trust(l.sellerId, "seller");
     return evaluate({
@@ -560,6 +595,7 @@ export class Service {
     this.requireRole(buyer, "buyer");
     const s = this.sessionFor(buyer, ctx);
     const ev = this.evalFor(buyer, ctx, s, true);
+    this.countShown(s, ev.candidates);
     return {
       mode: ev.mode,
       route: s ? { distanceM: Math.round(s.baseRoute.distanceM), durationS: Math.round(s.baseRoute.durationS), viaNames: s.baseRoute.viaNames } : null,
@@ -605,6 +641,7 @@ export class Service {
     }
 
     const ev = this.evalFor(buyer, ctx, s, false);
+    this.countShown(s, ev.candidates);
     const active = this.activeTradeOf(buyer.id);
     // 요청할 수 없는 상태(결제 수단 없음·요청 제한)면 알리지 않는다 — 들를 수 없는 걸 묻지 않게
     const block = this.blockFor(buyer, now);
@@ -636,8 +673,29 @@ export class Service {
     if (!s) return;
     for (const id of listingIds) {
       const l = this.d.store.get<Listing>("listings", id);
-      if (l && !s.alerted.has(id)) s.alerted.set(id, { at: this.now(), category: l.category });
+      if (l && !s.alerted.has(id)) {
+        s.alerted.set(id, { at: this.now(), category: l.category });
+        this.bumpListingStat(id, "alerted");
+      }
     }
+  }
+
+  /** 판매자 노출 수(T29): 들를 수 있는 추천으로 든 매물을 주행마다 한 번 센다. 누가 봤는지는 남기지 않는다 */
+  private countShown(s: DriveSession | null, candidates: Candidate[]) {
+    if (!s) return;
+    for (const c of candidates) {
+      if (c.exclusions.length || s.shown.has(c.listingId)) continue;
+      s.shown.add(c.listingId);
+      this.bumpListingStat(c.listingId, "shown");
+    }
+  }
+
+  private bumpListingStat(id: string, k: "shown" | "alerted") {
+    const l = this.d.store.get<Listing>("listings", id);
+    if (!l) return;
+    const stats = { shown: l.stats?.shown ?? 0, alerted: l.stats?.alerted ?? 0 };
+    stats[k] += 1;
+    this.d.store.put("listings", { ...l, stats });
   }
 
   /** "아니요" — 이번 주행에서는 다시 알리지 않는다 (지나치면 개인화 신호) */
@@ -654,6 +712,7 @@ export class Service {
     const l = this.d.store.get<Listing>("listings", listingId);
     if (!l || l.status !== "active") throw new ApiError(409, "listing_unavailable", "이미 거래 중이거나 내려간 매물이에요");
     if (l.sellerId === buyer.id) throw new ApiError(409, "own_listing", "내 매물이에요");
+    if (this.sellerPaused(l.sellerId, ctx.now)) throw new ApiError(409, "seller_paused", "판매자가 지금은 요청을 받지 않아요");
     if (this.activeTradeOf(buyer.id)) throw new ApiError(409, "trade_in_progress", "진행 중인 거래가 끝나면 다음 매물을 요청할 수 있어요");
     const block = this.blockFor(buyer, ctx.now);
     if (block) throw new ApiError(409, block.reason === "payment" ? "payment_required" : "request_limited", block.text);
@@ -766,7 +825,7 @@ export class Service {
   sellerTradeEvent(seller: User, id: string, ev: TradeEvent) {
     const t = this.trade(id);
     if (t.sellerId !== seller.id) throw new ApiError(404, "trade_not_found", "거래를 찾을 수 없어요");
-    const allowed = ["SELLER_ACCEPT", "SELLER_DECLINE", "SELLER_HANDED", "SELLER_CANCEL", "RATE"];
+    const allowed = ["SELLER_ACCEPT", "SELLER_DECLINE", "SELLER_HANDED", "SELLER_CANCEL", "SELLER_COMING", "RATE"];
     if (!allowed.includes(ev.type)) throw new ApiError(403, "forbidden", "판매자가 할 수 없는 동작이에요");
     if (ev.type === "RATE") ev = { ...ev, by: "seller" };
     return this.sellerTradeView(this.applyEvent(t, ev, this.now()));
@@ -972,7 +1031,7 @@ export class Service {
       settled: sum((t) => t.payment.status === "captured"),
       refunded: sum((t) => t.payment.status === "refunded"),
       nextSettleAt: trades.filter((t) => t.status === "completed").map((t) => t.settleAt ?? 0).sort()[0] ?? null,
-      ledger: ledger.slice(0, 30),
+      ledger: ledger.slice(0, 30).map((e) => ({ ...e, title: trades.find((t) => t.id === e.tradeId)?.title ?? "" })),
       trust: this.trustSummary(seller.id, "seller"),
     };
   }
@@ -1033,6 +1092,8 @@ export function messageFor(t: Trade, to: "buyer" | "seller", type: string, data:
       if (data.by === "seller") return { title: "판매자가 취소했어요", body: `경유지를 해제할게요. 대금은 환불돼요.${data.reason ? ` (${data.reason as string})` : ""}` };
       if (data.system) return { title: "구매자 차 사정으로 취소됐어요", body: `구매자 차의 내비가 경로를 바꾸지 못했어요. ${item}은 다시 판매 중이에요.` };
       return { title: "구매자가 취소했어요", body: `${item} 거래가 취소됐어요.${data.reason ? ` (${data.reason as string})` : ""}` };
+    case "trade.seller_coming":
+      return { title: "판매자가 나오고 있어요", body: `${josa(item, "을/를")} 들고 나오는 중이에요.` };
     case "trade.waiting":
       return { title: "구매자가 기다리고 있어요", body: "거래 지점에 도착해 기다리는 중이에요. 물건을 들고 나와 주세요." };
     case "trade.seller_no_show":

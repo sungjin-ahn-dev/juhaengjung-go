@@ -178,8 +178,8 @@ body {
   border-radius: 38px;
   border: 10px solid var(--bench-rim);
   overflow: hidden;
-  background: #f4f6f8;
-  /* 판매자 앱의 전체 화면 요청(takeover)·토스트를 폰 화면 기준으로 띄우기 위해 */
+  background: #ffffff;
+  /* 판매자 앱의 전체 화면(요청·만남)·판·토스트를 폰 화면 기준으로 띄우기 위해 */
   transform: translateZ(0);
 }
 .phone-screen {
@@ -187,10 +187,7 @@ body {
   overflow: auto;
   overscroll-behavior: contain;
 }
-.phone .s-takeover.embedded,
-.phone .s-root.embedded .s-toast {
-  position: fixed;
-}
+
 .phone-note {
   margin: 0;
   font-size: 13px;

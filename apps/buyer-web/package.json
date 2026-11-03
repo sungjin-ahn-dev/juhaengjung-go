@@ -9,9 +9,10 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@jhgo/core": "0.1.0",
     "@jhgo/api": "0.1.0",
+    "@jhgo/core": "0.1.0",
     "hono": "4.13.13",
+    "lucide-react": "0.469.0",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },

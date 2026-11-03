@@ -51,6 +51,8 @@ export interface Listing {
   autoAccept: boolean;
   status: ListingStatus;
   createdAt: number;
+  /** 판매자에게만 보이는 노출 수(T29): 지나가는 차의 추천 목록에 든 주행 수, 음성 알림 수. 구매자 정보는 남기지 않는다 */
+  stats?: { shown: number; alerted: number };
 }
 
 /** 구매자에게 보이는 매물(정확한 위치 없음) */

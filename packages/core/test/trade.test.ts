@@ -242,3 +242,19 @@ describe("T22 요청 제한 — 수락 뒤 취소·노쇼가 잦으면", () => {
     expect(requestBlock(list, T0 + 3 * DAY)?.count).toBe(3);
   });
 });
+
+describe("T28 판매자 '지금 나가요' — 구매자 차에 한 번 알린다", () => {
+  it("수락 뒤에만, 한 번만, 건넨 뒤에는 아무것도 하지 않는다", () => {
+    const { trade } = newTrade();
+    expect(() => applyTradeEvent(trade, { type: "SELLER_COMING" }, T0)).toThrow(TradeError);
+    const acc = applyTradeEvent(trade, { type: "SELLER_ACCEPT" }, T0).trade;
+    const r1 = applyTradeEvent(acc, { type: "SELLER_COMING" }, T0 + 60_000);
+    expect(r1.trade.sellerComingAt).toBe(T0 + 60_000);
+    expect(kinds(r1.effects)).toEqual(["notify:trade.seller_coming"]);
+    expect(applyTradeEvent(r1.trade, { type: "SELLER_COMING" }, T0 + 90_000).effects).toEqual([]);
+    const handed = applyTradeEvent(acc, { type: "SELLER_HANDED" }, T0 + 120_000).trade;
+    const r2 = applyTradeEvent(handed, { type: "SELLER_COMING" }, T0 + 130_000);
+    expect(r2.effects).toEqual([]);
+    expect(r2.trade.sellerComingAt).toBeUndefined();
+  });
+});

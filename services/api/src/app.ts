@@ -191,6 +191,7 @@ export function createApp(svc: Service, opts: AppOptions) {
   app.post("/v1/seller/listings", auth("seller"), async (c) => c.json({ listing: svc.createListing(c.get("user"), await body<ListingInput>(c)) }, 201));
   app.patch("/v1/seller/listings/:id", auth("seller"), async (c) => c.json({ listing: svc.updateListing(c.get("user"), (c.req.param("id") ?? ""), await body(c)) }));
   app.get("/v1/seller/trades", auth("seller"), (c) => c.json({ trades: svc.sellerTrades(c.get("user")) }));
+  app.put("/v1/seller/pause", auth("seller"), async (c) => c.json(svc.setPause(c.get("user"), await body<{ for?: string }>(c))));
   app.get("/v1/seller/summary", auth("seller"), (c) => c.json(svc.sellerSummary(c.get("user"))));
   const sellerAction = (path: string, make: (b: Record<string, unknown>) => TradeEvent) =>
     app.post(`/v1/seller/trades/:id/${path}`, auth("seller"), async (c) =>
@@ -200,6 +201,7 @@ export function createApp(svc: Service, opts: AppOptions) {
   sellerAction("decline", (b) => ({ type: "SELLER_DECLINE", reason: b.reason as string | undefined }));
   sellerAction("handed", () => ({ type: "SELLER_HANDED" }));
   sellerAction("cancel", (b) => ({ type: "SELLER_CANCEL", reason: b.reason as string | undefined }));
+  sellerAction("coming", () => ({ type: "SELLER_COMING" }));
   sellerAction("rate", (b) => ({ type: "RATE", by: "seller", stars: Number(b.stars ?? 5) }));
 
   // ── 구매자(차량) ──

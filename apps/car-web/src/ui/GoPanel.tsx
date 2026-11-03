@@ -126,6 +126,11 @@ function TradeCard({ t, c, now, restricted }: { t: TradeView; c: CarController; 
           </li>
         ))}
       </ol>
+      {t.sellerComingAt && !t.handedAt && ["accepted", "arrived"].includes(t.status) && (
+        <div className="c-note c-coming-line" data-testid="trade-seller-coming">
+          판매자가 나오고 있어요
+        </div>
+      )}
       {t.status === "arrived" && restricted && <div className="c-note">정차하면 물건 확인 화면이 열려요</div>}
       <div className="c-trade-actions">
         {t.status === "arrived" && !restricted && (

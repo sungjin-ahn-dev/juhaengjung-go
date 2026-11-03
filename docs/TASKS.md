@@ -1,10 +1,10 @@
 # TASKS — 기능별 구현 위치와 확인
 
-기획서(`01_기획서.md`) 7·8·11절의 기능을 T1~T26으로 나눴다. 확인 열의 이름은 테스트 `describe`/`it` 또는 E2E 단계다.
+기획서(`01_기획서.md`) 7·8·11절의 기능을 T1~T30으로 나눴다. 확인 열의 이름은 테스트 `describe`/`it` 또는 E2E 단계다.
 **완료 기준:** 서버 테스트와 함께 그 기능을 쓰는 사람(구매자·판매자)의 화면 경로가 있어야 한다. 서버만 있고 화면이 없으면 완료로 치지 않는다.
 기획서 문장마다 화면 경로를 맞춰 본 표는 `docs/SPEC_CHECK.md`.
 
-- 단위·API 테스트: `npm test` (vitest, 95개: core 70, api 25)
+- 단위·API 테스트: `npm test` (vitest, 102개: core 73, api 29)
 - 시뮬레이터 E2E: `npm run e2e` (`tools/e2e.cjs`) — 판매자 폰 + 차량 화면 끝까지, 2부 판매자 미응대, 3부 구매자 폰
 - 브리지 계약 시험: `npm run e2e:bridge` (`tools/bridge-contract.ts`) — 실제 SDK 모드(가짜 브리지)
 - 시연 영상: `tools/record-demo.ts`(체험 페이지 → 장면별 MP4), `JHGO_RECORD=<폴더> npm run e2e:bridge`(SDK 모드), 자르기 공통 `tools/video-cut.ts`
@@ -37,13 +37,17 @@
 | T24 | 판매자 웹 푸시: 서비스 워커·VAPID, 판매자 알림 전부를 푸시로도(차가 오는 요청은 놓치지 않게), 끝난 구독 정리. HTTPS 주소에서만 | `services/api/src/push.ts`·`push-node.ts`, `apps/seller-web/public/sw.js`·`src/push.ts`, 거래 탭 '알림 받기' | API T24(가짜 발송기), E2E '알림 받기' 줄. 폰 실제 수신은 미실행 |
 | T25 | 사진으로 크기 추정: 서버에 `ANTHROPIC_API_KEY`가 있으면 Claude 비전, 없거나 실패하면 품목 기본 크기로 채우고 그렇게 표시 | `services/api/src/size-ai.ts`·`size-ai-claude.ts`, `service.estimateSizeFor`, 판매자 '사진으로 크기 채우기' | API T25(가짜 추정기·JSON 파싱). 실제 API 호출은 미실행 |
 | T26 | 3열 차 적재: 3열 세운 트렁크 → 3열 접으면 → 2·3열 접으면, 3열 착석이면 접는 칸 제외. Seat는 줄마다 따로 등록(ROW_3_LEFT·RIGHT) | `core/load.ts`(row3Up)·`matching.ts`(load_seat3), 차 3열 리스너·콘솔 '3열 착석', 브리지 tag | 매칭 테스트, API T26, 브리지 "줄마다 온 착석 이벤트" |
+| T27 | 판매자 편의: 잠깐 쉬기(1시간·오늘은 그만·다시 켤 때까지 — 그동안 매칭에서 빠지고 요청도 거절), 요청 화면 '오늘은 그만 받을래요'(거절 + 오늘 쉬기), 마지막 등록의 장소·시간·바로 확정을 다음 등록 기본값으로 | `core/time.ts` `pauseActive`·`nextKstMidnight`·`nextAvailableAt`, `service.setPause`·`evalFor`·`request`·`createListing`(sellerDefaults), 판매자 홈 머리(받는 중/쉬는 중/몇 시부터) | 시간 테스트, API "쉬는 동안…", "등록하면 장소·시간…", E2E "잠깐 쉬기 1시간 → 다시 받기" |
+| T28 | 판매자 '지금 나가요': 만남 화면에서 한 번 누르면 구매자 차 거래 카드·현장 확인 기다림 패널에 '판매자가 나오고 있어요'. 채팅은 만들지 않는다(정해진 신호 하나) | `core/trade.ts` SELLER_COMING, 판매자 `Moments.tsx` 만남 화면, 차 `GoPanel`·`WaitPanel` | T28 테스트, API T28, E2E "지금 나가요 → 차 화면" |
+| T29 | 노출 수: 들를 수 있는 추천으로 든 주행 수·음성 알림 수를 매물마다(주행마다 한 번). 판매자에게만, 누가 봤는지는 남기지 않는다 | `service.countShown`·`markAlerted`, `Listing.stats`, 판매자 물건 줄 '지나간 차 N대에 보였어요' | API T29, E2E "지나간 차 1대에 보였어요" |
+| T30 | 폰 화면 개편: 판매자 홈(받는 중 한 문장·진행 중 거래·물건 줄), 같이 올리기(붙여 넣으면 바로 채움·확인할 것만·하단 고정 올리기·올린 뒤 안내), 요청·만남 전체 화면(만남은 구매자가 끝낼 수 있게 되기까지 남은 시간), 물건 판(가격·시간·바로 확정·판매 완료, 되돌리기), 구매자 홈(내 차 준비 체크)·관심 물건(빠른 추가·등급별 우회 시간)·거래 상세(대금 흐름·시간순 기록) | `apps/seller-web/src/*`(styles.css 디자인 시스템, kit.tsx), `apps/buyer-web`, 물건 그림 `core/art.ts`, 글꼴 `assets/JHGOSans.woff2` | E2E 1·3부, 화면 캡처 확인(390px) |
 
 ## 화면
 
 | 화면 | 위치 |
 |---|---|
 | 차량(내비 화면 1280×720) | `apps/car-web` — 지도(번호·사진 핀)·추천 목록·TBT·도착 예정·GO 패널·시트(목적지·관심사·현장 확인·결과·차종) |
-| 판매자 폰 | `apps/seller-web` — 내 물건·거래·정산, 요청 전체 화면, 알림 받기(웹 푸시), 홈 화면 추가 |
-| 구매자 폰 | `apps/buyer-web` (`/buyer/`) — 거래 내역·판매자 평가·현장 사진, 관심사, 결제 수단 |
+| 판매자 폰 | `apps/seller-web` — 내 물건(받는 중·쉬기·노출 수)·거래·정산, 요청·만남 전체 화면, 같이 올리기, 알림 받기(웹 푸시), 홈 화면 추가 |
+| 구매자 폰 | `apps/buyer-web` (`/buyer/`) — 홈(내 차 준비 체크: 결제 수단·관심 물건·차종), 관심 물건·등급별 우회 시간, 거래 내역·상세(대금 흐름·평가·현장 사진) |
 | 차량 앱 셸 | `apps/car-android` — WebView + Pleos SDK 브리지(`docs/BRIDGE.md`) |
 | 체험 페이지 | `apps/demo` — 차 화면 + 판매자 폰·구매자 폰(위 버튼으로 바꾸기) + 페이지 안 서버, 한 파일. `?compose`면 카시트를 미리 올리지 않는다(녹화에서 판매자가 직접 등록) |

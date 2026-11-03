@@ -281,6 +281,11 @@ function WaitPanel({ t, c }: { t: TradeView; c: CarController }) {
   const mmss = left !== null && left > 0 ? `${Math.floor(left / 60000)}:${String(Math.floor((left % 60000) / 1000)).padStart(2, "0")}` : "";
   return (
     <div className="c-wait" data-testid="seller-wait">
+      {t.sellerComingAt && (
+        <div className="c-coming" data-testid="seller-coming">
+          판매자가 나오고 있어요 <span>{Math.max(0, Math.floor((now - t.sellerComingAt) / 60000)) || "방금"}{Math.floor((now - t.sellerComingAt) / 60000) ? "분 전" : ""}</span>
+        </div>
+      )}
       <div className="c-wait-head">
         <b>판매자를 기다리는 중</b>
         <span>{can ? `도착하고 ${waited}분이 지났어요` : left !== null ? `${mmss} 뒤에도 안 나오면 거래를 끝낼 수 있어요` : ""}</span>

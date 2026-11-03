@@ -200,10 +200,11 @@ describe("거래 흐름 (T9~T13)", () => {
     expect(rec.trade.status).toBe("completed");
     s.clock.t = rec.trade.settleAt;
     s.svc.tick();
-    const sum = await park.call<{ settled: number; held: number; ledger: { action: string }[]; trust: { completed: number } }>("GET", "/v1/seller/summary");
+    const sum = await park.call<{ settled: number; held: number; ledger: { action: string; title: string }[]; trust: { completed: number } }>("GET", "/v1/seller/summary");
     expect(sum.settled).toBe(35000);
     expect(sum.held).toBe(0);
     expect(sum.ledger.map((x) => x.action).sort()).toEqual(["capture", "hold"]);
+    expect(sum.ledger.every((x) => x.title.includes("카시트"))).toBe(true); // 정산 내역에 어떤 물건인지
     expect(sum.trust.completed).toBe(1);
     const listings = await park.call<{ listings: { status: string }[] }>("GET", "/v1/seller/listings");
     expect(listings.listings[0].status).toBe("sold");
@@ -299,6 +300,25 @@ describe("거래 흐름 (T9~T13)", () => {
     expect(await scoreOf()).toBeCloseTo(before * 0.5, 2);
   });
 
+  it("판매자 '지금 나가요' → 구매자 차에 알림, 거래마다 한 번(T28)", async () => {
+    const buyerEv = collect(car);
+    const t = await requestCarSeat();
+    await expect(park.call("POST", `/v1/seller/trades/${t.id}/coming`)).rejects.toMatchObject({ status: 409 }); // 수락 전
+    await park.call("POST", `/v1/seller/trades/${t.id}/accept`);
+    const r1 = await park.call<{ trade: { sellerComingAt?: number } }>("POST", `/v1/seller/trades/${t.id}/coming`);
+    expect(r1.trade.sellerComingAt).toBe(s.clock.now());
+    s.clock.advance(30_000);
+    const r2 = await park.call<{ trade: { sellerComingAt?: number } }>("POST", `/v1/seller/trades/${t.id}/coming`);
+    expect(r2.trade.sellerComingAt).toBe(r1.trade.sellerComingAt);
+    await buyerEv.flush();
+    const coming = buyerEv.events.filter((e) => e.type === "trade.seller_coming");
+    expect(coming).toHaveLength(1);
+    expect(coming[0].title).toBe("판매자가 나오고 있어요");
+    expect(coming[0].body).toBe("카시트를 들고 나오는 중이에요.");
+    const bt = await car.call<{ trade: { sellerComingAt?: number } }>("GET", `/v1/buyer/trades/${t.id}`);
+    expect(bt.trade.sellerComingAt).toBe(r1.trade.sellerComingAt);
+  });
+
   it("현장 거절 뒤 폰에서 사진을 남기면 판매자 지난 거래에 보인다(T12)", async () => {
     const t = await requestCarSeat();
     await park.call("POST", `/v1/seller/trades/${t.id}/accept`);
@@ -354,6 +374,65 @@ describe("거래 흐름 (T9~T13)", () => {
     expect(ev.block.text).toContain("3번");
     expect(ev.top).toBeNull();
     await expect(requestCarSeat()).rejects.toMatchObject({ status: 409, code: "request_limited" });
+  });
+});
+
+describe("판매자 편의 (T27 쉬기·기본값, T29 노출 수)", () => {
+  it("쉬는 동안 매물이 지나가는 차에 안 보이고 요청도 막힌다. 끄면 다시 보인다", async () => {
+    const seatOf = (items: { categoryLabel: string; listingId: string }[]) => items.find((i) => i.categoryLabel === "카시트");
+    const before = await car.call<{ items: { categoryLabel: string; listingId: string }[] }>("POST", "/v1/drive/briefing", { ctx: ctx(s, 0) });
+    const seat = seatOf(before.items)!;
+    const r = await park.call<{ pause: { until: number | null } }>("PUT", "/v1/seller/pause", { for: "today" });
+    expect(r.pause.until).toBeGreaterThan(s.clock.now());
+    const me = await park.call<{ user: { pause?: { until: number | null } } }>("GET", "/v1/me");
+    expect(me.user.pause?.until).toBe(r.pause.until);
+    const during = await car.call<{ items: { categoryLabel: string; listingId: string }[] }>("POST", "/v1/drive/briefing", { ctx: ctx(s, 0) });
+    expect(seatOf(during.items)).toBeUndefined();
+    s.clock.advance(13 * 60_000);
+    await expect(car.call("POST", "/v1/drive/request", { ctx: ctx(s, 13), listingId: seat.listingId })).rejects.toMatchObject({ status: 409, code: "seller_paused" });
+    await park.call("PUT", "/v1/seller/pause", { for: "off" });
+    const after = await car.call<{ items: { categoryLabel: string; listingId: string }[] }>("POST", "/v1/drive/briefing", { ctx: ctx(s, 13) });
+    expect(seatOf(after.items)).toBeDefined();
+    await expect(park.call("PUT", "/v1/seller/pause", { for: "forever" })).rejects.toMatchObject({ status: 422 });
+    // 1시간 쉬기는 1시간 뒤 저절로 풀린다
+    await park.call("PUT", "/v1/seller/pause", { for: "1h" });
+    s.clock.advance(3600_000);
+    const later = await car.call<{ items: { categoryLabel: string; listingId: string }[] }>("POST", "/v1/drive/briefing", { ctx: ctx(s, 13) });
+    expect(seatOf(later.items)).toBeDefined();
+  });
+
+  it("등록하면 장소·시간·자동 수락을 기억해 다음 등록의 기본값으로 준다", async () => {
+    const first = await park.call<{ user: { sellerDefaults?: { availability: unknown[]; pickupPoint: { label: string } } } }>("GET", "/v1/me");
+    expect(first.user.sellerDefaults).toMatchObject({ availability: [{ days: [1, 2, 3, 4, 5], from: "18:00", to: "21:00" }], pickupPoint: { label: "판교 백현동 (아파트 정문)" } });
+    await park.call("POST", "/v1/seller/listings", {
+      title: "아기 의자",
+      price: 10000,
+      condition: "good",
+      sizeCm: { w: 40, d: 40, h: 50 },
+      sizeSource: "category",
+      pickupPoint: { lat: 37.3889, lng: 127.1046, label: "백현동 놀이터 앞" },
+      availability: [],
+      autoAccept: true,
+    });
+    const me = await park.call<{ user: { sellerDefaults: unknown } }>("GET", "/v1/me");
+    expect(me.user.sellerDefaults).toMatchObject({ pickupPoint: { label: "백현동 놀이터 앞" }, availability: [], autoAccept: true });
+  });
+
+  it("노출 수: 들를 수 있는 추천에 든 주행 수와 음성 알림 수, 판매자에게만", async () => {
+    await car.call("POST", "/v1/drive/briefing", { ctx: ctx(s, 0) });
+    await car.call("POST", "/v1/drive/briefing", { ctx: ctx(s, 0) }); // 같은 주행은 한 번만 센다
+    s.clock.advance(13 * 60_000);
+    const ev = await car.call<{ candidates: Record<string, unknown>[] }>("POST", "/v1/drive/context", { ctx: ctx(s, 13) });
+    const seat = ev.candidates.find((c) => c.categoryLabel === "카시트")!;
+    expect(seat).not.toHaveProperty("stats");
+    await car.call("POST", "/v1/drive/alerted", { listingIds: [seat.listingId] });
+    await car.call("POST", "/v1/drive/alerted", { listingIds: [seat.listingId] });
+    const ls = await park.call<{ listings: { title: string; stats?: { shown: number; alerted: number } }[] }>("GET", "/v1/seller/listings");
+    expect(ls.listings.find((l) => l.title.includes("카시트"))!.stats).toEqual({ shown: 1, alerted: 1 });
+    // 아기 침대는 2열 착석으로 제외돼 세지 않는다
+    const bed = await login(s, "최보정");
+    const bl = await bed.call<{ listings: { stats?: { shown: number } }[] }>("GET", "/v1/seller/listings");
+    expect(bl.listings[0].stats?.shown ?? 0).toBe(0);
   });
 });
 
