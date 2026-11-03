@@ -1,8 +1,8 @@
-/** 정차 중에만 여는 화면 — 목적지, 출발 전 브리핑, 관심사, 현장 확인, 결과, 차종 고르기 */
+/** 정차 중에만 여는 화면 — 목적지, 관심사, 현장 확인, 결과, 차종 고르기 (출발 전 브리핑은 오른쪽 추천 목록) */
 import { useState } from "react";
 import { DEMO_PLACES, VEHICLE_TABLE, type GoLevel } from "@jhgo/core";
-import type { CarController, CarState, CandidateView } from "../controller.ts";
-import { CONDITION_KO, EXCLUSION_KO, fmtClock, fmtKm, fmtMin, fmtWon, GO_KO } from "./format.ts";
+import type { CarController, CarState } from "../controller.ts";
+import { CONDITION_KO, fmtWon, GO_KO } from "./format.ts";
 
 function Head({ title, sub, onClose }: { title: string; sub?: string; onClose: () => void }) {
   return (
@@ -25,8 +25,6 @@ export function Sheet({ s, c }: { s: CarState; c: CarController }) {
   switch (s.screen) {
     case "destination":
       return <DestinationSheet c={c} close={close} />;
-    case "briefing":
-      return <BriefingSheet s={s} c={c} close={close} />;
     case "interests":
       return <InterestsSheet s={s} c={c} close={close} />;
     case "inspect":
@@ -77,83 +75,6 @@ function DestinationSheet({ c, close }: { c: CarController; close: () => void })
         <p className="c-note" style={{ marginTop: 18 }}>
           실제 차에서는 Pleos 내비에서 정한 목적지를 NaviHelper로 그대로 읽어요. 여기서는 시뮬레이터 내비에 목적지를 넣어요.
         </p>
-      </div>
-    </div>
-  );
-}
-
-function rowWhy(x: CandidateView) {
-  if (x.exclusions.length === 0) return null;
-  return <div className="c-row-why">{x.exclusions.map((e) => EXCLUSION_KO[e] ?? e).join(" / ")}</div>;
-}
-
-function BriefingSheet({ s, c, close }: { s: CarState; c: CarController; close: () => void }) {
-  const b = s.briefing;
-  const items = b?.items ?? [];
-  const ok = items.filter((x) => x.exclusions.length === 0);
-  const tradeBusy = !!s.trade;
-  return (
-    <div className="c-sheet" data-testid="sheet-briefing">
-      <Head
-        title={s.destination ? `${s.destination.name}까지` : "출발 전 브리핑"}
-        sub={
-          b?.route
-            ? `${fmtMin(b.route.durationS)}, ${fmtKm(b.route.distanceM)}. ${b.route.viaNames.filter((_, i, a) => i % Math.ceil(a.length / 5) === 0).join(", ")} 지나요`
-            : "목적지를 먼저 정해 주세요"
-        }
-        onClose={close}
-      />
-      <div className="c-sheet-body">
-        {!s.destination && (
-          <button className="c-btn primary" onClick={() => c.open("destination")}>
-            목적지 정하기
-          </button>
-        )}
-        {s.destination && (
-          <>
-            <div className="c-sub">
-              이번 길에 관심 매물 {items.length}개, 알릴 수 있는 것 {ok.length}개
-            </div>
-            <p className="c-note">주행 중에는 갈림길에 가까워질 때 하나씩 말해요. 지금 미리 요청하면 판매자가 출발 전에 답할 수 있어요.</p>
-            {items.map((x) => (
-              <div className="c-row" key={x.listingId} data-testid={`brief-${x.categoryLabel}`}>
-                {x.photo ? (
-                  <img src={x.photo} alt="" style={{ opacity: x.exclusions.length ? 0.45 : 1 }} />
-                ) : (
-                  <div style={{ width: 64, height: 64, borderRadius: 12, background: "#222d3c" }} />
-                )}
-                <div>
-                  <div className="c-row-title">{x.title}</div>
-                  <div className="c-row-meta">
-                    <span className={`c-chip go-${x.goLevel}`}>{GO_KO[x.goLevel]}</span>
-                    {x.detourMin}분 더, {x.fit.label}, {fmtWon(x.price)}
-                    {x.etaAtListing ? `, ${fmtClock(x.etaAtListing)} 지남` : ""}
-                  </div>
-                  {rowWhy(x)}
-                </div>
-                <div>
-                  {x.exclusions.length === 0 ? (
-                    <button className="c-btn kraft" disabled={tradeBusy} onClick={() => void c.request(x.listingId, "briefing")}>
-                      미리 요청
-                    </button>
-                  ) : (
-                    <button className="c-btn" onClick={() => void c.addWish(x.listingId, x.goLevel)}>
-                      찜해 두기
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-            {s.trade && (
-              <div className="c-banner" style={{ marginTop: 16 }}>
-                {s.trade.status === "requested" ? `${s.trade.title} 판매자에게 물어보는 중이에요` : `${s.trade.title} 확정. 경유지가 들어갔어요`}
-              </div>
-            )}
-            <p className="c-note" style={{ marginTop: 18 }}>
-              출발하면 이 화면은 닫히고 음성 알림으로 바뀌어요.
-            </p>
-          </>
-        )}
       </div>
     </div>
   );

@@ -19,6 +19,7 @@ import {
   emptyPersonalization,
   emptyTrust,
   evaluate,
+  haversineM,
   isAvailableAt,
   kstClock,
   kstParts,
@@ -414,12 +415,26 @@ export class Service {
     });
   }
 
-  candidateView(c: Candidate) {
+  /**
+   * 차에 보내는 매물 보기. 수락 전이라 정확한 지점에서 잰 값(갈림 지점 위치·현재→매물 거리)은 보내지 않는다(T18).
+   * 목록에 쓰는 거리는 공개 범위(대략 위치) 중심으로만 재고 100m 단위로 자른다.
+   */
+  candidateView(c: Candidate, s: DriveSession | null = null, here: LatLng | null = null) {
+    const l = this.d.store.get<Listing>("listings", c.listingId);
+    const seller = this.trustSummary(c.sellerId, "seller");
+    let aheadM: number | null = null;
+    if (s) {
+      const pr = projectOnPolyline(s.baseRoute.line, c.approxArea, 0);
+      if (pr) aheadM = Math.max(0, Math.round((pr.alongM - s.currentAlongM) / 100) * 100);
+    }
     return {
       listingId: c.listingId,
       title: c.title,
       category: c.category,
       categoryLabel: c.categoryLabel,
+      description: l?.description ?? "",
+      photo: l?.photos[0] ?? null,
+      condition: l?.condition ?? null,
       price: c.price,
       referencePrice: c.referencePrice,
       fragile: c.fragile,
@@ -428,18 +443,18 @@ export class Service {
       interestType: c.interestType,
       detourMin: c.detourMin,
       detourS: c.detourS,
-      tCurToListingS: c.tCurToListingS,
-      distCurToListingM: c.distCurToListingM,
-      timeToBranchS: c.timeToBranchS,
-      branchAlongM: c.branchAlongM,
+      timeToBranchS: c.timeToBranchS === null ? null : Math.round(c.timeToBranchS / 10) * 10,
+      aheadM,
+      fromHereM: here ? Math.round(haversineM(here, c.approxArea) / 100) * 100 : null,
       etaAtListing: c.etaAtListing,
+      available: c.available,
       fit: c.fit,
       energy: c.energy,
       exclusions: c.exclusions,
       inWindow: c.inWindow,
       score: c.score,
-      parts: c.parts,
       speech: c.speech,
+      seller: { completed: seller.completed, rating: seller.rating },
     };
   }
 
@@ -455,7 +470,7 @@ export class Service {
     return {
       mode: ev.mode,
       route: s ? { distanceM: Math.round(s.baseRoute.distanceM), durationS: Math.round(s.baseRoute.durationS), viaNames: s.baseRoute.viaNames } : null,
-      items: ev.candidates.map((c) => ({ ...this.candidateView(c), photo: this.d.store.get<Listing>("listings", c.listingId)?.photos[0] ?? null })),
+      items: ev.candidates.map((c) => this.candidateView(c, s, ctx.location)),
     };
   }
 
@@ -508,10 +523,10 @@ export class Service {
       now,
       alongM: Math.round(s?.currentAlongM ?? 0),
       route: s ? { distanceM: Math.round(s.baseRoute.distanceM), durationS: Math.round(s.baseRoute.durationS), viaNames: s.baseRoute.viaNames } : null,
-      top: top ? this.candidateView(top) : null,
-      contention: contention ? contention.map((c) => this.candidateView(c)) : null,
+      top: top ? this.candidateView(top, s, ctx.location) : null,
+      contention: contention ? contention.map((c) => this.candidateView(c, s, ctx.location)) : null,
       watching: ev.candidates.filter((c) => c.exclusions.length === 0).length,
-      candidates: ev.candidates.map((c) => this.candidateView(c)),
+      candidates: ev.candidates.map((c) => this.candidateView(c, s, ctx.location)),
       activeTrade: active ? this.buyerTradeView(active) : null,
       notices,
     };

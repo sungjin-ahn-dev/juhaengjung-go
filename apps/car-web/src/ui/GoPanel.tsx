@@ -1,4 +1,4 @@
-/** 오른쪽 주행중GO! 패널 — 감시 상태, 알림(유일하게 눈에 띄는 카드), 경합 질문, 거래 진행 */
+/** 오른쪽 열 아래 카드 — 알림(유일하게 눈에 띄는 카드), 경합 질문, 거래 진행, 편안한 길 제안. 감시 상태는 추천 목록 머리말이 맡는다 */
 import { useEffect, useState } from "react";
 import type { CarController, CarState, CandidateView, TradeView } from "../controller.ts";
 import { categoryLabel } from "@jhgo/core";
@@ -20,34 +20,7 @@ export function GoPanel({ s, c, now }: { s: CarState; c: CarController; now: num
           </div>
         </div>
       )}
-      {s.trade ? <TradeCard t={s.trade} c={c} now={now} restricted={s.restricted} /> : s.alert ? <AlertCard s={s} c={c} /> : <WatchCard s={s} />}
-    </div>
-  );
-}
-
-function WatchCard({ s }: { s: CarState }) {
-  if (s.mode === "idle") {
-    return (
-      <div className="c-watch">
-        <div className="c-watch-count">{s.interests.length}</div>
-        <div className="c-watch-text">
-          관심사 {s.interests.length}개
-          <small>목적지를 정하면 길 위의 매물을 찾아요</small>
-        </div>
-      </div>
-    );
-  }
-  const next = s.candidates
-    .filter((x) => x.exclusions.length === 0 && x.timeToBranchS !== null && x.timeToBranchS > 0)
-    .sort((a, b) => (a.timeToBranchS ?? 0) - (b.timeToBranchS ?? 0))[0];
-  return (
-    <div className="c-watch" data-testid="watch">
-      <div className="c-watch-count">{s.watching}</div>
-      <div className="c-watch-text">
-        {s.mode === "route" ? "이번 길의 관심 매물" : "근처 관심 매물"}
-        <small>{next ? `다음 갈림길: ${next.categoryLabel}, 약 ${Math.max(1, Math.round((next.timeToBranchS ?? 0) / 60))}분 뒤` : "알릴 때가 되면 한 번에 하나씩 말할게요"}</small>
-        {s.holdNote && <div className="c-hold">{s.holdNote}</div>}
-      </div>
+      {s.trade ? <TradeCard t={s.trade} c={c} now={now} restricted={s.restricted} /> : s.alert ? <AlertCard s={s} c={c} /> : null}
     </div>
   );
 }

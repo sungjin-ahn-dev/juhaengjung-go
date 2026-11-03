@@ -1,7 +1,8 @@
 /** 내비 지도 — 시연 도로망을 SVG로 그린다. 주행 중엔 진행 방향이 위, 정차 중엔 경로 전체를 보여 준다. */
 import { useEffect, useRef, useState } from "react";
 import { DEMO_NET, toXY, type LatLng, type Route } from "@jhgo/core";
-import type { CandidateView, TradeView } from "../controller.ts";
+import type { TradeView } from "../controller.ts";
+import type { RankedItem } from "./GoList.tsx";
 
 export interface MapSnapshot {
   route: Route | null;
@@ -14,7 +15,10 @@ export interface MapSnapshot {
 
 interface Props {
   snap: MapSnapshot;
-  candidates: CandidateView[];
+  /** 추천 목록과 같은 순서 — rank가 지도 번호 */
+  candidates: RankedItem[];
+  selectedId?: string | null;
+  onPick?: (listingId: string) => void;
   trade: TradeView | null;
   /** 정차 중 경로 전체 보기 */
   overview: boolean;
@@ -42,7 +46,7 @@ function angleLerp(a: number, b: number, t: number) {
   return (a + d * t + 360) % 360;
 }
 
-export function MapView({ snap, candidates, trade, overview, viewport, zoom }: Props) {
+export function MapView({ snap, candidates, selectedId = null, onPick, trade, overview, viewport, zoom }: Props) {
   const headingRef = useRef(snap.heading);
   const [, force] = useState(0);
   // 진행 방향을 부드럽게 따라간다
@@ -122,6 +126,8 @@ export function MapView({ snap, candidates, trade, overview, viewport, zoom }: P
     });
 
   const car = P(snap.position);
+  /** 핀을 그릴 자리(겹침을 피해 옮긴 자리) */
+  const pinAt = new Map<string, [number, number]>();
   const carRot = overview ? snap.heading : 0;
 
   return (
@@ -136,24 +142,106 @@ export function MapView({ snap, candidates, trade, overview, viewport, zoom }: P
         </>
       )}
       <g>{labels}</g>
+      {/* 공개 범위(대략 위치 500m). 주행 중엔 1위와 고른 것만 */}
       {candidates.map((c) => {
+        if (trade && trade.listingId === c.listingId && trade.pickupPoint) return null;
+        const on = c.listingId === selectedId;
+        const out = c.rank === null;
+        if (!overview && (out || (!on && c.rank !== 1))) return null;
         const [x, y] = P(c.approxArea);
         const r = Math.max(10, c.approxArea.radiusM / mpp);
-        const excluded = c.exclusions.length > 0;
-        const revealed = trade && trade.listingId === c.listingId && trade.pickupPoint;
-        if (revealed) return null;
-        const label = c.categoryLabel;
-        const wLabel = 16 + label.length * 15;
         return (
-          <g key={c.listingId} opacity={excluded ? 0.55 : 1}>
-            <circle cx={x} cy={y} r={r} fill={excluded ? "rgba(142,155,173,0.10)" : "rgba(217,178,124,0.20)"} stroke={excluded ? "#6b7889" : "#d9b27c"} strokeWidth={2} strokeDasharray={excluded ? "6 5" : undefined} />
-            <rect x={x - wLabel / 2} y={y - r - 34} width={wLabel} height={28} rx={14} fill={excluded ? "#2b3646" : "#d9b27c"} />
-            <text x={x} y={y - r - 15} fontSize={15} fontWeight={700} textAnchor="middle" fill={excluded ? "#aab6c6" : "#1d1a16"} style={{ stroke: "none" }}>
-              {label}
-            </text>
-          </g>
+          <circle
+            key={`a-${c.listingId}`}
+            cx={x}
+            cy={y}
+            r={r}
+            fill={out ? "rgba(142,155,173,0.06)" : on ? "rgba(217,178,124,0.24)" : "rgba(217,178,124,0.12)"}
+            stroke={out ? "#5b687a" : "#d9b27c"}
+            strokeOpacity={on ? 1 : 0.55}
+            strokeWidth={on ? 2.5 : 1.5}
+            strokeDasharray={out ? "5 5" : undefined}
+          />
         );
       })}
+      {/* 핀: 번호 = 오른쪽 목록 순위. 정차 중엔 사진, 주행 중엔 번호만. 고른 핀을 맨 위에.
+          핀끼리 겹치면 순위가 낮은 쪽을 옆으로 비켜 놓고 원래 자리와 가는 선으로 잇는다 */}
+      {(() => {
+        pinAt.clear();
+        const box = overview ? 64 : 36;
+        const placed: [number, number][] = [];
+        for (const c of candidates) {
+          if (c.rank === null) continue;
+          const [x, y] = P(c.approxArea);
+          let px = x;
+          let py = y;
+          for (let k = 0; k < 8; k++) {
+            const hit = placed.find(([qx, qy]) => Math.abs(qx - px) < box && Math.abs(qy - py) < box);
+            if (!hit) break;
+            px = hit[0] + box + 4;
+            py = hit[1];
+          }
+          placed.push([px, py]);
+          pinAt.set(c.listingId, [px, py]);
+        }
+        return candidates.map((c) => {
+          const at = pinAt.get(c.listingId);
+          if (!at) return null;
+          const [x, y] = P(c.approxArea);
+          if (Math.hypot(at[0] - x, at[1] - y) < 2) return null;
+          return (
+            <g key={`l-${c.listingId}`}>
+              <line x1={x} y1={y} x2={at[0]} y2={at[1]} stroke="#d9b27c" strokeWidth={1.5} strokeOpacity={0.8} />
+              <circle cx={x} cy={y} r={3.5} fill="#d9b27c" />
+            </g>
+          );
+        });
+      })()}
+      {[...candidates]
+        .sort((a, b) => (a.listingId === selectedId ? 1 : 0) - (b.listingId === selectedId ? 1 : 0) || (b.rank ?? 99) - (a.rank ?? 99))
+        .map((c) => {
+          if (trade && trade.listingId === c.listingId && trade.pickupPoint) return null;
+          const on = c.listingId === selectedId;
+          const out = c.rank === null;
+          if (!overview && out) return null;
+          const [x, y] = pinAt.get(c.listingId) ?? P(c.approxArea);
+          const pick = onPick ? () => onPick(c.listingId) : undefined;
+          if (out) {
+            return (
+              <g key={`p-${c.listingId}`} onClick={pick} style={{ cursor: pick ? "pointer" : undefined }} data-testid={`pin-${c.categoryLabel}`}>
+                <circle cx={x} cy={y} r={on ? 9 : 7} fill="#5b687a" stroke="#18202b" strokeWidth={2} />
+              </g>
+            );
+          }
+          if (!overview || !c.photo) {
+            const rr = on ? 19 : 16;
+            return (
+              <g key={`p-${c.listingId}`} onClick={pick} style={{ cursor: pick ? "pointer" : undefined }} data-testid={`pin-${c.categoryLabel}`}>
+                <circle cx={x} cy={y} r={rr} fill="#d9b27c" stroke={on ? "#ffffff" : "#1d1a16"} strokeWidth={on ? 3 : 2.5} />
+                <text x={x} y={y + 6} fontSize={on ? 20 : 17} fontFamily="var(--font-sign)" textAnchor="middle" fill="#1d1a16" style={{ stroke: "none" }}>
+                  {c.rank}
+                </text>
+              </g>
+            );
+          }
+          const size = on ? 58 : 46;
+          const top = y - 12 - size;
+          const clip = `clip-${c.listingId}`;
+          return (
+            <g key={`p-${c.listingId}`} onClick={pick} style={{ cursor: pick ? "pointer" : undefined }} data-testid={`pin-${c.categoryLabel}`}>
+              <path d={`M${x} ${y} L${x - 8} ${y - 13} L${x + 8} ${y - 13} Z`} fill={on ? "#ffffff" : "#d9b27c"} />
+              <rect x={x - size / 2} y={top} width={size} height={size} rx={11} fill="#1d1a16" stroke={on ? "#ffffff" : "#d9b27c"} strokeWidth={3} />
+              <clipPath id={clip}>
+                <rect x={x - size / 2 + 3} y={top + 3} width={size - 6} height={size - 6} rx={8} />
+              </clipPath>
+              <image href={c.photo} x={x - size / 2 + 3} y={top + 3} width={size - 6} height={size - 6} preserveAspectRatio="xMidYMid slice" clipPath={`url(#${clip})`} />
+              <circle cx={x - size / 2 + 2} cy={top + 2} r={12} fill="#d9b27c" stroke="#1d1a16" strokeWidth={2} />
+              <text x={x - size / 2 + 2} y={top + 8} fontSize={16} fontFamily="var(--font-sign)" textAnchor="middle" fill="#1d1a16" style={{ stroke: "none" }}>
+                {c.rank}
+              </text>
+            </g>
+          );
+        })}
       {trade?.pickupPoint &&
         (() => {
           const [x, y] = P(trade.pickupPoint);

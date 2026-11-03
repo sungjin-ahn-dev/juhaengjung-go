@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalS
 import { DEMO_NET, Graph, GraphRouter, pointAtAlong, projectOnPolyline, type Route } from "@jhgo/core";
 import type { CarController, CarState } from "../controller.ts";
 import type { SimCar } from "../pleos/sim.ts";
+import { GoList, rankItems } from "./GoList.tsx";
 import { GoPanel } from "./GoPanel.tsx";
 import { BatteryIcon, RailIcon, TurnIcon } from "./icons.tsx";
 import { MapView, type MapSnapshot } from "./MapView.tsx";
@@ -86,11 +87,18 @@ export function CarScreen({ c, sim, now }: { c: CarController; sim: SimCar | nul
     return () => clearInterval(id);
   }, [now]);
 
-  const sheetOpen = s.screen !== "map" && !s.restricted;
+  // 출발 전 브리핑은 따로 시트를 띄우지 않고 지도 + 오른쪽 추천 목록으로 보여 준다
+  const sheetOpen = s.screen !== "map" && s.screen !== "briefing" && !s.restricted;
   const overview = !s.restricted;
-  const viewport = sheetOpen ? { x: 796, y: 70, w: 484, h: 560 } : { x: 76, y: 70, w: 1280 - 76 - 430, h: 600 };
+  // 오른쪽 열(추천 목록·알림·거래 카드): 폭 412, 오른쪽 여백 16 → 지도는 그 왼쪽
+  const viewport = sheetOpen ? { x: 796, y: 70, w: 484, h: 560 } : { x: 76, y: 70, w: 1280 - 76 - 412 - 28, h: 600 };
   const arrival = s.destination ? clockMs + s.destination.remainTime * 1000 : null;
-  const mapCandidates = s.screen === "briefing" && s.briefing ? s.briefing.items : s.candidates;
+  const ranked = rankItems(s);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // 목록에서 사라진 매물을 고른 채로 두지 않는다
+  const selected = selectedId && ranked.some((x) => x.listingId === selectedId) ? selectedId : null;
+  // 주행 중 알림·거래가 뜨면 목록은 접고 카드만
+  const showList = !(s.restricted && (s.alert || s.trade));
 
   const railBtn = (name: "dest" | "brief" | "heart", label: string, screen: "destination" | "briefing" | "interests") => (
     <button className={`${s.screen === screen ? "on" : ""} ${s.restricted ? "locked" : ""}`} onClick={() => c.open(screen)} aria-label={label}>
@@ -104,7 +112,16 @@ export function CarScreen({ c, sim, now }: { c: CarController; sim: SimCar | nul
       <div className="c-stage-inner">
         <div className="c-screen" style={{ transform: `scale(${scale})` }} data-testid="car-screen" data-restricted={s.restricted ? "1" : "0"}>
           {snap ? (
-            <MapView snap={snap} candidates={mapCandidates} trade={s.trade} overview={overview} viewport={viewport} zoom={zoom} />
+            <MapView
+              snap={snap}
+              candidates={ranked}
+              selectedId={selected}
+              onPick={(id) => setSelectedId(id)}
+              trade={s.trade}
+              overview={overview}
+              viewport={viewport}
+              zoom={zoom}
+            />
           ) : (
             <div className="c-map" style={{ background: "#18202b" }} />
           )}
@@ -181,7 +198,12 @@ export function CarScreen({ c, sim, now }: { c: CarController; sim: SimCar | nul
             </div>
           )}
 
-          {!sheetOpen && <GoPanel s={s} c={c} now={clockMs} />}
+          {!sheetOpen && (
+            <div className="c-side">
+              {showList && <GoList s={s} c={c} items={ranked} selectedId={selected} onSelect={(id) => setSelectedId((cur) => (cur === id ? null : id))} />}
+              <GoPanel s={s} c={c} now={clockMs} />
+            </div>
+          )}
 
           {sheetOpen && <Sheet s={s} c={c} />}
 

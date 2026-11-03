@@ -83,12 +83,18 @@ async function waitHealth() {
     await car.getByTestId("row2").check();
     await car.getByRole("button", { name: "목적지", exact: true }).click();
     await car.getByTestId("sheet-destination").getByRole("button", { name: /송파 집/ }).click();
-    const brief = car.getByTestId("sheet-briefing");
-    await brief.getByText("이번 길에 관심 매물").waitFor();
+    // 출발 전 브리핑 = 지도 번호 핀 + 오른쪽 추천순 목록(사진·판매자 설명·우회·거리)
+    const brief = car.getByTestId("go-list");
+    await brief.getByText("관심 매물 4개를 찾았어요").waitFor({ timeout: 15000 });
     await car.waitForTimeout(800);
     const briefText = await brief.innerText();
     check(briefText.includes("2열에 사람이 있어 2열을 접을 수 없어요"), "브리핑: 2열 착석이라 아기 침대 제외(Seat)");
-    check(briefText.includes("회전형 카시트"), "브리핑: 방금 올린 카시트가 경로 위에 보임");
+    check(briefText.includes("회전형 카시트") && briefText.includes("아이가 커서 정리해요"), "브리핑: 방금 올린 카시트가 사진·판매자 설명과 함께 목록에");
+    const rows = await brief.locator(".c-item:not(.out) .c-rank").allInnerTexts();
+    check(rows.join(",") === "1,2,3", "알릴 수 있는 매물 3개가 추천순 번호 1·2·3");
+    check(/km 앞/.test(briefText) && /\+\d+분/.test(briefText), "목록에 경로상 거리와 우회 시간");
+    await car.getByTestId("pin-카시트").click();
+    check(await car.locator('[data-testid="go-row-카시트"].on').count() === 1, "지도 핀을 누르면 목록의 같은 매물이 표시됨");
     await snapC("briefing");
     await car.getByRole("button", { name: "지도", exact: true }).click();
 

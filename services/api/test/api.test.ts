@@ -105,6 +105,11 @@ describe("주행 매칭 (T1~T7, T16)", () => {
     for (const i of r.items) {
       expect(i).not.toHaveProperty("pickupPoint");
       expect(i).toHaveProperty("approxArea");
+      // 정확한 지점에서 잰 값은 보내지 않는다(갈림 지점 위치·현재→매물 거리로 지점을 거꾸로 찾을 수 있다)
+      for (const k of ["branchAlongM", "distCurToListingM", "tCurToListingS", "distFromRouteM"]) expect(i).not.toHaveProperty(k);
+      // 목록용 거리는 대략 위치 기준, 100m 단위
+      expect((i.aheadM as number) % 100).toBe(0);
+      expect(typeof i.description).toBe("string");
     }
     expect(r.route.viaNames).toContain("판교");
   });

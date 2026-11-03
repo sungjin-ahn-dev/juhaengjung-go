@@ -24,11 +24,16 @@ import type { AppClock } from "./clock.ts";
 import type { CarPlatform, DestinationInfo, NavigationStatus, TBTInfo, WaypointInfo } from "./pleos/ports.ts";
 import { NO_WORDS, YES_WORDS } from "./pleos/voice.ts";
 
+/** 서버가 보내는 매물 보기 — 수락 전이라 정확한 지점에서 잰 값은 없다(거리는 대략 위치 기준, 100m 단위) */
 export interface CandidateView {
   listingId: string;
   title: string;
   category: string;
   categoryLabel: string;
+  /** 판매자가 쓴 설명 */
+  description: string;
+  photo: string | null;
+  condition: "good" | "fair" | "worn" | null;
   price: number;
   referencePrice: number;
   fragile: boolean;
@@ -37,17 +42,20 @@ export interface CandidateView {
   interestType: "keyword" | "wish";
   detourMin: number;
   detourS: number;
-  tCurToListingS: number;
-  distCurToListingM: number;
   timeToBranchS: number | null;
-  branchAlongM: number | null;
+  /** 경로 매칭: 지금 위치에서 경로를 따라 몇 m 앞인지 */
+  aheadM: number | null;
+  /** 지금 위치에서 직선 거리 */
+  fromHereM: number | null;
   etaAtListing: number;
+  available: boolean;
   fit: { kind: "trunk" | "folded" | "none"; label: string };
   energy: { ok: boolean; arrivalSocPct?: number; rangeAfterKm?: number; note: string; unknown?: boolean };
   exclusions: string[];
   inWindow: boolean;
   score: number;
   speech: string;
+  seller: { completed: number; rating: number | null };
 }
 
 export interface TradeView {
@@ -120,7 +128,7 @@ export interface CarState {
   route: { distanceM: number; durationS: number; viaNames: string[] } | null;
   alert: Alert | null;
   trade: TradeView | null;
-  briefing: { items: (CandidateView & { photo?: string | null })[]; route: { distanceM: number; durationS: number; viaNames: string[] } | null } | null;
+  briefing: { items: CandidateView[]; route: { distanceM: number; durationS: number; viaNames: string[] } | null } | null;
   result: EndResult | null;
   toasts: { id: number; text: string; kind: "info" | "good" | "warn" }[];
   screen: Screen;
