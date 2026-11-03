@@ -10,12 +10,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DEMO_NET, DEMO_PLACES, Graph, GraphRouter, nextManeuver, pointAtAlong, timeAtAlong, type LatLng, type Route } from "../packages/core/src/index.ts";
+import { cutClips, findMarks, PALETTE, recordOverlay, SYNC_H } from "./video-cut.ts";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright") as typeof import("playwright");
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const OUT = path.join(ROOT, "tools/out");
+const OUT = process.env.JHGO_RECORD ? path.join(path.resolve(process.env.JHGO_RECORD), "shots") : path.join(ROOT, "tools/out");
 const PORT = 8792;
 const BASE = `http://localhost:${PORT}`;
 fs.mkdirSync(OUT, { recursive: true });
@@ -26,6 +27,15 @@ function check(cond: unknown, msg: string) {
   log("✓", msg);
 }
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * 녹화 모드(선택): JHGO_RECORD=<폴더> — 차 화면 옆에 'SDK 기록'을 펼쳐 둔 채 녹화하고 장면별 MP4로 자른다.
+ * JHGO_RECORD_ORIGIN=<정적 서버> 를 주면 그 출처의 /car/ 와 /fonts/ 로 열어 앱 글꼴을 쓴다.
+ */
+const REC = process.env.JHGO_RECORD ? path.resolve(process.env.JHGO_RECORD) : null;
+const REC_ORIGIN = process.env.JHGO_RECORD_ORIGIN ?? null;
+const REC_W = 1820;
+const REC_H = 800;
 
 async function api<T>(method: string, p: string, token?: string, body?: unknown): Promise<T> {
   const r = await fetch(BASE + p, {
@@ -135,14 +145,43 @@ type MockCall = { method: string; args: Record<string, unknown> };
     const buyer = users.find((u) => u.role === "buyer")!;
     const { token: buyerToken } = await api<{ token: string }>("POST", "/v1/session", undefined, { userId: buyer.id });
 
-    const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    const recCtx = REC
+      ? await browser.newContext({ viewport: { width: REC_W, height: REC_H + SYNC_H }, colorScheme: "dark", recordVideo: { dir: path.join(REC, "raw"), size: { width: REC_W, height: REC_H + SYNC_H } } })
+      : null;
+    if (recCtx) await recCtx.addInitScript(recordOverlay(SYNC_H + 18).init);
+    const page = recCtx ? await recCtx.newPage() : await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    const recT0 = Date.now();
+    const recMarks: string[] = [];
+    const recMark = async (name: string) => {
+      if (!REC) return;
+      await page.evaluate((rgb) => (window as unknown as { __sync: (c: number[]) => void }).__sync(rgb), PALETTE[recMarks.length % PALETTE.length]);
+      recMarks.push(name);
+      log("mark", name, ((Date.now() - recT0) / 1000).toFixed(1));
+      await page.waitForTimeout(160);
+    };
+    const recCap = async (t: string, sub: string) => {
+      if (REC) await page.evaluate(([a, b]) => (window as unknown as { __cap: (a: string, b: string) => void }).__cap(a, b), [t, sub] as const);
+    };
     page.on("pageerror", (e) => log("페이지 오류:", e.message));
     page.on("console", (m) => {
       if (m.type() === "warning" || m.type() === "error") if (!m.text().includes("ERR_TUNNEL")) log("콘솔:", m.text().slice(0, 200));
     });
     await page.addInitScript(MOCK);
-    await page.goto(BASE + "/car/", { waitUntil: "load" });
+    await page.goto(REC_ORIGIN ? `${REC_ORIGIN}/car/index.html?api=${encodeURIComponent(BASE)}` : BASE + "/car/", { waitUntil: "load" });
     await page.getByTestId("car-screen").waitFor();
+    if (REC) {
+      if (REC_ORIGIN) for (const f of ["do-hyeon/400", "ibm-plex-sans-kr/400", "ibm-plex-sans-kr/600", "ibm-plex-sans-kr/700"]) await page.addStyleTag({ url: `${REC_ORIGIN}/fonts/${f}.css` });
+      await page.getByRole("button", { name: /SDK 기록/ }).click();
+      await page.addStyleTag({
+        content: `${recordOverlay(SYNC_H + 18).css}
+.c-shell.device { height: auto !important; align-items: flex-start !important; justify-content: flex-start !important; }
+.c-shell.device .c-stage { width: 1280px !important; flex: none !important; }
+.c-sdklog-toggle { display: none !important; }
+.c-sdklog { top: 12px !important; bottom: ${SYNC_H + 70}px !important; width: 516px !important; right: 12px !important; font-size: 14px !important; }`,
+      });
+      await recCap("SDK 모드", "Android 셸 브리지로 Pleos SDK를 불러요. 오른쪽은 호출·이벤트 기록이에요");
+      await recMark("boot");
+    }
     const calls = () => page.evaluate(() => (window as unknown as { __mock: { calls: MockCall[] } }).__mock.calls.map((c) => ({ method: c.method, args: c.args })));
     const mock = {
       set: (p: Record<string, unknown>) => page.evaluate((x) => (window as unknown as { __mock: { set(p: unknown): void } }).__mock.set(x), p),
@@ -178,8 +217,10 @@ type MockCall = { method: string; args: Record<string, unknown> };
     await mock.set({ status: "ROUTE_DRIVE", dest: destInfo(route.durationS, route.distanceM) });
     await mock.emit("NaviHelper.onNavigationStatus", "ROUTE_DRIVE");
     await mock.emit("NaviHelper.onDestinationInfo", destInfo(route.durationS, route.distanceM));
+    await recCap("출발 전", "내비 목적지(getDestinationInfo)가 잡히면 추천 목록. 2열 착석은 Seat 리스너로 받아요");
     const brief = page.getByTestId("go-list");
     await brief.getByText("관심 매물 4개를 찾았어요").waitFor({ timeout: 10000 });
+    if (REC) await page.waitForTimeout(2600);
     await page.waitForTimeout(600);
     const bt = await brief.innerText();
     check(bt.includes("회전형 카시트") && bt.includes("2열에 사람이 있어"), "내비 목적지 → 출발 전 브리핑(2열 착석 이벤트 반영)");
@@ -266,6 +307,13 @@ type MockCall = { method: string; args: Record<string, unknown> };
     // 캠핑의자 알림: requestTrip으로 확인 → 알림 카드 + 음성(Voice.speak)
     const alert = page.getByTestId("alert");
     await alert.waitFor({ timeout: 60000 });
+    await recCap("주행 중", "requestTrip으로 시간·도착 배터리를 다시 재고, 회전·방향지시등이 없을 때 말해요");
+    if (REC) {
+      paused = true; // 알림을 보여 주는 동안 차를 세워 둔다(분기점을 지나지 않게)
+      await page.waitForTimeout(4200);
+      paused = false;
+    }
+    await recMark("alert-end");
     check((await alert.innerText()).includes("캠핑의자"), "주행 중 캠핑의자 알림");
     const trip = await waitCall("NaviHelper.requestTrip", (c) => String(c.args.poiName).includes("캠핑의자"), 3000);
     check(typeof trip.args.latitude === "number" && String(trip.args.poiId).length > 0, "NaviHelper.requestTrip(대략 위치, poiId, poiName) 호출");
@@ -307,6 +355,8 @@ type MockCall = { method: string; args: Record<string, unknown> };
       if (!tradeId) await sleep(250);
     }
     check(tradeId, "판매자에게 요청이 도착");
+    await recMark("accept");
+    await recCap("수락", "addWaypoint로 경유지를 넣고, getWaypointInfo로 들어갔는지 다시 확인해요");
     await api("POST", `/v1/seller/trades/${tradeId}/accept`, sellerToken);
     const add = await waitCall("NaviHelper.addWaypoint", (c) => String(c.args.poiName).includes("픽업 · 카시트"), 15000);
     check(add.args.waypointIndex === "FIRST" && String(add.args.poiId).startsWith("jhgo:") && typeof add.args.latitude === "number", "NaviHelper.addWaypoint(RequestWaypointInfo: 좌표·FIRST·poiId) 호출");
@@ -318,6 +368,8 @@ type MockCall = { method: string; args: Record<string, unknown> };
     viaAlong = route.viaAlongM[0];
     await page.getByText("가는 중").waitFor({ timeout: 15000 });
     check(true, "getWaypointInfo로 경유지 반영 확인 → 거래 확정(가는 중)");
+    if (REC) await page.waitForTimeout(3000);
+    await recMark("accept-end");
     await page.screenshot({ path: path.join(OUT, "bridge-03-on-the-way.png") });
 
     // 경유지 도착 → 정차 → 현장 확인
@@ -338,6 +390,10 @@ type MockCall = { method: string; args: Record<string, unknown> };
       throw e;
     });
     check(true, "onWayPointArrived(지금 위치) + 정차 → 현장 확인 화면");
+    await recMark("arrive");
+    await recCap("도착", "onWayPointArrived와 정차(주행 제한 해제)가 겹치면 현장 확인 화면을 열어요");
+    if (REC) await page.waitForTimeout(3500);
+    await recMark("arrive-end");
     await api("POST", `/v1/seller/trades/${tradeId}/handed`, sellerToken);
     await inspect.getByText("판매자가 건넸다고 표시했어요").waitFor({ timeout: 10000 });
     await page.screenshot({ path: path.join(OUT, "bridge-04-inspect.png") });
@@ -359,7 +415,7 @@ type MockCall = { method: string; args: Record<string, unknown> };
     check(routeIdx.every((i) => i >= failFrom && i < failTo), "목적지 설정 API(RouteInfo 미확인)는 경유지 실패 대체에서만 시도 — 정상 흐름은 쓰지 않음");
     const unknown = all.filter((c) => !c.method.includes("."));
     check(unknown.length === 0, "모든 호출이 '도메인.메서드' 이름");
-    await page.getByRole("button", { name: /SDK 기록/ }).click();
+    if (!REC) await page.getByRole("button", { name: /SDK 기록/ }).click(); // 녹화 때는 처음부터 열려 있다
     const drawer = await page.locator(".c-sdklog").innerText();
     check(drawer.includes("addWaypoint") && drawer.includes("requestTrip"), "SDK 기록 서랍에 실제 호출이 남음");
     await page.screenshot({ path: path.join(OUT, "bridge-06-sdklog.png") });
@@ -369,6 +425,33 @@ type MockCall = { method: string; args: Record<string, unknown> };
     log("브리지 계약 시험 통과");
     drive.stop = true;
     await loop;
+    if (REC && recCtx) {
+      const v = page.video();
+      await recCtx.close();
+      const raw = v ? await v.path() : null;
+      if (raw) {
+        const at = findMarks(raw, REC_W, REC_H, recMarks);
+        log("영상 시점:", JSON.stringify(Object.fromEntries([...at].map(([k, t]) => [k, Number(t.toFixed(2))]))));
+        cutClips(
+          raw,
+          REC_W,
+          REC_H,
+          at,
+          REC,
+          [
+            { id: "08-sdk-briefing-alert", segs: [["boot", "alert-end"]] },
+            {
+              id: "09-sdk-waypoint-arrive",
+              segs: [
+                ["accept", "accept-end"],
+                ["arrive", "arrive-end", -0.8],
+              ],
+            },
+          ],
+          log,
+        );
+      }
+    }
   } finally {
     if (driving) driving.stop = true;
     await browser.close();

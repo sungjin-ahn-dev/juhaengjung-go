@@ -33,7 +33,7 @@ npm start              # http://localhost:8787
 - 시연 시계는 2026-11-06(금) 18:05에서 시작한다. 콘솔의 '시연 처음으로'가 데이터와 시계를 처음으로 돌린다.
 - 서버 없이: `/car/?local`(차량만, 페이지 안 서버) 또는 체험 페이지(`npm run build -w apps/demo` → `apps/demo/dist/index.html`)
 
-시연 순서(약 3분): 차 화면 '목적지' → 송파 집(브리핑) → 콘솔 '2열 착석'·10×·D 주행 → 영통 캠핑의자 알림 → 분당 카시트·유모차 경합 → 카시트 '들를게요' → 판매자 폰 '수락' → 경유지 도착 → 트렁크 열고 닫기 → 판매자 '건넸어요' → 차 '받았어요' → D 주행 → 결과 카드.
+시연 순서(약 3분): 차 화면 '목적지' → 송파 집(지도 번호 핀 + 추천 목록) → 콘솔 '2열 착석'·10×·D 주행 → 영통 캠핑의자 알림 → 분당 카시트·유모차 경합 → 카시트 '들를게요' → 판매자 폰 '수락' → 경유지 도착 → 트렁크 열고 닫기 → 판매자 '건넸어요' → 차 '받았어요' → D 주행 → 결과 카드.
 
 ## 확인
 
@@ -43,6 +43,19 @@ npm run typecheck
 npm run e2e            # 판매자 폰 + 차량 화면 끝까지(스크린샷: tools/out/)
 npm run e2e:bridge     # 차량 화면이 실제 SDK 모드(브리지)로 끝까지 도는지
 ```
+
+## 시연 영상
+
+Playwright로 녹화하고 ffmpeg로 장면마다 자른다(ffmpeg 필요). 녹화 프레임이 밀려도 장면 경계가 맞게, 장면이 바뀔 때 화면 아래 색 띠를 바꾸고 영상에서 그 색을 찾는다(`tools/video-cut.ts`).
+
+```bash
+npm run build -w apps/demo
+node node_modules/tsx/dist/cli.mjs tools/record-demo.ts <출력 폴더>      # 체험 페이지 → 01~07 MP4·대표 이미지
+JHGO_RECORD=<출력 폴더> npm run e2e:bridge                               # 실제 SDK 모드(가짜 브리지) → 08~09
+```
+
+- `JHGO_FONTS=<node_modules/@fontsource 폴더>`: do-hyeon·ibm-plex-sans-kr 글꼴을 녹화 페이지에 넣는다(웹 글꼴을 못 받는 환경용).
+- `JHGO_RECORD_ORIGIN=<정적 서버>`: `/car/`(차량 화면 빌드)와 `/fonts/<글꼴>/<굵기>.css`를 내주는 서버에서 차 화면을 열어 같은 글꼴로 녹화한다. 없으면 API 서버의 `/car/`를 그대로 녹화한다.
 
 ## 차량 앱(Android)
 

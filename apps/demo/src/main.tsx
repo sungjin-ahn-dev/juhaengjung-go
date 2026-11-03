@@ -61,7 +61,9 @@ function Bench({ boot, seller, clock }: { boot: CarBoot; seller: ApiClient; cloc
 }
 
 async function start() {
-  const b = createLocalBackend();
+  // ?compose: 카시트가 아직 안 올라간 상태로 시작(판매자 폰에서 같이 올리기부터)
+  const compose = new URLSearchParams(location.search).has("compose");
+  const b = createLocalBackend({ includeCarSeat: !compose });
   const clock = createDirectClock(b.clock as never);
   // 판매자 폰은 카시트를 올려 둔 박서연으로 미리 들어가 있게 한다(로그인 화면에서 다른 판매자로 바꿀 수 있다)
   const seller = b.client();

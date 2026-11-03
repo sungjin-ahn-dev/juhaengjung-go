@@ -2,8 +2,8 @@
 import { createBackend } from "./backend.ts";
 import { createLocalClient } from "./client.ts";
 
-export function createLocalBackend(opts: { rate?: number } = {}) {
-  const b = createBackend({ demo: true, seed: true, rate: opts.rate ?? 1 });
+export function createLocalBackend(opts: { rate?: number; includeCarSeat?: boolean } = {}) {
+  const b = createBackend({ demo: true, seed: true, rate: opts.rate ?? 1, includeCarSeat: opts.includeCarSeat });
   const timer = setInterval(() => b.svc.tick(), 500);
   return {
     ...b,

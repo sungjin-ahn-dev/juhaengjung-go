@@ -6,6 +6,8 @@ import { DEMO_START, seedDemo } from "./seed.ts";
 import { Service, type ServiceConfig } from "./service.ts";
 
 export interface BackendOptions {
+  /** 시드에 박서연의 카시트를 넣을지(기본 넣음). 체험에서 같이 올리기부터 보여 줄 때 끈다 */
+  includeCarSeat?: boolean;
   demo?: boolean;
   store?: Store;
   clock?: Clock;
@@ -41,7 +43,7 @@ export function createBackend(o: BackendOptions = {}) {
   const clock = o.clock ?? (demo ? new DemoClock(DEMO_START, o.rate ?? 1) : new RealClock());
   const bus = new EventBus();
   const svc = new Service({ store, bus, clock, router: o.router ?? createRouter(), config: o.config ?? (demo ? DEMO_SERVICE_CONFIG : undefined) });
-  if (o.seed && store.list("users").length === 0) seedDemo(svc);
+  if (o.seed && store.list("users").length === 0) seedDemo(svc, { includeCarSeat: o.includeCarSeat });
   const app = createApp(svc, { demo, sseHeartbeatMs: o.sseHeartbeatMs });
   return { app, svc, store, clock, bus };
 }
