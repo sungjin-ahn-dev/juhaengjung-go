@@ -3,7 +3,10 @@
 차로 가는 길에, 평소 관심 둔 중고 매물이 경로 근처에 있으면 알려 주고 경유지로 들러 바로 사 오게 하는 Pleos Connect 앱.
 구매자는 차 안에서(내비 화면), 판매자는 폰 웹에서 쓴다.
 
-- 기획: `docs/01_기획서.md`, 결정과 공모전 정보: `docs/00_가이드.md`
+![차 화면 — 출발 전 브리핑과 경합 질문을 듣는 중](docs/img/car.jpg)
+![판매자 홈, 요청 전체 화면, 구매자 홈](docs/img/phones.jpg)
+
+- 기획: `docs/01_기획서.md`(PDF는 `node node_modules/tsx/dist/cli.mjs tools/doc-pdf.ts docs/01_기획서.md <출력.pdf>`), 접수 양식에 옮길 글: `docs/02_접수양식_초안.md`, 결정과 공모전 정보: `docs/00_가이드.md`
 - 기능별 구현 위치: `docs/TASKS.md`, 기획서 문장별 대조: `docs/SPEC_CHECK.md`, 현재 상태: `docs/STATUS.md`
 - Pleos SDK 사용 현황: `docs/API_MATRIX.md`, 차량 앱 브리지: `docs/BRIDGE.md`
 
