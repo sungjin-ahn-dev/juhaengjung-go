@@ -58,7 +58,7 @@ export function GoList({
 
   if (s.mode === "idle") {
     return (
-      <section className="c-list" aria-label="추천 목록" data-testid="go-list">
+      <section className="c-list c-card" aria-label="추천 목록" data-testid="go-list">
         <header className="c-list-head">
           <div className="c-list-title">{title}</div>
           <div className="c-list-count">{s.interests.length}</div>
@@ -84,7 +84,7 @@ export function GoList({
     : `${route ? `${fmtMin(route.durationS)}, ${fmtKm(route.distanceM)} 길에서 ` : ""}관심 매물 ${items.length}개를 찾았어요. 알릴 수 있는 건 ${ok.length}개예요.`;
 
   return (
-    <section className={`c-list ${driving ? "compact" : ""}`} aria-label="추천 목록" data-testid="go-list">
+    <section className={`c-list c-card ${driving ? "compact" : ""}`} aria-label="추천 목록" data-testid="go-list">
       <header className="c-list-head">
         <div className="c-list-title">{title}</div>
         <div className="c-list-count">{ok.length}</div>
@@ -156,8 +156,9 @@ function Row({
 }) {
   const cheaper = x.referencePrice - x.price;
   const out = x.rank === null;
+  const mine = s.trade?.listingId === x.listingId;
   return (
-    <div ref={refFn} className={`c-item ${on ? "on" : ""} ${out ? "out" : ""}`} onClick={() => onSelect(x.listingId)} data-testid={`go-row-${x.categoryLabel}`}>
+    <div ref={refFn} className={`c-item ${on ? "on" : ""} ${out ? "out" : ""} ${mine ? "mine" : ""}`} onClick={() => onSelect(x.listingId)} data-testid={`go-row-${x.categoryLabel}`}>
       {out ? <div className="c-rank off" aria-hidden /> : <div className="c-rank">{x.rank}</div>}
       {x.photo ? <img src={x.photo} alt="" /> : <div className="c-item-ph" />}
       <div className="c-item-main">
@@ -168,7 +169,7 @@ function Row({
         {x.description && <div className="c-item-desc">{x.description}</div>}
         <div className="c-item-chips">
           <span className={`go-${x.goLevel}`}>{GO_KO[x.goLevel]}</span>
-          <span>{x.fit.label}</span>
+          <span className={x.fit.kind === "trunk" ? "fit-trunk" : ""}>{x.fit.label}</span>
           {cheaper > 0 && <span>기준가보다 {fmtWon(cheaper)} 싸요</span>}
           {x.condition && <span>{CONDITION_KO[x.condition]}</span>}
         </div>
@@ -181,7 +182,11 @@ function Row({
               거래 {x.seller.completed}회{x.seller.rating ? `, 평점 ${x.seller.rating}` : ""}
             </span>
           )}
-          {!out ? (
+          {mine ? (
+            <span className="c-item-mine" data-testid="go-row-mine">
+              거래 중
+            </span>
+          ) : !out ? (
             <button
               className="c-btn kraft"
               disabled={!!s.trade || !!s.block}

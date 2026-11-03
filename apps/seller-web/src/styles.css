@@ -4,13 +4,6 @@
  * 크라프트(골판지 색)는 '차가 오고 있다'는 순간에만 화면 전체에 쓴다.
  * 글꼴: JHGO Sans(Pretendard Variable 줄인 판, OFL — assets/JHGOSans-OFL.txt). 상표 글자만 도현.
  */
-@font-face {
-  font-family: "JHGO Sans";
-  src: url("./assets/JHGOSans.woff2") format("woff2");
-  font-weight: 45 930;
-  font-style: normal;
-  font-display: swap;
-}
 
 .s-root {
   --white: #ffffff;

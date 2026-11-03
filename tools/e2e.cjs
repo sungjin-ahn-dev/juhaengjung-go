@@ -140,7 +140,12 @@ async function waitHealth() {
     const ct = await cont.innerText();
     check(ct.includes("카시트") && ct.includes("유모차"), "경합 질문: 카시트? 유모차?");
     await snapC("contention");
-    await cont.getByRole("button", { name: /카시트/ }).click();
+    // 음성으로 고르기: 알림 뒤 듣는 시간에 가상 콘솔이 마이크 대신 "카시트"를 넣는다
+    await car.getByTestId("voice-state").getByText("듣는 중").waitFor({ timeout: 10000 });
+    check((await car.getByTestId("voice-line").innerText()).includes('"카시트" 또는 "유모차"'), '자막: 듣고 있어요. "카시트" 또는 "유모차"');
+    await car.getByTestId("voice-say-카시트").click();
+    await car.getByTestId("voice-heard").waitFor({ timeout: 5000 });
+    check(true, '음성 대답 "카시트" → 알아들었어요(시뮬레이터 음성 포트)');
     await alert.waitFor({ timeout: 10000 });
     check((await alert.innerText()).includes("카시트"), "고른 카시트 상세 알림");
     await alert.getByRole("button", { name: "들를게요" }).click();
@@ -208,7 +213,7 @@ async function waitHealth() {
     const rt = await result.innerText();
     check(rt.includes("가는 길에 챙겼어요") && rt.includes("따로 다녀왔다면"), "목적지 도착 → 결과 카드(Odometer 거리 포함)");
     await result.getByRole("button", { name: "4점" }).click();
-    await result.getByText("★ 4점을 남겼어요").waitFor({ timeout: 5000 });
+    await result.getByText("4점을 남겼어요").waitFor({ timeout: 5000 });
     check(true, "결과 카드에서 판매자 평가(4점)");
     await phone.getByRole("button", { name: "내 물건", exact: true }).click();
     await phone.waitForFunction(() => document.querySelector(".s-trust")?.textContent?.includes("평점 4"), null, { timeout: 20000 });

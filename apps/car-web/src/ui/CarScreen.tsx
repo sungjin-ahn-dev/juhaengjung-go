@@ -1,11 +1,14 @@
-/** 차량 화면(1280×720 기준, 창 크기에 맞춰 축소) */
+/**
+ * 차량 화면 — 기준 1280×720. 창에 맞춰 축소하고, 16:9보다 넓은 차 화면(1920×720)에서는 지도를 그만큼 넓힌다.
+ * 왼쪽 레일, 위 회전 안내·상태, 아래 도착 정보, 오른쪽 추천 목록·알림·거래 카드, 정차 중엔 왼쪽 시트.
+ */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { DEMO_NET, Graph, GraphRouter, pointAtAlong, projectOnPolyline, type Route } from "@jhgo/core";
 import type { CarController, CarState } from "../controller.ts";
 import type { SimCar } from "../pleos/sim.ts";
 import { GoList, rankItems } from "./GoList.tsx";
 import { GoPanel } from "./GoPanel.tsx";
-import { BatteryIcon, RailIcon, TurnIcon } from "./icons.tsx";
+import { BatteryIcon, RailIcon, TurnIcon, UI } from "./icons.tsx";
 import { MapView, type MapSnapshot } from "./MapView.tsx";
 import { fmtClock, fmtKm, fmtMin } from "./format.ts";
 import { Sheet } from "./Sheets.tsx";
@@ -13,6 +16,12 @@ import { Sheet } from "./Sheets.tsx";
 export function useCar(c: CarController) {
   return useSyncExternalStore(c.subscribe, c.getState);
 }
+
+const BASE_W = 1280;
+const BASE_H = 720;
+const RAIL_W = 84;
+const SIDE_W = 412;
+const SHEET_W = 760;
 
 function useSimSnapshot(sim: SimCar | null): MapSnapshot | null {
   const [snap, setSnap] = useState<MapSnapshot | null>(sim ? sim.snapshot() : null);
@@ -65,33 +74,86 @@ function useBridgeSnapshot(s: CarState, enabled: boolean): MapSnapshot | null {
   return { route, s: along, position: pos, heading, waypoints, dest };
 }
 
+/** 말한 문장을 몇 초 동안 자막으로. 정차 중에는 다시 듣기 단추 */
+function VoiceLine({ s, c, now, sheetOpen }: { s: CarState; c: CarController; now: number; sheetOpen: boolean }) {
+  const listening = !!s.alert?.listening;
+  const heard = s.heard && now - s.heard.at < 3000 ? s.heard.word : null;
+  const fresh = s.lastSpeech && now - s.speechAt < (s.alert ? 20000 : 9000);
+  if (!fresh && !listening && !heard) return null;
+  const Mic = UI.mic;
+  const Sound = UI.sound;
+  const words = c.listenWords();
+  return (
+    <div className={`c-voice ${sheetOpen ? "beside-sheet" : ""}`} aria-live="polite">
+      <div className={`c-voice-pill ${listening ? "listen" : ""}`} data-testid="voice-line">
+        {listening ? <Mic size={24} aria-hidden="true" /> : <Sound size={24} aria-hidden="true" />}
+        <div>
+          {heard ? (
+            <span data-testid="voice-heard">"{heard}" — 알아들었어요</span>
+          ) : (
+            s.lastSpeech
+          )}
+          {listening && !heard && (
+            <small>
+              <span className="c-wave" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+                <i />
+              </span>{" "}
+              듣고 있어요. {words.map((w) => `"${w}"`).join(" 또는 ")}
+            </small>
+          )}
+        </div>
+        {!s.restricted && !listening && (
+          <button onClick={() => c.repeat()} aria-label="다시 듣기">
+            <Sound size={20} aria-hidden="true" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function CarScreen({ c, sim, now }: { c: CarController; sim: SimCar | null; now: () => number }) {
   const s = useCar(c);
   const simSnap = useSimSnapshot(sim);
   const bridgeSnap = useBridgeSnapshot(s, !sim);
   const snap = sim ? simSnap : bridgeSnap;
   const wrap = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
+  const [fit, setFit] = useState({ scale: 1, w: BASE_W });
   const [zoom, setZoom] = useState(1);
   const [clockMs, setClockMs] = useState(now());
+  const [wall, setWall] = useState(Date.now());
   useLayoutEffect(() => {
     const el = wrap.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setScale(el.clientWidth / 1280));
+    const measure = () => {
+      const cw = el.clientWidth;
+      const ch = el.clientHeight;
+      const aspect = ch > 0 ? cw / ch : BASE_W / BASE_H;
+      // 16:9보다 넓으면 화면 폭을 늘려 지도가 넓어지게, 좁으면 기준 폭을 그대로 줄인다
+      const w = Math.max(BASE_W, Math.round(BASE_H * aspect));
+      setFit({ scale: cw / w, w });
+    };
+    const ro = new ResizeObserver(measure);
     ro.observe(el);
-    setScale(el.clientWidth / 1280);
+    measure();
     return () => ro.disconnect();
   }, []);
   useEffect(() => {
-    const id = setInterval(() => setClockMs(now()), 500);
+    const id = setInterval(() => {
+      setClockMs(now());
+      setWall(Date.now());
+    }, 500);
     return () => clearInterval(id);
   }, [now]);
 
   // 출발 전 브리핑은 따로 시트를 띄우지 않고 지도 + 오른쪽 추천 목록으로 보여 준다
   const sheetOpen = s.screen !== "map" && s.screen !== "briefing" && !s.restricted;
   const overview = !s.restricted;
-  // 오른쪽 열(추천 목록·알림·거래 카드): 폭 412, 오른쪽 여백 16 → 지도는 그 왼쪽
-  const viewport = sheetOpen ? { x: 796, y: 70, w: 484, h: 560 } : { x: 76, y: 70, w: 1280 - 76 - 412 - 28, h: 600 };
+  const W = fit.w;
+  const viewport = sheetOpen ? { x: RAIL_W + SHEET_W, y: 70, w: W - RAIL_W - SHEET_W, h: 560 } : { x: RAIL_W, y: 70, w: W - RAIL_W - SIDE_W - 28, h: 600 };
   const arrival = s.destination ? clockMs + s.destination.remainTime * 1000 : null;
   const ranked = rankItems(s);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -99,6 +161,8 @@ export function CarScreen({ c, sim, now }: { c: CarController; sim: SimCar | nul
   const selected = selectedId && ranked.some((x) => x.listingId === selectedId) ? selectedId : null;
   // 주행 중 알림·거래가 뜨면 목록은 접고 카드만
   const showList = !(s.restricted && (s.alert || s.trade));
+  const Plus = UI.plus;
+  const Minus = UI.minus;
 
   const railBtn = (name: "dest" | "brief" | "heart", label: string, screen: "destination" | "briefing" | "interests") => (
     <button className={`${s.screen === screen ? "on" : ""} ${s.restricted ? "locked" : ""}`} onClick={() => c.open(screen)} aria-label={label}>
@@ -110,27 +174,19 @@ export function CarScreen({ c, sim, now }: { c: CarController; sim: SimCar | nul
   return (
     <div className="c-stage" ref={wrap}>
       <div className="c-stage-inner">
-        <div className="c-screen" style={{ transform: `scale(${scale})` }} data-testid="car-screen" data-restricted={s.restricted ? "1" : "0"}>
+        <div className="c-screen" style={{ transform: `scale(${fit.scale})`, width: W }} data-testid="car-screen" data-restricted={s.restricted ? "1" : "0"}>
           {snap ? (
-            <MapView
-              snap={snap}
-              candidates={ranked}
-              selectedId={selected}
-              onPick={(id) => setSelectedId(id)}
-              trade={s.trade}
-              overview={overview}
-              viewport={viewport}
-              zoom={zoom}
-            />
+            <MapView snap={snap} width={W} candidates={ranked} selectedId={selected} onPick={(id) => setSelectedId(id)} trade={s.trade} overview={overview} viewport={viewport} zoom={zoom} />
           ) : (
-            <div className="c-map" style={{ background: "#18202b" }} />
+            <div className="c-map" style={{ background: "var(--map)" }} />
           )}
+          <div className="c-map-grad" aria-hidden="true" />
 
           <nav className="c-rail" aria-label="주행중GO! 메뉴">
             <div className="c-rail-logo">
               주행중
               <br />
-              GO!
+              <em>GO!</em>
             </div>
             <button className={s.screen === "map" ? "on" : ""} onClick={() => c.open("map")} aria-label="지도">
               <RailIcon name="map" />
@@ -140,14 +196,14 @@ export function CarScreen({ c, sim, now }: { c: CarController; sim: SimCar | nul
             {railBtn("brief", "브리핑", "briefing")}
             {railBtn("heart", "관심사", "interests")}
             <div className="grow" />
-            <button onClick={() => c.setMuted(!s.muted)} aria-label={s.muted ? "소리 켜기" : "소리 끄기"}>
-              <RailIcon name={s.muted ? "mute" : "sound"} />
-              {s.muted ? "소리 꺼짐" : "소리"}
+            <button className={s.alert?.listening ? "mic" : ""} onClick={() => c.setMuted(!s.muted)} aria-label={s.muted ? "소리 켜기" : "소리 끄기"}>
+              <RailIcon name={s.alert?.listening ? "mic" : s.muted ? "mute" : "sound"} />
+              {s.alert?.listening ? "듣는 중" : s.muted ? "소리 꺼짐" : "소리"}
             </button>
           </nav>
 
           {s.tbt && s.navStatus === "ROUTE_DRIVE" && !sheetOpen && (
-            <div className="c-tbt" data-testid="tbt">
+            <div className="c-tbt c-card" data-testid="tbt">
               <div className="c-tbt-icon">
                 <TurnIcon type={s.tbt.type} />
               </div>
@@ -161,7 +217,7 @@ export function CarScreen({ c, sim, now }: { c: CarController; sim: SimCar | nul
             </div>
           )}
 
-          <div className="c-status">
+          <div className="c-status c-card">
             {sim && <span className="c-badge-sim">시뮬레이터</span>}
             <span className={`c-status-dot ${s.sse === "open" ? "" : "off"}`} title={s.sse === "open" ? "서버 연결됨" : "서버 연결 끊김"} />
             <span className="c-status-time" data-testid="clock">
@@ -170,7 +226,7 @@ export function CarScreen({ c, sim, now }: { c: CarController; sim: SimCar | nul
           </div>
 
           {s.destination && !sheetOpen && (
-            <div className="c-eta" data-testid="eta">
+            <div className="c-eta c-card" data-testid="eta">
               <div>
                 <div className="c-eta-time">{fmtClock(arrival)}</div>
                 <div className="c-eta-label">도착 예정</div>
@@ -188,12 +244,12 @@ export function CarScreen({ c, sim, now }: { c: CarController; sim: SimCar | nul
           )}
 
           {!sheetOpen && (
-            <div style={{ position: "absolute", right: 440, top: 18, display: "flex", flexDirection: "column", gap: 8 }}>
-              <button className="c-close" aria-label="지도 확대" onClick={() => setZoom((z) => Math.max(0.35, z * 0.7))}>
-                +
+            <div className="c-zoom c-card">
+              <button aria-label="지도 확대" onClick={() => setZoom((z) => Math.max(0.35, z * 0.7))}>
+                <Plus size={22} aria-hidden="true" />
               </button>
-              <button className="c-close" aria-label="지도 축소" onClick={() => setZoom((z) => Math.min(4, z / 0.7))}>
-                −
+              <button aria-label="지도 축소" onClick={() => setZoom((z) => Math.min(4, z / 0.7))}>
+                <Minus size={22} aria-hidden="true" />
               </button>
             </div>
           )}
@@ -207,6 +263,8 @@ export function CarScreen({ c, sim, now }: { c: CarController; sim: SimCar | nul
 
           {sheetOpen && <Sheet s={s} c={c} />}
 
+          <VoiceLine s={s} c={c} now={wall} sheetOpen={sheetOpen} />
+
           <div className={`c-toasts ${sheetOpen ? "beside-sheet" : ""}`} aria-live="polite">
             {s.toasts.map((t) => (
               <div key={t.id} className={`c-toast ${t.kind}`}>
@@ -216,8 +274,8 @@ export function CarScreen({ c, sim, now }: { c: CarController; sim: SimCar | nul
           </div>
 
           {s.vehicleNeedsPick && s.screen !== "vehicle" && !s.restricted && (
-            <div style={{ position: "absolute", left: 92, top: 18, zIndex: 7 }} className="c-banner kraft">
-              차 정보에 모델명이 없어요.{" "}
+            <div style={{ position: "absolute", left: RAIL_W + 16, top: 18, zIndex: 7 }} className="c-banner kraft">
+              차 정보에 모델명이 없어요.
               <button className="c-btn" onClick={() => c.open("vehicle")}>
                 차종 고르기
               </button>
@@ -230,7 +288,6 @@ export function CarScreen({ c, sim, now }: { c: CarController; sim: SimCar | nul
           )}
         </div>
       </div>
-      {s.lastSpeech && <p className="c-caption">음성: {s.lastSpeech}</p>}
     </div>
   );
 }

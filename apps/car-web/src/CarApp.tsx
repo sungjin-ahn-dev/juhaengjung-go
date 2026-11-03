@@ -10,6 +10,7 @@ import { fmtClock } from "./ui/format.ts";
 import { createWebVoice } from "./pleos/voice.ts";
 import { CarScreen } from "./ui/CarScreen.tsx";
 import { VirtualConsole } from "./ui/VirtualConsole.tsx";
+import "../../seller-web/src/font.css";
 import "./styles.css";
 
 export interface CarBoot {
@@ -21,7 +22,7 @@ export interface CarBoot {
 
 export function bootCar(client: ApiClient, clock: AppClock, opts: { storageKey?: string } = {}): CarBoot {
   let muted = false;
-  const voice = createWebVoice({ muted: () => muted });
+  const voice = createWebVoice({ muted: () => muted, sim: !hasNativeBridge() });
   if (hasNativeBridge()) {
     const platform = createBridgePlatform(voice, () => clock.now());
     const controller = new CarController(platform, client, clock, { storageKey: opts.storageKey });
@@ -46,10 +47,12 @@ export function CarApp({ boot, onReset, showConsole = true }: { boot: CarBoot; o
     return () => boot.controller.dispose();
   }, [boot]);
   const now = useMemo(() => () => boot.clock.now(), [boot]);
+  // 실기기 배치(화면 가득)는 SDK 모드에서, 시뮬레이터에서는 `?device`로 미리 본다(1920×720 같은 화면 확인용)
+  const device = !boot.sim || (typeof location !== "undefined" && new URLSearchParams(location.search).has("device"));
   return (
-    <div className={`c-shell ${boot.sim ? "" : "device"}`}>
+    <div className={`c-shell ${device ? "device" : ""}`}>
       <CarScreen c={boot.controller} sim={boot.sim} now={now} />
-      {boot.sim && showConsole && <VirtualConsole sim={boot.sim} clock={boot.clock} onReset={onReset} />}
+      {boot.sim && showConsole && !device && <VirtualConsole sim={boot.sim} clock={boot.clock} controller={boot.controller} hear={(w) => !!boot.platform.voice.hear?.(w)} onReset={onReset} />}
       {!boot.sim && <SdkLogDrawer platform={boot.platform} />}
     </div>
   );

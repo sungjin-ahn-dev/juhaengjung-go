@@ -41,7 +41,7 @@ function Bench({ boot, seller, buyer, clock }: { boot: CarBoot; seller: ApiClien
           <span>가상 콘솔에서 <b>2열 착석</b>을 켜고 <b>10×</b>, <b>D 주행</b></span>
         </li>
         <li>
-          <span>영통 캠핑의자 알림에 답하기</span>
+          <span>영통 캠핑의자 알림에 답하기(버튼 또는 콘솔 <b>음성 대답</b>)</span>
         </li>
         <li>
           <span>분당에서 <b>카시트</b>를 고르고 들를게요</span>

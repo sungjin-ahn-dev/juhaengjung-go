@@ -1,9 +1,10 @@
 import type { TurnType } from "@jhgo/core";
+import { Check, ChevronLeft, Heart, ListOrdered, Map as MapIcon, MapPin, Mic, Minus, Plus, Star, Volume2, VolumeX, X, type LucideIcon } from "lucide-react";
 
 /** 회전 안내 화살표 (Pleos TurnType) */
 export function TurnIcon({ type, size = 52 }: { type: TurnType; size?: number }) {
-  const stroke = { stroke: "#e8edf3", strokeWidth: 6, fill: "none", strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
-  const head = (d: string) => <path d={d} fill="#e8edf3" />;
+  const stroke = { stroke: "#eef2f6", strokeWidth: 6, fill: "none", strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  const head = (d: string) => <path d={d} fill="#eef2f6" />;
   let body: JSX.Element;
   switch (type) {
     case "TURN_LEFT":
@@ -53,9 +54,9 @@ export function TurnIcon({ type, size = 52 }: { type: TurnType; size?: number })
     case "TURN_WAY":
       body = (
         <>
-          <circle cx="26" cy="22" r="11" fill="#d9b27c" />
+          <circle cx="26" cy="22" r="11" fill="#d8ae74" />
           <path d="M26 33 V48" {...stroke} />
-          <text x="26" y="27" textAnchor="middle" fontSize="13" fontWeight={700} fill="#1d1a16" stroke="none">
+          <text x="26" y="27" textAnchor="middle" fontSize="13" fontWeight={800} fill="#2a1c0c" stroke="none">
             P
           </text>
         </>
@@ -65,7 +66,7 @@ export function TurnIcon({ type, size = 52 }: { type: TurnType; size?: number })
       body = (
         <>
           <path d="M18 48 V10" {...stroke} />
-          <path d="M18 10 H38 L33 17 L38 24 H18 Z" fill="#e8edf3" />
+          <path d="M18 10 H38 L33 17 L38 24 H18 Z" fill="#eef2f6" />
         </>
       );
       break;
@@ -85,57 +86,21 @@ export function TurnIcon({ type, size = 52 }: { type: TurnType; size?: number })
 }
 
 export function BatteryIcon({ pct }: { pct: number | null }) {
-  const w = Math.max(0, Math.min(100, pct ?? 0)) * 0.24;
+  const w = Math.max(0, Math.min(100, pct ?? 0)) * 0.22;
   const color = pct == null ? "#8e9bad" : pct < 20 ? "#f2a65a" : "#7bd389";
   return (
-    <svg width="34" height="18" viewBox="0 0 34 18" aria-hidden>
-      <rect x="1" y="1" width="28" height="16" rx="3" fill="none" stroke="#8e9bad" strokeWidth="2" />
-      <rect x="30" y="6" width="3" height="6" rx="1" fill="#8e9bad" />
-      <rect x="3" y="3" width={w} height="12" rx="1.5" fill={color} />
+    <svg width="32" height="16" viewBox="0 0 32 16" aria-hidden>
+      <rect x="1" y="1" width="26" height="14" rx="4" fill="none" stroke="#8e9bad" strokeWidth="1.8" />
+      <rect x="28.5" y="5" width="2.5" height="6" rx="1" fill="#8e9bad" />
+      <rect x="3.2" y="3.2" width={w} height="9.6" rx="2" fill={color} />
     </svg>
   );
 }
 
-export function RailIcon({ name }: { name: "map" | "dest" | "brief" | "heart" | "sound" | "mute" }) {
-  const s = { stroke: "currentColor", strokeWidth: 2, fill: "none", strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
-  switch (name) {
-    case "map":
-      return (
-        <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden>
-          <path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z M9 4v14 M15 6v14" {...s} />
-        </svg>
-      );
-    case "dest":
-      return (
-        <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden>
-          <path d="M12 21s-6-5.3-6-11a6 6 0 0112 0c0 5.7-6 11-6 11z" {...s} />
-          <circle cx="12" cy="10" r="2.2" {...s} />
-        </svg>
-      );
-    case "brief":
-      return (
-        <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden>
-          <path d="M4 6h10 M4 12h16 M4 18h12" {...s} />
-          <circle cx="19" cy="6" r="2" {...s} />
-        </svg>
-      );
-    case "heart":
-      return (
-        <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden>
-          <path d="M12 20s-7-4.4-7-10a4 4 0 017-2.6A4 4 0 0119 10c0 5.6-7 10-7 10z" {...s} />
-        </svg>
-      );
-    case "sound":
-      return (
-        <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden>
-          <path d="M4 9h4l5-4v14l-5-4H4z M16 9a4 4 0 010 6 M18.5 6.5a8 8 0 010 11" {...s} />
-        </svg>
-      );
-    case "mute":
-      return (
-        <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden>
-          <path d="M4 9h4l5-4v14l-5-4H4z M16 9l5 6 M21 9l-5 6" {...s} />
-        </svg>
-      );
-  }
+const RAIL: Record<string, LucideIcon> = { map: MapIcon, dest: MapPin, brief: ListOrdered, heart: Heart, sound: Volume2, mute: VolumeX, mic: Mic };
+export function RailIcon({ name, size = 26 }: { name: "map" | "dest" | "brief" | "heart" | "sound" | "mute" | "mic"; size?: number }) {
+  const C = RAIL[name];
+  return <C size={size} strokeWidth={1.9} aria-hidden="true" />;
 }
+
+export const UI = { check: Check, close: X, back: ChevronLeft, plus: Plus, minus: Minus, star: Star, mic: Mic, sound: Volume2 };

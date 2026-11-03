@@ -149,6 +149,10 @@ export interface CarState {
   loadedPrompt: boolean;
   fragilePrompt: boolean;
   lastSpeech: string | null;
+  /** 마지막으로 알아들은 대답(음성) — 자막에 잠깐 보여 준다 */
+  heard: { word: string; at: number } | null;
+  /** 마지막으로 말한 시각 — 화면 자막은 이 뒤 몇 초만 보인다 */
+  speechAt: number;
   holdNote: string | null;
   muted: boolean;
 }
@@ -191,6 +195,8 @@ const initialState: CarState = {
   loadedPrompt: false,
   fragilePrompt: false,
   lastSpeech: null,
+  heard: null,
+  speechAt: 0,
   holdNote: null,
   muted: false,
 };
@@ -242,12 +248,44 @@ export class CarController {
   }
 
   private say(text: string) {
-    this.set({ lastSpeech: text });
+    this.set({ lastSpeech: text, speechAt: Date.now() });
     if (!this.state.muted) void this.p.voice.speak(text);
+  }
+  /** 방금 한 말을 다시(정차 중 자막의 단추) */
+  repeat() {
+    if (this.state.lastSpeech) this.say(this.state.lastSpeech);
   }
   setMuted(m: boolean) {
     this.set({ muted: m });
     if (m) this.p.voice.stop();
+  }
+  /** 알림이 뜰 때 짧은 두 음(말보다 먼저 눈길을 끈다). 소리를 끄면 내지 않는다 */
+  private chime() {
+    if (this.state.muted || typeof window === "undefined") return;
+    try {
+      const AC = (window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext) as typeof AudioContext | undefined;
+      if (!AC) return;
+      const ctx = new AC();
+      const t0 = ctx.currentTime;
+      for (const [f, at] of [
+        [659, 0],
+        [880, 0.13],
+      ] as const) {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = "sine";
+        o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t0 + at);
+        g.gain.exponentialRampToValueAtTime(0.09, t0 + at + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + 0.22);
+        o.connect(g).connect(ctx.destination);
+        o.start(t0 + at);
+        o.stop(t0 + at + 0.25);
+      }
+      setTimeout(() => void ctx.close(), 600);
+    } catch {
+      /* 소리 못 내도 계속 */
+    }
   }
 
   // ───────── 시작 ─────────
@@ -570,6 +608,7 @@ export class CarController {
   private showAlert(c: CandidateView) {
     this.set({ alert: { kind: "single", c, shownAt: Date.now(), listening: false } });
     void this.api.call("POST", "/v1/drive/alerted", { listingIds: [c.listingId] });
+    this.chime();
     this.say(c.speech);
     void this.listenAnswer(YES_WORDS.concat(NO_WORDS), (w) => this.answer(YES_WORDS.includes(w)));
   }
@@ -577,6 +616,7 @@ export class CarController {
   private showContention(pair: CandidateView[]) {
     this.set({ alert: { kind: "contention", pair, shownAt: Date.now(), listening: false } });
     void this.api.call("POST", "/v1/drive/alerted", { listingIds: pair.map((c) => c.listingId) });
+    this.chime();
     const [a, b] = pair;
     const text = a.categoryLabel === b.categoryLabel ? `${a.categoryLabel} 두 곳이 가까워요. 첫 번째? 두 번째?` : `오늘은 어느 쪽? ${a.categoryLabel}? ${b.categoryLabel}?`;
     this.say(text);
@@ -591,9 +631,16 @@ export class CarController {
     this.set({ alert: { ...shown, listening: true } });
     const w = await this.p.voice.listen(words, 6000);
     if (this.state.alert !== null && this.state.alert.shownAt === shown.shownAt) {
-      this.set({ alert: { ...this.state.alert, listening: false } });
+      this.set({ alert: { ...this.state.alert, listening: false }, heard: w ? { word: w, at: Date.now() } : this.state.heard });
       if (w) onWord(w);
     }
+  }
+
+  /** 듣는 중일 때 기대하는 말 — 자막·콘솔 안내용 */
+  listenWords(): string[] {
+    const a = this.state.alert;
+    if (!a) return [];
+    return a.kind === "contention" ? a.pair.map((c) => c.categoryLabel) : ["응", "아니"];
   }
 
   closeAlert(dismiss: boolean) {
@@ -672,6 +719,8 @@ export class CarController {
       case "trade.settled":
       case "trade.refunded":
         if (trade) this.set({ trade: ["settled", "declined_mismatch", "seller_no_show"].includes(trade.status) ? null : trade });
+        // 팔린 매물은 다음 평가를 기다리지 않고 목록·핀에서 바로 뺀다
+        if (trade && ["completed", "settled"].includes(trade.status)) this.dropCandidate(trade.listingId);
         if (e.type === "trade.settled") this.toast(e.title, "good");
         break;
     }
@@ -814,12 +863,19 @@ export class CarController {
   }
 
   // ───────── 현장 확인 · 마무리 ─────────
+  private dropCandidate(listingId: string) {
+    const candidates = this.state.candidates.filter((c) => c.listingId !== listingId);
+    const briefing = this.state.briefing ? { ...this.state.briefing, items: this.state.briefing.items.filter((c) => c.listingId !== listingId) } : this.state.briefing;
+    this.set({ candidates, briefing });
+  }
+
   async received() {
     const t = this.state.trade;
     if (!t) return;
     const r = await this.api.call<{ trade: TradeView }>("POST", `/v1/buyer/trades/${t.id}/received`);
     await this.removeOurWaypoint();
     this.set({ trade: r.trade.status === "completed" ? { ...r.trade } : null, loadedPrompt: false, screen: "map", fragilePrompt: t.fragile });
+    this.dropCandidate(t.listingId);
     this.say(t.fragile ? "거래 완료. 깨지기 쉬운 물건이에요. 편안한 길로 바꿀까요?" : "거래 완료. 출발하면 원래 목적지로 이어 갈게요.");
     setTimeout(() => this.set({ trade: this.state.trade?.status === "completed" ? null : this.state.trade }), 6000);
   }

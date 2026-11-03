@@ -4,11 +4,26 @@ import { DEMO_NET, VEHICLE_TABLE } from "@jhgo/core";
 import type { AppClock } from "../clock.ts";
 import type { SdkLogEntry } from "../pleos/ports.ts";
 import type { SimCar } from "../pleos/sim.ts";
+import type { CarController } from "../controller.ts";
 import { fmtClock } from "./format.ts";
 
 const node = (id: string) => DEMO_NET.nodes.find((n) => n.id === id)!;
 
-export function VirtualConsole({ sim, clock, onReset }: { sim: SimCar; clock: AppClock; onReset?: () => void }) {
+export function VirtualConsole({
+  sim,
+  clock,
+  controller,
+  hear,
+  onReset,
+}: {
+  sim: SimCar;
+  clock: AppClock;
+  /** 듣는 중인지와 기대하는 말을 보여 주기 위해 */
+  controller?: CarController;
+  /** 마이크 대신 말을 넣는다(시뮬레이터 음성 포트) */
+  hear?: (word: string) => boolean;
+  onReset?: () => void;
+}) {
   const [, setT] = useState(0);
   const [logs, setLogs] = useState<SdkLogEntry[]>([]);
   const [rate, setRate] = useState(clock.rate());
@@ -137,6 +152,28 @@ export function VirtualConsole({ sim, clock, onReset }: { sim: SimCar; clock: Ap
           </label>
         </div>
       </section>
+
+      {hear && (
+        <section>
+          <h4>음성 대답</h4>
+          <div className="vc-row">
+            {(() => {
+              const listening = !!controller?.state.alert?.listening;
+              const words = listening ? controller!.listenWords() : ["응", "아니"];
+              return (
+                <>
+                  {words.map((w) => (
+                    <button key={w} disabled={!listening} onClick={() => hear(w)} data-testid={`voice-say-${w}`}>
+                      "{w}"
+                    </button>
+                  ))}
+                  <span data-testid="voice-state">{listening ? "듣는 중 — 마이크 대신 눌러요" : "알림이 뜨고 2초 뒤 6초 동안 들어요"}</span>
+                </>
+              );
+            })()}
+          </div>
+        </section>
+      )}
 
       <section>
         <h4>SDK 호출·이벤트</h4>

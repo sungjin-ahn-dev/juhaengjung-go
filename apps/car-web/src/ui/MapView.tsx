@@ -15,6 +15,8 @@ export interface MapSnapshot {
 
 interface Props {
   snap: MapSnapshot;
+  /** 화면 폭(px). 16:9보다 넓은 차 화면에서는 1280보다 크다 */
+  width?: number;
   /** 추천 목록과 같은 순서 — rank가 지도 번호 */
   candidates: RankedItem[];
   selectedId?: string | null;
@@ -27,14 +29,14 @@ interface Props {
   zoom: number;
 }
 
-const W = 1280;
 const H = 720;
-const ROAD_STYLE: Record<string, { w: number; c: string }> = {
-  local: { w: 2.5, c: "#2a3545" },
-  access: { w: 2, c: "#2a3545" },
-  arterial: { w: 4.5, c: "#36455a" },
-  urban_expressway: { w: 6, c: "#44566f" },
-  expressway: { w: 7.5, c: "#4d6280" },
+/** 도로: 아래에 어두운 테두리(casing), 위에 밝은 면. 큰길일수록 넓고 밝다 */
+const ROAD_STYLE: Record<string, { w: number; c: string; casing?: string }> = {
+  local: { w: 2.5, c: "#2b3646" },
+  access: { w: 2, c: "#2b3646" },
+  arterial: { w: 5, c: "#3a4a5f", casing: "#111820" },
+  urban_expressway: { w: 7, c: "#48596f", casing: "#111820" },
+  expressway: { w: 9, c: "#536a86", casing: "#111820" },
 };
 const ORDER = ["local", "arterial", "urban_expressway", "expressway"];
 const NODES = new Map(DEMO_NET.nodes.map((n) => [n.id, n]));
@@ -46,7 +48,8 @@ function angleLerp(a: number, b: number, t: number) {
   return (a + d * t + 360) % 360;
 }
 
-export function MapView({ snap, candidates, selectedId = null, onPick, trade, overview, viewport, zoom }: Props) {
+export function MapView({ snap, width = 1280, candidates, selectedId = null, onPick, trade, overview, viewport, zoom }: Props) {
+  const W = width;
   const headingRef = useRef(snap.heading);
   const [, force] = useState(0);
   // 진행 방향을 부드럽게 따라간다
@@ -90,16 +93,19 @@ export function MapView({ snap, candidates, selectedId = null, onPick, trade, ov
   };
   const pts = (arr: LatLng[]) => arr.map((p) => P(p).map((v) => v.toFixed(1)).join(",")).join(" ");
 
-  // 도로
-  const roads = ORDER.flatMap((cls) =>
+  // 도로: 테두리를 먼저 다 그리고 면을 그려 교차로가 자연스럽게 이어지게
+  const roadLines = ORDER.flatMap((cls) =>
     DEMO_NET.edges
       .filter((e) => e.cls === cls)
-      .map((e, i) => {
-        const a = NODES.get(e.from)!;
-        const b = NODES.get(e.to)!;
-        const st = ROAD_STYLE[cls];
-        return <polyline key={`${cls}${i}`} points={pts([a, ...(e.shape ?? []), b])} stroke={st.c} strokeWidth={st.w} fill="none" strokeLinecap="round" strokeLinejoin="round" />;
-      }),
+      .map((e, i) => ({ key: `${cls}${i}`, p: pts([NODES.get(e.from)!, ...(e.shape ?? []), NODES.get(e.to)!]), st: ROAD_STYLE[cls] })),
+  );
+  const roads = (
+    <>
+      {roadLines.filter((r) => r.st.casing).map((r) => <polyline key={`c${r.key}`} points={r.p} stroke={r.st.casing} strokeWidth={r.st.w + 3} fill="none" strokeLinecap="round" strokeLinejoin="round" />)}
+      {roadLines.map((r) => (
+        <polyline key={r.key} points={r.p} stroke={r.st.c} strokeWidth={r.st.w} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      ))}
+    </>
   );
 
   // 경로: 지나온 부분과 남은 부분
@@ -119,7 +125,7 @@ export function MapView({ snap, candidates, selectedId = null, onPick, trade, ov
       const [x, y] = P(n);
       if (x < viewport.x - 40 || x > viewport.x + viewport.w + 40 || y < -20 || y > H + 20) return null;
       return (
-        <text key={n.id} x={x + 8} y={y - 8} fontSize={14} fill="#97a6ba">
+        <text key={n.id} x={x + 9} y={y - 9} fontSize={14.5} fill="#9aa8bb">
           {n.name}
         </text>
       );
@@ -132,12 +138,22 @@ export function MapView({ snap, candidates, selectedId = null, onPick, trade, ov
 
   return (
     <svg className="c-map" width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="내비 지도">
+      <defs>
+        <filter id="route-glow" x="-10%" y="-10%" width="120%" height="120%">
+          <feGaussianBlur stdDeviation="6" />
+        </filter>
+        <radialGradient id="car-beam" cx="50%" cy="100%" r="100%">
+          <stop offset="0" stopColor="#57d2e6" stopOpacity="0.28" />
+          <stop offset="1" stopColor="#57d2e6" stopOpacity="0" />
+        </radialGradient>
+      </defs>
       <rect width={W} height={H} fill="#18202b" />
       <g>{roads}</g>
-      {routePassed.length > 1 && <polyline points={pts(routePassed)} stroke="#3e5066" strokeWidth={8} fill="none" strokeLinecap="round" strokeLinejoin="round" />}
+      {routePassed.length > 1 && <polyline points={pts(routePassed)} stroke="#3a4c62" strokeWidth={8} fill="none" strokeLinecap="round" strokeLinejoin="round" />}
       {routeAhead.length > 1 && (
         <>
-          <polyline points={pts(routeAhead)} stroke="#0d3a44" strokeWidth={13} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          <polyline points={pts(routeAhead)} stroke="#57d2e6" strokeOpacity={0.35} strokeWidth={18} fill="none" strokeLinecap="round" strokeLinejoin="round" filter="url(#route-glow)" />
+          <polyline points={pts(routeAhead)} stroke="#0b3640" strokeWidth={13} fill="none" strokeLinecap="round" strokeLinejoin="round" />
           <polyline points={pts(routeAhead)} stroke="#57d2e6" strokeWidth={8} fill="none" strokeLinecap="round" strokeLinejoin="round" />
         </>
       )}
@@ -245,12 +261,26 @@ export function MapView({ snap, candidates, selectedId = null, onPick, trade, ov
       {trade?.pickupPoint &&
         (() => {
           const [x, y] = P(trade.pickupPoint);
+          const photo = trade.photos[0];
+          const size = overview ? 54 : 44;
+          const top = y - 14 - size;
           return (
-            <g>
-              <circle cx={x} cy={y} r={15} fill="#d9b27c" stroke="#1d1a16" strokeWidth={3} />
-              <text x={x} y={y + 5} fontSize={15} fontWeight={800} textAnchor="middle" fill="#1d1a16" style={{ stroke: "none" }}>
-                P
-              </text>
+            <g data-testid="pickup-pin">
+              <circle cx={x} cy={y} r={7} fill="#d8ae74" stroke="#2a1c0c" strokeWidth={2.5} />
+              <path d={`M${x} ${y - 2} L${x - 8} ${y - 14} L${x + 8} ${y - 14} Z`} fill="#d8ae74" />
+              <rect x={x - size / 2} y={top} width={size} height={size} rx={12} fill="#2a1c0c" stroke="#d8ae74" strokeWidth={3} />
+              {photo ? (
+                <>
+                  <clipPath id="clip-pickup">
+                    <rect x={x - size / 2 + 3} y={top + 3} width={size - 6} height={size - 6} rx={9} />
+                  </clipPath>
+                  <image href={photo} x={x - size / 2 + 3} y={top + 3} width={size - 6} height={size - 6} preserveAspectRatio="xMidYMid slice" clipPath="url(#clip-pickup)" />
+                </>
+              ) : (
+                <text x={x} y={top + size / 2 + 6} fontSize={17} fontWeight={800} textAnchor="middle" fill="#d8ae74" style={{ stroke: "none" }}>
+                  P
+                </text>
+              )}
             </g>
           );
         })()}
@@ -272,8 +302,10 @@ export function MapView({ snap, candidates, selectedId = null, onPick, trade, ov
           );
         })()}
       <g transform={`translate(${car[0]} ${car[1]}) rotate(${carRot})`}>
-        <circle r={26} fill="rgba(87,210,230,0.16)" />
-        <path d="M0 -17 L12 13 L0 7 L-12 13 Z" fill="#ffffff" stroke="#0d3a44" strokeWidth={2.5} strokeLinejoin="round" />
+        {!overview && <path d="M0 0 L-70 -150 Q0 -190 70 -150 Z" fill="url(#car-beam)" />}
+        <circle r={28} fill="rgba(87,210,230,0.14)" />
+        <circle r={19} fill="rgba(87,210,230,0.18)" />
+        <path d="M0 -17 L12 13 L0 7 L-12 13 Z" fill="#ffffff" stroke="#0b3640" strokeWidth={2.5} strokeLinejoin="round" />
       </g>
     </svg>
   );

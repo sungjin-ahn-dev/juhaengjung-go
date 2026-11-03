@@ -13,6 +13,7 @@ import { DemoLogin, Icon, Mark, beep, buzz, useNow, useToast } from "./kit.tsx";
 import { Handoff, Takeover, handoffStage } from "./Moments.tsx";
 import { LiveTrade, Money, PastTrades } from "./Trades.tsx";
 import { errText, type Catalog, type Me, type SellerListing, type SellerTrade, type Summary } from "./types.ts";
+import "./font.css";
 import "./styles.css";
 
 type View = { kind: "main" } | { kind: "compose" } | { kind: "posted"; listing: Listing };

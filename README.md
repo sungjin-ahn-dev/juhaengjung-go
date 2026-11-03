@@ -28,7 +28,7 @@ npm run build:web      # 판매자 웹·구매자 웹·차량 화면 빌드
 npm start              # http://localhost:8787
 ```
 
-- 차량 화면: http://localhost:8787/car/ — 오른쪽 가상 콘솔로 기어·배속·좌석·방향지시등·배터리·트렁크를 바꾼다
+- 차량 화면: http://localhost:8787/car/ — 아래 가상 콘솔로 기어·배속·좌석·방향지시등·배터리·트렁크를 바꾸고, 알림이 뜨면 '음성 대답' 버튼이 마이크를 대신한다. `/car/?device`면 실기기처럼 창을 가득 채운다(1920×720 같은 화면 확인용)
 - 판매자 폰: http://localhost:8787/seller/ — 폰으로는 같은 와이파이에서 서버가 찍어 주는 `http://<PC IP>:8787/seller/`
 - 구매자 폰: http://localhost:8787/buyer/ — 차와 같은 구매자 계정(시연: 김주행)
 - 에뮬레이터 안 차량 앱에서는 PC가 `http://10.0.2.2:8787`
@@ -75,11 +75,11 @@ Playwright로 녹화하고 ffmpeg로 장면마다 자른다(ffmpeg 필요). 녹�
 
 ```bash
 npm run build -w apps/demo
-node node_modules/tsx/dist/cli.mjs tools/record-demo.ts <출력 폴더>      # 체험 페이지 → 01~08 MP4·대표 이미지
+node node_modules/tsx/dist/cli.mjs tools/record-demo.ts <출력 폴더>      # 체험 페이지 → 01~08 MP4·대표 이미지(경합은 콘솔 '음성 대답'으로 고른다)
 JHGO_RECORD=<출력 폴더> npm run e2e:bridge                               # 실제 SDK 모드(가짜 브리지) → 09~10
 ```
 
-- `JHGO_FONTS=<node_modules/@fontsource 폴더>`: 차 화면의 do-hyeon·ibm-plex-sans-kr 글꼴을 녹화 페이지에 넣는다(웹 글꼴을 못 받는 환경용). 폰 화면 글꼴은 체험 페이지 안에 들어 있다.
+- `JHGO_FONTS=<node_modules/@fontsource 폴더>`: 상표 글꼴 do-hyeon을 녹화 페이지에 넣는다(웹 글꼴을 못 받는 환경용). 본문 글꼴 JHGO Sans는 차·폰 화면 번들 안에 들어 있다.
 - `JHGO_RECORD_ORIGIN=<정적 서버>`: `/car/`(차량 화면 빌드)와 `/fonts/<글꼴>/<굵기>.css`를 내주는 서버에서 차 화면을 열어 같은 글꼴로 녹화한다. 없으면 API 서버의 `/car/`를 그대로 녹화한다.
 
 ## 차량 앱(Android)

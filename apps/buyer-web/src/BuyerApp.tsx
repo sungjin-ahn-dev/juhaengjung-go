@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { josa, kstClock, kstParts, type GoLevel, type GoSetting } from "@jhgo/core";
 import type { ApiClient, AppClock, AppEvent } from "@jhgo/api";
 import { DemoLogin, Icon, Mark, Sheet, Stars, useToast } from "../../seller-web/src/kit.tsx";
+import "../../seller-web/src/font.css";
 import "../../seller-web/src/styles.css";
 import "./buyer.css";
 

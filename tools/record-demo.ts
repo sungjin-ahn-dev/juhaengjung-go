@@ -176,9 +176,12 @@ interface Mark {
     const cont = page.getByTestId("contention");
     await cont.waitFor({ timeout: 90000 });
     await mark("contention");
-    await cap("주행 중", "비슷한 매물 두 개가 가까우면 '카시트? 유모차?' 하나만 고르게 해요");
-    await page.waitForTimeout(2600);
-    await cont.getByRole("button", { name: /카시트/ }).click();
+    await cap("주행 중", "비슷한 매물 두 개가 가까우면 '카시트? 유모차?' 하나만 고르게 해요. 말로 답해도 돼요");
+    // 녹화 페이지에서는 가상 콘솔이 화면 밖이라 DOM으로 누른다(마이크 대신 말을 넣는 시뮬레이터 버튼)
+    await page.waitForFunction(() => document.querySelector('[data-testid="voice-state"]')?.textContent?.includes("듣는 중"), null, { timeout: 10000 });
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => (document.querySelector('[data-testid="voice-say-카시트"]') as HTMLButtonElement).click());
+    await page.waitForTimeout(1500);
     await alert.waitFor({ timeout: 10000 });
     await page.waitForTimeout(2200);
     await alert.getByRole("button", { name: "들를게요" }).click();

@@ -16,14 +16,24 @@ type Rec = {
   stop(): void;
 };
 
-export function createWebVoice(opts: { muted?: () => boolean } = {}): VoicePort {
+/**
+ * @param opts.sim 시뮬레이터 모드: 마이크가 없거나 막혀 있어도(아티팩트·헤드리스) 듣는 시간 동안 기다리고,
+ *                 가상 콘솔의 hear(word)로 대답을 넣을 수 있다. 브라우저 음성 인식이 되면 그것도 같이 듣는다.
+ */
+export function createWebVoice(opts: { muted?: () => boolean; sim?: boolean } = {}): VoicePort {
   const w = typeof window !== "undefined" ? (window as unknown as Record<string, unknown>) : {};
   const synth = (w.speechSynthesis as SpeechSynthesis | undefined) ?? undefined;
   const RecCtor = (w.SpeechRecognition ?? w.webkitSpeechRecognition) as (new () => Rec) | undefined;
   let current: Rec | null = null;
+  /** 지금 듣는 중인 질문 — hear()가 여기로 답을 넣는다 */
+  let waiting: { words: string[]; finish: (v: string | null) => void } | null = null;
+  const match = (words: string[], said: string) => {
+    const a = said.replace(/\s/g, "");
+    return words.find((wd) => a.includes(wd.replace(/\s/g, ""))) ?? null;
+  };
   return {
     tts: !!synth,
-    stt: !!RecCtor,
+    stt: !!RecCtor || !!opts.sim,
     speak(text) {
       if (!synth || opts.muted?.()) return Promise.resolve();
       return new Promise<void>((resolve) => {
@@ -44,12 +54,13 @@ export function createWebVoice(opts: { muted?: () => boolean } = {}): VoicePort 
       });
     },
     listen(words, timeoutMs) {
-      if (!RecCtor) return Promise.resolve(null);
+      if (!RecCtor && !opts.sim) return Promise.resolve(null);
       return new Promise((resolve) => {
         let done = false;
         const finish = (v: string | null) => {
           if (done) return;
           done = true;
+          waiting = null;
           try {
             current?.stop();
           } catch {
@@ -58,6 +69,9 @@ export function createWebVoice(opts: { muted?: () => boolean } = {}): VoicePort 
           current = null;
           resolve(v);
         };
+        waiting = { words, finish };
+        setTimeout(() => finish(null), timeoutMs);
+        if (!RecCtor) return;
         try {
           const rec = new RecCtor();
           current = rec;
@@ -65,16 +79,15 @@ export function createWebVoice(opts: { muted?: () => boolean } = {}): VoicePort 
           rec.interimResults = false;
           rec.maxAlternatives = 3;
           rec.onresult = (e) => {
-            const alts = Array.from(e.results[0] ?? []).map((a) => a.transcript.replace(/\s/g, ""));
-            const hit = words.find((wd) => alts.some((a) => a.includes(wd.replace(/\s/g, ""))));
-            finish(hit ?? null);
+            const alts = Array.from(e.results[0] ?? []).map((a) => a.transcript);
+            finish(alts.map((a) => match(words, a)).find((x) => x !== null) ?? null);
           };
-          rec.onerror = () => finish(null);
-          rec.onend = () => finish(null);
+          // 시뮬레이터에서는 마이크가 막혀도(권한 없음·헤드리스) 끝내지 않고 콘솔의 대답을 기다린다
+          rec.onerror = () => (opts.sim ? (current = null) : finish(null));
+          rec.onend = () => (opts.sim ? (current = null) : finish(null));
           rec.start();
-          setTimeout(() => finish(null), timeoutMs);
         } catch {
-          finish(null);
+          if (!opts.sim) finish(null);
         }
       });
     },
@@ -85,6 +98,11 @@ export function createWebVoice(opts: { muted?: () => boolean } = {}): VoicePort 
       } catch {
         /* 무시 */
       }
+    },
+    hear(word) {
+      if (!opts.sim || !waiting) return false;
+      waiting.finish(match(waiting.words, word));
+      return true;
     },
   };
 }
