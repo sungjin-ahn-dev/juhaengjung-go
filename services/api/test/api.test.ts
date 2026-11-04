@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { DEMO_NET, DEMO_PLACES, Graph, GraphRouter, pointAtAlong, timeAtAlong, type DriveContext } from "@jhgo/core";
-import { createBackend, createLocalClient, DEMO_SERVICE_CONFIG, DEMO_START, ManualClock, parseAiSize, type AppEvent, type ApiClient, type PushPayload, type PushSender, type SizeEstimator } from "../src/index.ts";
+import { createBackend, createLocalClient, DEMO_SERVICE_CONFIG, DEMO_START, ManualClock, parseAiSize, type AppEvent, type ApiClient, type BriefEngine, type PushPayload, type PushSender, type SizeEstimator } from "../src/index.ts";
 import { SqliteStore } from "../src/store-sqlite.ts";
 
 const router = new GraphRouter(new Graph(DEMO_NET));
@@ -13,7 +13,7 @@ function at(min: number) {
   return { location: pointAtAlong(base.line, s).point, remainTimeS: Math.round(base.durationS - timeAtAlong(base, s)) };
 }
 
-function setup(includeCarSeat = true, extra: { push?: PushSender; sizeAI?: SizeEstimator } = {}) {
+function setup(includeCarSeat = true, extra: { push?: PushSender; sizeAI?: SizeEstimator; briefAI?: BriefEngine } = {}) {
   const clock = new ManualClock(DEMO_START);
   const b = createBackend({ demo: true, clock, config: DEMO_SERVICE_CONFIG, ...extra });
   const anon = createLocalClient(b);
@@ -520,6 +520,64 @@ describe("사진으로 크기 추정(T25)", () => {
     expect(parseAiSize('{"width_cm":0,"depth_cm":50,"height_cm":66}', [])).toBeNull();
     expect(parseAiSize("모르겠어요", [])).toBeNull();
     expect(parseAiSize('{"category":"tank","width_cm":10,"depth_cm":10,"height_cm":10}', ["car_seat"])?.category).toBeNull();
+  });
+});
+
+describe("물건 요약 브리핑(T33)", () => {
+  const jpeg = "data:image/jpeg;base64,/9j/4AAQSkZJRg==";
+  const body = {
+    title: "회전형 카시트",
+    category: "car_seat",
+    price: 35000,
+    condition: "good",
+    description: "아이가 커서 정리해요. 커버 세탁했어요. 등받이 오른쪽에 작은 긁힘 하나 있어요. 010-1234-5678",
+    sizeCm: { w: 45, d: 55, h: 68 },
+    sizeSource: "seller_measured",
+    pickupPoint: { lat: 37.3889, lng: 127.1046, label: "백현동" },
+  };
+
+  it("AI가 없으면 글 요약만(규칙), 사진은 안 봤다고 표시하고 구매자가 조회할 수 있다", async () => {
+    const { listing } = await park.call<{ listing: { id: string; brief: { source: string; summary: string; condition: { photoChecked: boolean; grade: string } } } }>("POST", "/v1/seller/listings", { ...body, photos: [jpeg] });
+    expect(listing.brief.source).toBe("rule");
+    expect(listing.brief.condition).toMatchObject({ photoChecked: false, grade: "good" });
+    expect(listing.brief.summary).toContain("긁힘");
+    expect(listing.brief.summary).not.toContain("010");
+    const r = await car.call<{ brief: { speech: string }; photos: string[] }>("GET", `/v1/listings/${listing.id}/brief`);
+    expect(r.brief.speech).toMatch(/^카시트 판매자 설명: /);
+    expect(r.photos).toEqual([jpeg]);
+    await expect(car.call("GET", "/v1/listings/nope/brief")).rejects.toMatchObject({ status: 404 });
+    // 예전 매물(브리핑 없이 저장된 시연 매물)도 조회하면 규칙으로 만들어 둔다
+    const b = await car.call<{ items: { listingId: string; brief: { source: string } | null }[] }>("POST", "/v1/drive/briefing", { ctx: ctx(s, 0) });
+    expect(b.items.length).toBeGreaterThan(0);
+    expect(b.items.every((i) => i.brief?.source === "rule")).toBe(true);
+  });
+
+  it("AI와 실제 사진이 있으면 사진에서 본 상태를 더하고, 후보 보기에 실린다", async () => {
+    const briefAI: BriefEngine = {
+      name: "fake",
+      brief: async ({ photos, categoryLabel }) => ({
+        summary: "아이가 커서 정리, 커버 세탁함",
+        condition: { grade: "fair", findings: [`사진 ${photos.length}장 중 등받이 긁힘(작음)`], photoChecked: true },
+        speech: `${categoryLabel} 판매자 설명: 아이가 커서 정리, 커버 세탁함. 사진에서 등받이 긁힘(작음)이 보여요, 상태 중.`,
+        source: "ai",
+        at: 1,
+      }),
+    };
+    s = setup(true, { briefAI });
+    await s.anon.call("POST", "/v1/demo/reset", {});
+    car = await login(s, "김주행");
+    park = await login(s, "박서연");
+    const { listing } = await park.call<{ listing: { id: string } }>("POST", "/v1/seller/listings", { ...body, photos: [jpeg] });
+    const ai = await s.svc.refreshBriefAI(listing.id);
+    expect(ai?.source).toBe("ai");
+    const r = await car.call<{ brief: { source: string; condition: { findings: string[]; photoChecked: boolean } } }>("GET", `/v1/listings/${listing.id}/brief`);
+    expect(r.brief.source).toBe("ai");
+    expect(r.brief.condition).toMatchObject({ photoChecked: true, findings: ["사진 1장 중 등받이 긁힘(작음)"] });
+    // 샘플 그림(SVG)만 있으면 AI에 보내지 않는다
+    const svgOnly = await park.call<{ listing: { id: string } }>("POST", "/v1/seller/listings", { ...body, photos: ["data:image/svg+xml;base64,PHN2Zz48L3N2Zz4="] });
+    expect(await s.svc.refreshBriefAI(svgOnly.listing.id)).toBeNull();
+    const b = await car.call<{ items: { listingId: string; brief: { source: string } | null }[] }>("POST", "/v1/drive/briefing", { ctx: ctx(s, 0) });
+    expect(b.items.find((i) => i.listingId === listing.id)?.brief?.source).toBe("ai");
   });
 });
 

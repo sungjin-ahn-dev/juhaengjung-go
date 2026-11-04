@@ -4,6 +4,7 @@ import { createApp } from "./app.ts";
 import { DemoClock, EventBus, MemoryStore, RealClock, type Clock, type Store } from "./infra.ts";
 import type { PushSender } from "./push.ts";
 import type { SizeEstimator } from "./size-ai.ts";
+import type { BriefEngine } from "./brief-ai.ts";
 import { DEMO_START, seedDemo } from "./seed.ts";
 import { Service, type ServiceConfig } from "./service.ts";
 
@@ -23,6 +24,8 @@ export interface BackendOptions {
   push?: PushSender | ((store: Store) => PushSender | undefined);
   /** 사진으로 크기 추정(Node 서버, API 키가 있을 때) */
   sizeAI?: SizeEstimator;
+  /** 물건 요약 브리핑의 사진 분석(Node 서버, API 키가 있을 때) */
+  briefAI?: BriefEngine;
 }
 
 /** 시연 모드 기본값: 정산·자동 확인을 짧게(가상 시간) */
@@ -51,7 +54,7 @@ export function createBackend(o: BackendOptions = {}) {
   const clock = o.clock ?? (demo ? new DemoClock(DEMO_START, o.rate ?? 1) : new RealClock());
   const bus = new EventBus();
   const push = typeof o.push === "function" ? o.push(store) : o.push;
-  const svc = new Service({ store, bus, clock, router: o.router ?? createRouter(), config: o.config ?? (demo ? DEMO_SERVICE_CONFIG : undefined), push, sizeAI: o.sizeAI });
+  const svc = new Service({ store, bus, clock, router: o.router ?? createRouter(), config: o.config ?? (demo ? DEMO_SERVICE_CONFIG : undefined), push, sizeAI: o.sizeAI, briefAI: o.briefAI });
   if (o.seed && store.list("users").length === 0) seedDemo(svc, { includeCarSeat: o.includeCarSeat });
   const app = createApp(svc, { demo, sseHeartbeatMs: o.sseHeartbeatMs });
   return { app, svc, store, clock, bus };

@@ -232,6 +232,17 @@ export function ListingSheet({
           {l.sizeCm.w}×{l.sizeCm.d}×{l.sizeCm.h}cm, {SIZE_SOURCE_KO[l.sizeSource] ?? "추정"}
         </span>
       </div>
+      {l.brief && (
+        <div className="s-brief" data-testid="listing-brief">
+          <div className="s-label">차에서 이렇게 들려요</div>
+          <p>{l.brief.speech}</p>
+          {l.brief.condition.photoChecked ? (
+            l.brief.condition.findings.length > 0 && <small>AI가 사진에서 본 것: {l.brief.condition.findings.join(", ")}. 글을 고치면 요약도 바뀌어요</small>
+          ) : (
+            <small>글을 줄인 거예요. 사진 분석은 서버에 AI 키가 있을 때 돼요</small>
+          )}
+        </div>
+      )}
       {busy && <p className="s-help">거래 중이라 판매 상태는 바꿀 수 없어요. 가격과 시간은 다음 요청부터 적용돼요.</p>}
       {l.status === "active" || busy ? (
         <>

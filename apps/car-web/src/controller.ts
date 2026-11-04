@@ -18,6 +18,7 @@ import {
   type Interest,
   type TripCheck,
   type VehicleProfile,
+  type ListingBrief,
 } from "@jhgo/core";
 import type { ApiClient, AppEvent } from "@jhgo/api";
 import type { AppClock } from "./clock.ts";
@@ -34,6 +35,8 @@ export interface CandidateView {
   description: string;
   photo: string | null;
   condition: "good" | "fair" | "worn" | null;
+  /** 물건 요약 브리핑(T33): 글 요약 + 사진에서 본 상태. 고르면 보여 주고 읽어 준다 */
+  brief: ListingBrief | null;
   price: number;
   referencePrice: number;
   fragile: boolean;
@@ -151,6 +154,8 @@ export interface CarState {
   lastSpeech: string | null;
   /** 마지막으로 알아들은 대답(음성) — 자막에 잠깐 보여 준다 */
   heard: { word: string; at: number } | null;
+  /** 펼친 매물의 사진(최대 3장) — 브리핑 카드에서만 받아 온다 */
+  briefPhotos: Record<string, string[]>;
   /** 마지막으로 말한 시각 — 화면 자막은 이 뒤 몇 초만 보인다 */
   speechAt: number;
   holdNote: string | null;
@@ -196,6 +201,7 @@ const initialState: CarState = {
   fragilePrompt: false,
   lastSpeech: null,
   heard: null,
+  briefPhotos: {},
   speechAt: 0,
   holdNote: null,
   muted: false,
@@ -655,6 +661,33 @@ export class CarController {
     if (this.state.alert !== null && this.state.alert.shownAt === shown.shownAt) {
       this.set({ alert: { ...this.state.alert, listening: false }, heard: w ? { word: w, at: Date.now() } : this.state.heard });
       if (w) onWord(w);
+    }
+  }
+
+  /** 지금 목록(주행 후보 또는 브리핑)에서 매물 하나 */
+  candidateOf(listingId: string): CandidateView | undefined {
+    return this.state.candidates.find((x) => x.listingId === listingId) ?? this.state.briefing?.items.find((x) => x.listingId === listingId);
+  }
+
+  /** 물건 요약 브리핑(T33)을 읽어 준다 — 주행 중에 목록을 누르면 사진 대신 이걸로 */
+  speakBrief(listingId: string) {
+    const c = this.candidateOf(listingId);
+    if (!c) return;
+    const b = c.brief;
+    this.say(b ? b.speech : `${c.categoryLabel}, ${c.description || "판매자 설명이 없어요"}`);
+  }
+
+  /** 펼친 카드의 사진 — 한 번만 받아 둔다 */
+  async loadBriefPhotos(listingId: string) {
+    if (this.state.briefPhotos[listingId]) return;
+    try {
+      const r = await this.api.call<{ brief: ListingBrief; photos: string[] }>("GET", `/v1/listings/${listingId}/brief`);
+      this.set({ briefPhotos: { ...this.state.briefPhotos, [listingId]: r.photos } });
+      // 사진 분석이 뒤늦게 끝났을 수 있다 → 목록의 브리핑도 새 것으로
+      const upd = (x: CandidateView) => (x.listingId === listingId ? { ...x, brief: r.brief } : x);
+      this.set({ candidates: this.state.candidates.map(upd), briefing: this.state.briefing ? { ...this.state.briefing, items: this.state.briefing.items.map(upd) } : null });
+    } catch {
+      /* 사진 없이 카드만 */
     }
   }
 

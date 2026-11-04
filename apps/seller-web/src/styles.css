@@ -1968,3 +1968,22 @@
     transition: none !important;
   }
 }
+
+/* 물건 판: 차에서 들리는 요약(T33) */
+.s-brief {
+  margin: 4px 0 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--g100);
+}
+.s-brief p {
+  margin: 2px 0 4px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.s-brief small {
+  display: block;
+  font-size: 12.5px;
+  color: var(--g600);
+  line-height: 1.45;
+}

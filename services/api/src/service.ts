@@ -15,6 +15,8 @@ import {
   categorize,
   categoryDef,
   categoryLabel,
+  ruleBrief,
+  type ListingBrief,
   createTrade,
   DEFAULT_GO_SETTING,
   DEFAULT_TRADE_CONFIG,
@@ -67,6 +69,7 @@ import {
 import { maskName, newId, newToken, type AppEvent, type Clock, type EventBus, type Store } from "./infra.ts";
 import { isPushSubscription, type PushSender, type PushSubscriptionJson } from "./push.ts";
 import { photoForAi, type SizeEstimator } from "./size-ai.ts";
+import type { BriefEngine } from "./brief-ai.ts";
 
 export interface User {
   id: string;
@@ -137,6 +140,8 @@ export interface ServiceDeps {
   push?: PushSender;
   /** 사진으로 크기 추정(Node 서버, API 키가 있을 때). 없으면 품목 대표 크기 */
   sizeAI?: SizeEstimator;
+  /** 물건 요약 브리핑(T33)의 사진 분석(Node 서버, API 키가 있을 때). 없으면 글 요약만(규칙) */
+  briefAI?: BriefEngine;
 }
 
 interface PushDoc {
@@ -302,10 +307,45 @@ export class Service {
       status: "active",
       createdAt: this.now(),
     };
+    // 물건 요약 브리핑(T33): 글 요약은 바로(규칙), 사진 분석은 AI가 있고 실제 사진이 있을 때 뒤이어 갱신
+    listing.brief = ruleBrief({ title, description: listing.description, condition: listing.condition, categoryLabel: categoryLabel(category) }, this.now());
     this.d.store.put("listings", listing);
+    void this.refreshBriefAI(listing.id);
     // 다음 등록 때 다시 고르지 않게 — 장소·시간·자동 수락을 판매자 기본값으로 둔다
     this.d.store.put("users", { ...this.user(seller.id), sellerDefaults: { pickupPoint: listing.pickupPoint, availability, autoAccept: listing.autoAccept } });
     return listing;
+  }
+
+  /** 사진 분석 브리핑: 엔진과 실제 사진(JPEG·PNG·WebP)이 있을 때만. 실패하면 규칙 요약을 그대로 둔다 */
+  async refreshBriefAI(listingId: string): Promise<ListingBrief | null> {
+    const l = this.d.store.get<Listing>("listings", listingId);
+    if (!l || !this.d.briefAI) return null;
+    const photos = l.photos.map((p) => photoForAi(p)).filter((p): p is { mediaType: string; base64: string } => !!p);
+    if (photos.length === 0) return null;
+    try {
+      const b = await this.d.briefAI.brief({ title: l.title, description: l.description, condition: l.condition, categoryLabel: categoryLabel(l.category), photos });
+      if (!b) return null;
+      const cur = this.d.store.get<Listing>("listings", listingId);
+      if (!cur) return null;
+      this.d.store.put("listings", { ...cur, brief: b });
+      return b;
+    } catch {
+      return null;
+    }
+  }
+
+  listingPhotos(listingId: string): string[] {
+    return this.d.store.get<Listing>("listings", listingId)?.photos ?? [];
+  }
+
+  /** 매물 브리핑 조회(구매자): 없으면 규칙으로 만들어 둔다(예전 매물) */
+  briefOf(listingId: string): ListingBrief | null {
+    const l = this.d.store.get<Listing>("listings", listingId);
+    if (!l) return null;
+    if (l.brief) return l.brief;
+    const b = ruleBrief({ title: l.title, description: l.description, condition: l.condition, categoryLabel: categoryLabel(l.category) }, this.now());
+    this.d.store.put("listings", { ...l, brief: b });
+    return b;
   }
 
   /** 판매자 쉬기(T27): 1시간 / 오늘 / 직접 다시 켤 때까지 / 끄기 */
@@ -563,6 +603,7 @@ export class Service {
       description: l?.description ?? "",
       photo: l?.photos[0] ?? null,
       condition: l?.condition ?? null,
+      brief: l ? this.briefOf(l.id) : null,
       price: c.price,
       referencePrice: c.referencePrice,
       fragile: c.fragile,

@@ -12,3 +12,4 @@ export * from "./personalization.ts";
 export * from "./trade.ts";
 export { DEMO_NET, DEMO_PLACES } from "./data/demoNet.ts";
 export * from "./art.ts";
+export { briefSpeech, parseAiBrief, ruleBrief, sentencesOf, summarize, type ListingBrief } from "./brief.ts";

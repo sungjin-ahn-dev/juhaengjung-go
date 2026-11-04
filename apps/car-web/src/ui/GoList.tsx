@@ -4,6 +4,7 @@
  * 주행 중: 사진과 설명 없이 큰 글씨 3줄만(시선을 오래 뺏지 않게). 말할 때가 되면 알림 카드가 대신 뜬다.
  */
 import { useEffect, useRef } from "react";
+import { Volume2 } from "lucide-react";
 import type { CarController, CarState, CandidateView } from "../controller.ts";
 import { CONDITION_KO, EXCLUSION_KO, GO_KO, fmtKm, fmtMin, fmtWon } from "./format.ts";
 
@@ -99,7 +100,11 @@ export function GoList({
                 key={x.listingId}
                 ref={(el) => void (el ? rows.current.set(x.listingId, el) : rows.current.delete(x.listingId))}
                 className={`c-item compact ${selectedId === x.listingId ? "on" : ""}`}
-                onClick={() => onSelect(x.listingId)}
+                onClick={() => {
+                  onSelect(x.listingId);
+                  // 주행 중엔 사진을 볼 수 없으니 누르면 판매자 글 요약과 사진에서 본 상태를 읽어 준다(T33)
+                  c.speakBrief(x.listingId);
+                }}
                 data-testid={`go-row-${x.categoryLabel}`}
               >
                 <div className="c-rank">{x.rank}</div>
@@ -210,6 +215,51 @@ function Row({
           ) : null}
         </div>
       </div>
+      {on && <BriefCard x={x} s={s} c={c} />}
+    </div>
+  );
+}
+
+/** 물건 요약 브리핑(T33) — 고른 매물 아래에: 사진 몇 장, 판매자 글 요약, 사진에서 본 상태, 들려주기 */
+function BriefCard({ x, s, c }: { x: RankedItem; s: CarState; c: CarController }) {
+  useEffect(() => {
+    void c.loadBriefPhotos(x.listingId);
+  }, [c, x.listingId]);
+  const photos = s.briefPhotos[x.listingId] ?? (x.photo ? [x.photo] : []);
+  const b = x.brief;
+  return (
+    <div className="c-brief" data-testid={`brief-${x.categoryLabel}`} onClick={(e) => e.stopPropagation()}>
+      {photos.length > 0 && (
+        <div className="c-brief-photos">
+          {photos.slice(0, 3).map((p, i) => (
+            <img key={i} src={p} alt="" />
+          ))}
+        </div>
+      )}
+      <div className="c-brief-label">판매자 글 요약</div>
+      <p className="c-brief-sum">{b ? b.summary : x.description || "판매자 설명이 없어요"}</p>
+      {b?.condition.photoChecked ? (
+        <>
+          <div className="c-brief-label">AI가 사진에서 본 것</div>
+          {b.condition.findings.length ? (
+            <ul className="c-brief-findings">
+              {b.condition.findings.map((f) => (
+                <li key={f}>{f}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="c-brief-sum">눈에 띄는 흠집은 안 보여요</p>
+          )}
+          {b.condition.grade && <p className="c-brief-grade">사진과 글로 본 상태: {CONDITION_KO[b.condition.grade]}</p>}
+        </>
+      ) : (
+        <p className="c-brief-none">
+          사진 분석 없음(서버에 AI 키가 없을 때). 판매자 표시: {x.condition ? CONDITION_KO[x.condition] : "상태 미정"}
+        </p>
+      )}
+      <button className="c-btn c-brief-say" onClick={() => c.speakBrief(x.listingId)} data-testid="brief-say">
+        <Volume2 size={18} strokeWidth={2.2} aria-hidden="true" /> 들려주기
+      </button>
     </div>
   );
 }

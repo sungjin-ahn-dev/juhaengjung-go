@@ -6,3 +6,4 @@ export { ApiError, messageFor, Service, type RequestBlockView, type User } from 
 export { isPushSubscription, type PushPayload, type PushSender, type PushSubscriptionJson } from "./push.ts";
 export { parseAiSize, photoForAi, type AiSizeResult, type SizeEstimator } from "./size-ai.ts";
 export { ApiCallError, createDirectClock, createHttpClient, createLocalClient, createSyncedClock, type ApiClient, type AppClock } from "./client.ts";
+export { briefPrompt, createClaudeBriefEngine, type BriefEngine } from "./brief-ai.ts";

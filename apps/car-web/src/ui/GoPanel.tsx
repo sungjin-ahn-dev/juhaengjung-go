@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { categoryLabel } from "@jhgo/core";
 import { Check } from "lucide-react";
 import type { CarController, CarState, TradeView } from "../controller.ts";
-import { fmtClock, fmtWon } from "./format.ts";
+import { CONDITION_KO, fmtClock, fmtWon } from "./format.ts";
 
 export function GoPanel({ s, c, now }: { s: CarState; c: CarController; now: number }) {
   return (
@@ -76,6 +76,12 @@ function AlertCard({ s, c }: { s: CarState; c: CarController }) {
         <span className={`c-fact ${x.fit.kind === "trunk" ? "good" : ""}`}>{x.fit.label}</span>
         <span className="c-fact">{cheaper > 0 ? `기준가보다 ${fmtWon(cheaper)} 싸요` : fmtWon(x.price)}</span>
         {x.energy.arrivalSocPct !== undefined && <span className="c-fact">도착 배터리 {Math.round(x.energy.arrivalSocPct)}%</span>}
+        {/* 사진에서 본 상태(T33): AI가 봤을 때만 '사진:'이라고 쓴다 */}
+        {x.brief?.condition.photoChecked ? (
+          <span className={`c-fact ${x.brief.condition.findings.length ? "" : "good"}`}>사진: {x.brief.condition.findings[0] ?? "흠집 안 보임"}</span>
+        ) : x.condition ? (
+          <span className="c-fact">{CONDITION_KO[x.condition]}(판매자 표시)</span>
+        ) : null}
       </div>
       <div className="c-answer">
         <button className="c-yes" onClick={() => void c.answer(true)}>

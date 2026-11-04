@@ -1,7 +1,9 @@
 /** 주행중GO! 도메인 타입 — 서버·차량 앱·판매자 앱이 함께 쓴다. */
 import type { LatLng } from "./geo.ts";
+import type { ListingBrief } from "./brief.ts";
 
 export type GoLevel = "must" | "likely" | "near";
+
 export type Condition = "good" | "fair" | "worn";
 export type Powertrain = "ev" | "ice" | "hybrid";
 /** Pleos NaviHelper NavigationStatus */
@@ -53,6 +55,8 @@ export interface Listing {
   createdAt: number;
   /** 판매자에게만 보이는 노출 수(T29): 지나가는 차의 추천 목록에 든 주행 수, 음성 알림 수. 구매자 정보는 남기지 않는다 */
   stats?: { shown: number; alerted: number };
+  /** 물건 요약 브리핑(T33): 글 요약 + 사진에서 본 상태. 차에서 고르면 보여 주고 읽어 준다 */
+  brief?: ListingBrief;
 }
 
 /** 구매자에게 보이는 매물(정확한 위치 없음) */

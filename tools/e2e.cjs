@@ -113,6 +113,14 @@ async function waitHealth() {
     check(/km 앞/.test(briefText) && /\+\d+분/.test(briefText), "목록에 경로상 거리와 우회 시간");
     await car.getByTestId("pin-카시트").click();
     check(await car.locator('[data-testid="go-row-카시트"].on').count() === 1, "지도 핀을 누르면 목록의 같은 매물이 표시됨");
+    // 물건 요약 브리핑(T33): 고른 매물 아래에 글 요약 + 사진 분석 여부, 들려주기
+    const bc = car.getByTestId("brief-카시트");
+    await bc.waitFor({ timeout: 5000 });
+    const bct = await bc.innerText();
+    check(bct.includes("판매자 글 요약") && bct.includes("아이가 커서 정리해요") && bct.includes("사진 분석 없음"), "고른 매물 아래 판매자 글 요약, 사진 분석 없음(AI 키 없음)이라고 정직하게 표시");
+    await car.getByTestId("brief-say").click();
+    await car.waitForFunction(() => document.querySelector('[data-testid="voice-line"]')?.textContent?.includes("카시트 판매자 설명"), null, { timeout: 5000 });
+    check(true, "들려주기 → 자막에 '카시트 판매자 설명: …'");
     await snapC("briefing");
     // Gleo AI 음성 기능(정차 중): 가는 길 요약과 관심 추가 — 콘솔이 Gleo 호출을 흉내 내면 앱이 Callback Schema대로 답한다
     await car.getByTestId("gleo-briefing").click();
@@ -131,6 +139,10 @@ async function waitHealth() {
     await phone.reload({ waitUntil: "load" });
     await phone.getByTestId("listing-stats").getByText(/지나간 차 1대에 보였어요/).waitFor({ timeout: 10000 });
     check(true, "판매자 물건 줄: 지나간 차 1대에 보였어요(누가 봤는지는 없음)");
+    await phone.getByTestId("listing-row").click();
+    await phone.getByTestId("listing-brief").waitFor({ timeout: 5000 });
+    check((await phone.getByTestId("listing-brief").innerText()).includes("차에서 이렇게 들려요"), "판매자 물건 판: 차에서 이렇게 들려요(요약 문장)");
+    await phone.getByTestId("listing-sheet").getByRole("button", { name: "닫기" }).last().click();
 
     // 출발 — 방향지시등을 켠 동안에는 알림을 미룬다(T8). 첫 알림 구간은 10배속으로 여유 있게
     await car.getByTestId("rate-10").click();

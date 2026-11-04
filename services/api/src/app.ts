@@ -225,6 +225,14 @@ export function createApp(svc: Service, opts: AppOptions) {
     return c.json({ ok: true });
   });
   app.get("/v1/buyer/trades", auth("buyer"), (c) => c.json({ trades: svc.buyerTrades(c.get("user")) }));
+  // 물건 요약 브리핑(T33): 글 요약 + 사진에서 본 상태. 차에서 고르면 보여 주고 읽어 준다
+  app.get("/v1/listings/:id/brief", auth("buyer"), (c) => {
+    const id = c.req.param("id") ?? "";
+    const b = svc.briefOf(id);
+    if (!b) throw new ApiError(404, "listing_not_found", "매물을 찾을 수 없어요");
+    // 사진은 펼친 카드에서만 쓰므로 여기서만 준다(주행 중 매 틱 오는 후보 목록은 첫 장만)
+    return c.json({ brief: b, photos: svc.listingPhotos(id) });
+  });
   app.get("/v1/buyer/trades/:id", auth("buyer"), (c) => {
     const t = svc.trade((c.req.param("id") ?? ""));
     if (t.buyerId !== c.get("user").id) throw new ApiError(404, "trade_not_found", "거래를 찾을 수 없어요");

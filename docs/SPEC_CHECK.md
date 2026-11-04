@@ -22,6 +22,7 @@
 | 적재 판단: 트렁크에 쏙 / 2열 접으면 가능 / 안 들어감, 2열 착석이면 접기 제외 | 차 목록 적재 칩, 제외 이유 | 판폰 요청 화면 '실을 수 있나요' | `core/load.ts`, Seat(row2) | T5 테스트, E2E | ✅ |
 | 3열 차의 적재(11-3 Seat ROW_1~ROW_3) | 차 목록 '3열 접으면 가능', 제외 이유 '3열에 사람이 있어…', 콘솔 '3열 착석' | — | `fitItem` 3열 단계, Seat row3(ROW_3_LEFT·RIGHT) | 매칭 테스트, API T26, 브리지 | ✅ ⏳(ROW_3_CENTER 이름 미확인) |
 | 말할 때 고르기: 회전 직전·방향지시등·큰 조향·제동 중에는 미루기 | 차 목록 '알림 대기: 방향지시등…' | — | `core/timing.ts AlertGate` | T8 테스트, E2E | ✅ ⏳ |
+| (v6) 물건 요약 브리핑: 고르면 글 요약 + 사진에서 본 상태를 보여 주고 읽어 준다 | 차 목록 카드(정차)·누르면 읽기(주행)·알림 칩, 판매자 물건 판 '차에서 이렇게 들려요' | 판매자 물건 판 | `core/brief.ts`, `brief-ai.ts`, `briefOf`, `/v1/listings/:id/brief` | core 5, API 2, E2E 3 | ✅ ⏳(실제 사진·AI 키) |
 | (v6) 차량 음성 비서(Gleo AI)로 관심 추가·알림 답하기·가는 길 요약 | 차 — Gleo가 앱 Intent를 부르고 앱이 Callback Schema로 답함. 시뮬레이터는 콘솔 'Gleo AI 음성 기능' | — | `gleo.ts`·`GleoBridge.kt`·`assets/schema.json` | E2E 3개, 브리지 시험 2개 | ✅ 🧪(에뮬레이터 Gleo) |
 | 알림과 응답: 한 번에 1개, 1위만, 정해진 단어로 답 | 차 알림 카드(들를게요/아니요) + 음성 자막 알약(말한 문장 → 듣는 동안 "응" 또는 "아니" → 알아들은 말). 시뮬레이터는 콘솔 '음성 대답'으로 마이크를 대신 | — | `showAlert`·`listenAnswer`·`heard`, TTS, SpeechRecognizer(`voice.ts` sim `hear`) | E2E "자막: 듣고 있어요 / 음성 대답 '카시트' → 알아들었어요", 브리지 Voice.speak | ✅ ⏳(Pleos TTS·STT 에뮬레이터) |
 | 경합 선택: 점수가 비슷한 2개만 '카시트? 유모차?' | 차 경합 카드 | — | `evaluate` contention | T7 테스트, E2E | ✅ |

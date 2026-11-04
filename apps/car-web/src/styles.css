@@ -682,6 +682,65 @@ select:focus-visible {
   padding: 0 13px;
   font-size: 14px;
 }
+/* 물건 요약 브리핑(T33): 고른 매물 아래 */
+.c-brief {
+  grid-column: 1 / -1;
+  margin: 4px 0 2px;
+  padding: 12px 14px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line);
+  cursor: default;
+}
+.c-brief-photos {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.c-brief-photos img {
+  width: 96px;
+  height: 96px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: var(--raised);
+}
+.c-brief-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--muted);
+  margin: 8px 0 3px;
+}
+.c-brief-label:first-child {
+  margin-top: 0;
+}
+.c-brief-sum {
+  margin: 0;
+  font-size: 15.5px;
+  line-height: 1.45;
+}
+.c-brief-findings {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.c-brief-grade {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--text-2);
+}
+.c-brief-none {
+  margin: 8px 0 0;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.c-brief-say {
+  margin-top: 10px;
+  height: 38px;
+  padding: 0 14px;
+  font-size: 14.5px;
+  gap: 6px;
+}
 /* 거래가 잡힌 매물: 버튼 대신 상태 글자. 카드 색도 크라프트 기운을 살짝 */
 .c-item-mine {
   margin-left: auto;
