@@ -9,6 +9,7 @@
 - 기획: `docs/01_기획서.md`(PDF는 `node node_modules/tsx/dist/cli.mjs tools/doc-pdf.ts docs/01_기획서.md <출력.pdf>`), 접수 양식에 옮길 글: `docs/02_접수양식_초안.md`, 결정과 공모전 정보: `docs/00_가이드.md`
 - 기능별 구현 위치: `docs/TASKS.md`, 기획서 문장별 대조: `docs/SPEC_CHECK.md`, 현재 상태: `docs/STATUS.md`
 - Pleos SDK 사용 현황: `docs/API_MATRIX.md`, 차량 앱 브리지: `docs/BRIDGE.md`
+- 만든 것 전부 한 문서로: `docs/03_개발_정리.md`
 
 ## 구성
 

@@ -1,6 +1,6 @@
 # 주행중GO! — 작업 원칙
 
-스펙은 `docs/01_기획서.md`, 결정은 `docs/00_가이드.md`, 상태는 `docs/STATUS.md`, 기능 위치는 `docs/TASKS.md`, SDK는 `docs/API_MATRIX.md`, 브리지는 `docs/BRIDGE.md`.
+스펙은 `docs/01_기획서.md`, 결정은 `docs/00_가이드.md`, 상태는 `docs/STATUS.md`, 기능 위치는 `docs/TASKS.md`, SDK는 `docs/API_MATRIX.md`, 브리지는 `docs/BRIDGE.md`, 전체 정리는 `docs/03_개발_정리.md`(큰 변경 뒤 갱신).
 TripRoom(`../triproom`)·멀미예보(`../motioncast`)와 별개 저장소다. 코드는 복사해 쓰되 서로 import하지 않는다.
 
 ## 반드시 지킬 것

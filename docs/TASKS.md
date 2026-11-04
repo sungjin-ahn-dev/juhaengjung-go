@@ -4,7 +4,7 @@
 **완료 기준:** 서버 테스트와 함께 그 기능을 쓰는 사람(구매자·판매자)의 화면 경로가 있어야 한다. 서버만 있고 화면이 없으면 완료로 치지 않는다.
 기획서 문장마다 화면 경로를 맞춰 본 표는 `docs/SPEC_CHECK.md`.
 
-- 단위·API 테스트: `npm test` (vitest, 102개: core 73, api 29)
+- 단위·API 테스트: `npm test` (vitest, 118개: core 84, api 34)
 - 시뮬레이터 E2E: `npm run e2e` (`tools/e2e.cjs`) — 판매자 폰 + 차량 화면 끝까지, 2부 판매자 미응대, 3부 구매자 폰
 - 브리지 계약 시험: `npm run e2e:bridge` (`tools/bridge-contract.ts`) — 실제 SDK 모드(가짜 브리지)
 - 시연 영상: `tools/record-demo.ts`(체험 페이지 → 장면별 MP4), `JHGO_RECORD=<폴더> npm run e2e:bridge`(SDK 모드), 자르기 공통 `tools/video-cut.ts`
