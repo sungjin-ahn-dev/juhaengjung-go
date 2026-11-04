@@ -11,3 +11,7 @@ apps/car-android/app/build/
 apps/car-android/local.properties
 .DS_Store
 apps/car-android/build_log.txt
+apps/car-android/hs_err_*.log
+apps/car-android/replay_*.log
+apps/car-android/.kotlin/
+apps/car-android/.idea/

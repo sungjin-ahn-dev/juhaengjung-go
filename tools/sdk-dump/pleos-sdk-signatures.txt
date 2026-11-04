@@ -1,0 +1,827 @@
+# Pleos Connect SDK — 실제 바이너리(pleosDebug의 dex)에서 Kotlin 메타데이터로 복원한 시그니처 (2026-11-04)
+# 만든 방법: tools/sdk-dump/README.md. 이 파일은 주행중GO!가 쓰는 클래스만 추렸다(전체 1,234개 중).
+# 매개변수 이름·순서·null 가능 여부·기본값(= …)은 Kotlin 메타데이터 그대로다. 동작·단위는 에뮬레이터에서 확인해야 한다.
+== enum class ai.pleos.playground.navi.constants.NaviErrorCode : Enum<NaviErrorCode>   [Lai/pleos/playground/navi/constants/NaviErrorCode;]
+   entries: CAUSE_LOW_BATTERY, CAUSE_SEARCH_ROUTE_OVER_DISTANCE, CAUSE_SEARCH_ROUTE, CAUSE_SEARCH_ROUTE_TOO_SHORT_DISTANCE, CAUSE_SEARCH_TRIP
+
+== enum class ai.pleos.playground.navi.constants.NavigationStatus : Enum<NavigationStatus>   [Lai/pleos/playground/navi/constants/NavigationStatus;]
+   entries: INACTIVE, INITIALIZING, FREE_DRIVE, ROUTE_DRIVE
+
+== enum class ai.pleos.playground.navi.constants.RouteOption : Enum<RouteOption>   [Lai/pleos/playground/navi/constants/RouteOption;]
+   entries: RECOMMENDED, SHORT_DISTANCE, SHORT_TIME, FREE, HIGHWAY, COMFORTABLE, SCHOOL_ZONE
+
+== enum class ai.pleos.playground.navi.constants.TurnType : Enum<TurnType>   [Lai/pleos/playground/navi/constants/TurnType;]
+   entries: TURN_UNKNOWN, TURN_STRAIGHT, TURN_RIGHT, TURN_LEFT, TURN_KEEP_R, TURN_KEEP_L, TURN_SHARP_R, TURN_SHARP_L, TURN_UTURN, TURN_ENTER_IC_R, TURN_ENTER_IC_L, TURN_ENTER_IC_C, TURN_EXIT_IC_R, TURN_EXIT_IC_L, TURN_EXIT_IC_C, TURN_ENTER_UNDER_R, TURN_ENTER_UNDER_L, TURN_ENTER_UNDER_C, TURN_AVOID_UNDER_R, TURN_AVOID_UNDER_L, TURN_AVOID_UNDER_C, TURN_ENTER_OVER_R, TURN_ENTER_OVER_L, TURN_ENTER_OVER_C, TURN_AVOID_OVER_R, TURN_AVOID_OVER_L, TURN_AVOID_OVER_C, TURN_ENTER_ROUNDABOUT_02, TURN_ENTER_ROUNDABOUT_03, TURN_ENTER_ROUNDABOUT_04, TURN_ENTER_ROUNDABOUT_06, TURN_ENTER_ROUNDABOUT_08, TURN_ENTER_ROUNDABOUT_09, TURN_ENTER_ROUNDABOUT_10, TURN_ENTER_ROUNDABOUT_12, TURN_EXIT_ROUNDABOUT, TURN_WAY, TURN_ARRIVE, TURN_TUNNEL, TURN_DEVIDE_MERGE, TURN_TOLL, TURN_ENTER_SERVICEAREA, TURN_RESTAREA
+   val value: Long
+
+== enum class ai.pleos.playground.navi.constants.WaypointCmdType : Enum<WaypointCmdType>   [Lai/pleos/playground/navi/constants/WaypointCmdType;]
+   entries: ADD, REMOVE
+
+== enum class ai.pleos.playground.navi.constants.WaypointIndex : Enum<WaypointIndex>   [Lai/pleos/playground/navi/constants/WaypointIndex;]
+   entries: FIRST, SECOND, ALL
+
+== data class ai.pleos.playground.navi.data.CurrentLocationInfo   [Lai/pleos/playground/navi/data/CurrentLocationInfo;]
+   constructor(latitude: Double, longitude: Double, heading: Double = …, address: String, routeId: String, currentRouteIndex: Int?)
+   val address: String
+   val currentRouteIndex: Int?
+   val heading: Double
+   val latitude: Double
+   val longitude: Double
+   val routeId: String
+
+== data class ai.pleos.playground.navi.data.DestinationArrivedInfo   [Lai/pleos/playground/navi/data/DestinationArrivedInfo;]
+   constructor(duration: Int, distance: Int, name: String, address: String)
+   val address: String
+   val distance: Int
+   val duration: Int
+   val name: String
+
+== data class ai.pleos.playground.navi.data.DestinationInfo   [Lai/pleos/playground/navi/data/DestinationInfo;]
+   constructor(latitude: Double, longitude: Double, displayLatitude: Double? = …, displayLongitude: Double? = …, name: String, address: String, remainDistance: Int, remainTime: Int, tollFare: Int, poiId: String, poiSubId: String?, poiProvider: String = …)
+   val address: String
+   val displayLatitude: Double?
+   val displayLongitude: Double?
+   val latitude: Double
+   val longitude: Double
+   val name: String
+   val poiId: String
+   val poiProvider: String
+   val poiSubId: String?
+   val remainDistance: Int
+   val remainTime: Int
+   val tollFare: Int
+
+== data class ai.pleos.playground.navi.data.DrivingInfo   [Lai/pleos/playground/navi/data/DrivingInfo;]
+   constructor(destination: DrivingState, waypoints: List<DrivingState>)
+   val destination: DrivingState
+   val waypoints: List<DrivingState>
+
+== data class ai.pleos.playground.navi.data.DrivingState   [Lai/pleos/playground/navi/data/DrivingState;]
+   constructor(name: String, duration: Int, distance: Int, remainDestinationChargingValue: Int, isChargingStation: Boolean = …, isRecommendedChargingStation: Boolean = …, maxChargingPower: Int = …, targetSoc: Int = …, chargerCount: Int = …, chargingPlan: ChargingPlan? = …)
+   val chargerCount: Int
+   val chargingPlan: ChargingPlan?
+   val distance: Int
+   val duration: Int
+   val isChargingStation: Boolean
+   val isRecommendedChargingStation: Boolean
+   val maxChargingPower: Int
+   val name: String
+   val remainDestinationChargingValue: Int
+   val targetSoc: Int
+
+== data class ai.pleos.playground.navi.data.RequestWaypointInfo   [Lai/pleos/playground/navi/data/RequestWaypointInfo;]
+   constructor(latitude: Double, longitude: Double, poiName: String?, waypointIndex: WaypointIndex, poiId: String, address: String, poiSubId: String, poiProvider: String = …)
+   val address: String
+   val latitude: Double
+   val longitude: Double
+   val poiId: String
+   val poiName: String?
+   val poiProvider: String
+   val poiSubId: String
+   val waypointIndex: WaypointIndex
+
+== data class ai.pleos.playground.navi.data.RouteInfo   [Lai/pleos/playground/navi/data/RouteInfo;]
+   constructor(latitude: Double, longitude: Double, displayLatitude: Double? = …, displayLongitude: Double? = …, poiName: String, poiId: String, address: String, poiSubId: String, routeOption: RouteOption = …, poiProvider: String = …, isMobileRequest: Boolean = …)
+   val address: String
+   val displayLatitude: Double?
+   val displayLongitude: Double?
+   val isMobileRequest: Boolean
+   val latitude: Double
+   val longitude: Double
+   val poiId: String
+   val poiName: String
+   val poiProvider: String
+   val poiSubId: String
+   val routeOption: RouteOption
+
+== data class ai.pleos.playground.navi.data.RouteStartInfo   [Lai/pleos/playground/navi/data/RouteStartInfo;]
+   constructor(duration: Int, distance: Int, tollFare: Int, name: String, remainDestinationChargingValue: Int)
+   val distance: Int
+   val duration: Int
+   val name: String
+   val remainDestinationChargingValue: Int
+   val tollFare: Int
+
+== data class ai.pleos.playground.navi.data.RouteWithWaypointsRequest   [Lai/pleos/playground/navi/data/RouteWithWaypointsRequest;]
+   constructor(destination: RouteInfo, waypoints: List<RequestWaypointInfo>)
+   val destination: RouteInfo
+   val waypoints: List<RequestWaypointInfo>
+
+== data class ai.pleos.playground.navi.data.TBTInfo   [Lai/pleos/playground/navi/data/TBTInfo;]
+   constructor(type: TurnType, distance: Double, description: String)
+   val description: String
+   val distance: Double
+   val type: TurnType
+
+== data class ai.pleos.playground.navi.data.TripInfo   [Lai/pleos/playground/navi/data/TripInfo;]
+   constructor(distance: Int, eta: Int, estimatedSocAtDest: Int, energyConsumption: Double, summary: TripSummary)
+   val distance: Int
+   val energyConsumption: Double
+   val estimatedSocAtDest: Int
+   val eta: Int
+   val summary: TripSummary
+
+== data class ai.pleos.playground.navi.data.TripRequest   [Lai/pleos/playground/navi/data/TripRequest;]
+   constructor(latitude: Double, longitude: Double, poiId: String, poiName: String, poiSubId: String?)
+   val latitude: Double
+   val longitude: Double
+   val poiId: String
+   val poiName: String
+   val poiSubId: String?
+
+== data class ai.pleos.playground.navi.data.TripSummary   [Lai/pleos/playground/navi/data/TripSummary;]
+   constructor(trafficConditions: List<TrafficInfo>, routePoints: List<RoutePointInfo>)
+   val routePoints: List<RoutePointInfo>
+   val trafficConditions: List<TrafficInfo>
+
+== data class ai.pleos.playground.navi.data.WaypointArrivedInfo   [Lai/pleos/playground/navi/data/WaypointArrivedInfo;]
+   constructor(duration: Int, distance: Int, index: WaypointIndex, name: String, address: String)
+   val address: String
+   val distance: Int
+   val duration: Int
+   val index: WaypointIndex
+   val name: String
+
+== data class ai.pleos.playground.navi.data.WaypointChangedInfo   [Lai/pleos/playground/navi/data/WaypointChangedInfo;]
+   constructor(index: WaypointIndex, cmdType: WaypointCmdType, routeStartInfo: RouteStartInfo)
+   val cmdType: WaypointCmdType
+   val index: WaypointIndex
+   val routeStartInfo: RouteStartInfo
+
+== data class ai.pleos.playground.navi.data.WaypointInfo   [Lai/pleos/playground/navi/data/WaypointInfo;]
+   constructor(name: String, address: String, latitude: Double, longitude: Double, displayLatitude: Double? = …, displayLongitude: Double? = …, remainDistance: Int, remainTime: Int, poiId: String, poiSubId: String?, poiProvider: String = …)
+   val address: String
+   val displayLatitude: Double?
+   val displayLongitude: Double?
+   val latitude: Double
+   val longitude: Double
+   val name: String
+   val poiId: String
+   val poiProvider: String
+   val poiSubId: String?
+   val remainDistance: Int
+   val remainTime: Int
+
+== class ai.pleos.playground.navi.helper.NaviHelper   [Lai/pleos/playground/navi/helper/NaviHelper;]
+   constructor(context: Context)
+   fun initialize()
+   fun initialize(onConnected: () -> Unit, onFailed: (Throwable) -> Unit)
+   fun release()
+   fun addListener(listener: NaviHelperEventListener)
+   fun removeListener(listener: NaviHelperEventListener)
+   fun requestRoute(routeInfo: RouteInfo)
+   fun requestRouteWithWaypoints(request: RouteWithWaypointsRequest)
+   fun cancelRoute()
+   fun addWaypoint(requestWaypointInfo: RequestWaypointInfo)
+   fun removeWaypoint(waypointIndex: WaypointIndex)
+   fun changeRouteOption(routeOption: RouteOption)
+   fun requestReRoute()
+   fun getBookmarkInfo()
+   fun getRecentDestinationInfo()
+   fun getRouteStateInfo()
+   fun getCurrentLocationInfo()
+   fun getDestinationInfo()
+   fun getWaypointInfo()
+   fun getTBTInfo()
+   fun getChargerOperatorInfo()
+   fun requestNavigationScreen(requestScreen: NavigationScreenRequest)
+   fun requestTrip(tripRequest: TripRequest)
+   fun getInternalApi(): InternalApi
+
+== interface ai.pleos.playground.navi.helper.listener.NaviHelperEventListener   [Lai/pleos/playground/navi/helper/listener/NaviHelperEventListener;]
+   fun onBookMarkChanged()
+   fun onBookmarkInfo(bookmarkInfoList: List<BookmarkInfo>)
+   fun onCameraAlert(cameraAlertList: List<CameraAlert>)
+   fun onCautionPointInfo(cautionPointList: List<CautionPoint>)
+   fun onChargerOperatorInfo(chargerOperatorList: List<ChargerOperator>)
+   fun onCurrentLocationInfo(currentLocationInfo: CurrentLocationInfo)
+   fun onCurrentRoadSpeedLimit(speedLimit: Int)
+   fun onDestinationArrived(destinationArrivedInfo: DestinationArrivedInfo)
+   fun onDestinationChanged()
+   fun onDestinationInfo(destinationInfo: DestinationInfo)
+   fun onDrivingInfo(drivingInfo: DrivingInfo)
+   fun onError(errorCode: NaviErrorCode)
+   fun onNavigationStatus(status: NavigationStatus)
+   fun onReRouteEnded()
+   fun onRecentDestinationInfo(recentDestinationInfoList: List<RecentDestinationInfo>)
+   fun onRouteCancelled()
+   fun onRouteEnded()
+   fun onRouteOptionChanged(routeOption: RouteOption)
+   fun onRouteStarted(routeStartInfo: RouteStartInfo)
+   fun onRouteStateInfo(routeStateInfo: RouteStateInfo)
+   fun onRoutingCompleted()
+   fun onTBTInfo(tbtInfoList: List<TBTInfo>)
+   fun onTripInfo(tripInfo: TripInfo)
+   fun onWayPointArrived(waypointArrivedInfo: WaypointArrivedInfo)
+   fun onWayPointInfo(waypointInfoList: List<WaypointInfo>)
+   fun onWaypointChanged(waypointChangedInfo: WaypointChangedInfo)
+
+== class ai.pleos.playground.stt.SpeechToText   [Lai/pleos/playground/stt/SpeechToText;]
+   constructor(context: Context, mode: Mode = …)
+   fun addListener(listener: ResultListener)
+   fun completeAudioSend()
+   fun getAmbientAi(): AmbientAiApi
+   fun getCallApi(): CallApi
+   fun initialize()
+   fun initialize(listener: OnInitializeListener)
+   fun registerApp(uaAppCode: String, onSuccess: () -> Unit, onFail: (String) -> Unit)
+   fun registerApp(clientID: String, clientSecret: String, listener: OnServerConnectionListener)
+   fun registerApp(uaAppId: String, uaAppKey: String, uaAppName: String, onSuccess: () -> Unit, onFail: (String) -> Unit)
+   fun release()
+   fun removeListener(listener: ResultListener)
+   fun request()
+   fun sendAudio(bytes: ByteArray)
+   fun setLocale(locale: Locale)
+   fun stop()
+
+== enum class ai.pleos.playground.stt.constant.ErrorType : Enum<ErrorType>   [Lai/pleos/playground/stt/constant/ErrorType;]
+   entries: AUDIO_ERROR, MIC_ERROR, SERVER_INTERNAL_ERROR, NETWORK_ERROR, INVALID_REQUEST_ERROR, TIMEOUT, UNAUTHENTICATED, PERMISSION_DENIED, ON_DEVICE_ENGINE_ERROR, UNKNOWN, UNAVAILABLE_LANGUAGE, NOT_SUPPORTED_API
+
+== enum class ai.pleos.playground.stt.constant.Mode : Enum<Mode>   [Lai/pleos/playground/stt/constant/Mode;]
+   entries: HYBRID, SERVER, ON_DEVICE
+
+== interface ai.pleos.playground.stt.listener.OnInitializeListener   [Lai/pleos/playground/stt/listener/OnInitializeListener;]
+   abstract fun onFailure(errorType: ErrorType)
+   abstract fun onSuccess()
+
+== interface ai.pleos.playground.stt.listener.ResultListener   [Lai/pleos/playground/stt/listener/ResultListener;]
+   abstract fun onEndedRecognition()
+   abstract fun onError(errorType: ErrorType)
+   abstract fun onReady()
+   abstract fun onStartedRecognition()
+   abstract fun onUpdated(stt: String, completed: Boolean)
+   abstract fun onUpdatedEpdData(on: Long, off: Long)
+   abstract fun onUpdatedRms(rms: Double)
+
+== class ai.pleos.playground.tts.TextToSpeech   [Lai/pleos/playground/tts/TextToSpeech;]
+   constructor(context: Context, mode: Mode = …)
+   fun addEventListener(listener: EventListener)
+   fun getAmbientAi(): AmbientAi
+   fun initialize()
+   fun initialize(listener: OnInitializeListener)
+   fun registerApp(uaAppCode: String, onSuccess: () -> Unit, onFail: (String) -> Unit)
+   fun registerApp(clientID: String, clientSecret: String, listener: OnServerConnectionListener)
+   fun registerApp(uaAppId: String, uaAppKey: String, uaAppName: String, onSuccess: () -> Unit, onFail: (String) -> Unit)
+   fun release()
+   fun removeEventListener(listener: EventListener)
+   fun setAudioAttributes(audioAttributes: AudioAttributes)
+   fun setAudioZoneId(zoneId: Int)
+   fun setLocale(locale: Locale)
+   fun setSpeakerType(type: String)
+   fun speak(text: String, isFinal: Boolean = …)
+   fun stop()
+
+== enum class ai.pleos.playground.tts.constant.ErrorType : Enum<ErrorType>   [Lai/pleos/playground/tts/constant/ErrorType;]
+   entries: AUDIO_ERROR, MIC_ERROR, SERVER_INTERNAL_ERROR, NETWORK_ERROR, INVALID_REQUEST_ERROR, TIMEOUT, UNAUTHENTICATED, PERMISSION_DENIED, ON_DEVICE_ENGINE_ERROR, UNKNOWN, UNAVAILABLE_LANGUAGE, NOT_SUPPORTED_API
+
+== enum class ai.pleos.playground.tts.constant.Mode : Enum<Mode>   [Lai/pleos/playground/tts/constant/Mode;]
+   entries: SERVER, ON_DEVICE, HYBRID
+
+== interface ai.pleos.playground.tts.listener.EventListener   [Lai/pleos/playground/tts/listener/EventListener;]
+   abstract fun onDone()
+   abstract fun onError(errorType: ErrorType)
+   abstract fun onReady()
+   abstract fun onStart()
+   abstract fun onStop()
+   abstract fun onUpdatedRms(rms: Double)
+
+== interface ai.pleos.playground.tts.listener.OnInitializeListener   [Lai/pleos/playground/tts/listener/OnInitializeListener;]
+   abstract fun onFailure(errorType: ErrorType)
+   abstract fun onSuccess()
+
+== class ai.pleos.playground.vehicle.Vehicle   [Lai/pleos/playground/vehicle/Vehicle;]
+   constructor(context: Context)
+   fun initialize()
+   fun release()
+   fun getEvBattery(): EvBattery
+   fun getHVAC(): HVAC
+   fun getDoor(): Door
+   fun getSeat(): Seat
+   fun getWindow(): Window
+   fun getDisplay(): Display
+   fun getOdometer(): Odometer
+   fun getLight(): Light
+   fun getSafety(): Safety
+   fun getCarInfo(): CarInfo
+   fun getDrivingMode(): DrivingMode
+   fun getGear(): Gear
+   fun getSteeringWheel(): SteeringWheel
+   fun getToll(): Toll
+   fun getTurnSignal(): TurnSignal
+   fun getWiper(): Wiper
+   fun getTire(): Tire
+   fun getSideMirror(): SideMirror
+   fun getBrake(): Brake
+   fun getFuel(): Fuel
+
+== interface ai.pleos.playground.vehicle.api.Brake   [Lai/pleos/playground/vehicle/api/Brake;]
+   abstract fun checkBrakePedalStatusCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getCurrentBrakePedalStatus(onComplete: (Boolean?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun registerBrakePedalStatus(listener: BrakePedalStatusListener)
+   abstract fun unregisterBrakePedalStatus(listener: BrakePedalStatusListener)
+
+== interface ai.pleos.playground.vehicle.api.CarInfo   [Lai/pleos/playground/vehicle/api/CarInfo;]
+   abstract fun checkCRNInfoCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkVINInfoCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getCRNInfo(onComplete: (String?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getCapabilityInfo(onComplete: (Map<String, CapabilityConfig<Any>>?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getVINInfo(onComplete: (String?) -> Unit, onFailed: (Exception) -> Unit)
+
+== interface ai.pleos.playground.vehicle.api.Door   [Lai/pleos/playground/vehicle/api/Door;]
+   abstract fun checkDoorLockCapabilities(onComplete: (CapabilityConfig, List<DoorArea>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkDoorLockCapabilities(onComplete: (List<DoorArea>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkDoorPositionCapabilities(onComplete: (CapabilityConfig, Map<DoorArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkDoorPositionCapabilities(onComplete: (Map<DoorArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkGloveBoxLockCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getCurrentDoorPosition(area: DoorArea, onComplete: (Int?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getCurrentGloveBoxLockState(onComplete: (Boolean?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getDoorLockState(area: DoorArea, onComplete: (Boolean?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun registerDoorLockState(area: DoorArea, listener: DoorLockStateListener)
+   abstract fun registerDoorPosition(area: DoorArea, listener: DoorPositionListener)
+   abstract fun registerGloveBoxLockState(listener: GloveBoxLockStateListener)
+   abstract fun setDoorLock(area: DoorArea, value: Boolean, onComplete: (DoorArea, Boolean?) -> Unit = …, onFailed: (Exception) -> Unit = …)
+   abstract fun setDoorPosition(area: DoorArea, value: Int, onComplete: (DoorArea, Int?) -> Unit = …, onFailed: (Exception) -> Unit = …)
+   abstract fun setGloveBoxLock(value: Boolean, onComplete: (Boolean?) -> Unit = …, onFailed: (Exception) -> Unit = …)
+   abstract fun unregisterDoorLockState(area: DoorArea, listener: DoorLockStateListener)
+   abstract fun unregisterDoorPosition(area: DoorArea, listener: DoorPositionListener)
+   abstract fun unregisterGloveBoxLockState(listener: GloveBoxLockStateListener)
+
+== interface ai.pleos.playground.vehicle.api.EvBattery   [Lai/pleos/playground/vehicle/api/EvBattery;]
+   abstract fun checkCumulativeEvEfficiencyCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkCurrentEvEfficiencyCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkEvBatteryStateOfChargeCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkEvChargeCurrentDrawLimitCapabilities(onComplete: (CapabilityConfig, List<Float>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkEvChargeCurrentDrawLimitCapabilities(onComplete: (List<Float>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkEvChargePercentLimitCapabilities(onComplete: (CapabilityConfig, List<Float>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkEvChargePortOpenCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkEvChargeSwitchCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkInstantaneousEvEfficiencyCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSinceChargeEvEfficiencyCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getCumulativeEvEfficiency(onComplete: (Float?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getCurrentEvEfficiency(onComplete: (Float?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getEvBatteryCapacity(onComplete: (Float?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getEvBatteryLevel(onComplete: (Float?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getEvBatteryStateOfCharge(onComplete: (Int?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getEvChargeCurrentDrawLimit(onComplete: (Float?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getEvChargeSwitchState(onComplete: (Boolean?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getInstantaneousEvEfficiency(onComplete: (Float?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getSinceChargeEvEfficiency(onComplete: (Float?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun isEvChargePortOpen(onComplete: (Boolean?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun registerCumulativeEvEfficiency(listener: EvBatteryEfficiencyListener)
+   abstract fun registerCurrentEvEfficiency(listener: EvBatteryEfficiencyListener)
+   abstract fun registerEvBatteryLevel(listener: EvBatteryLevelListener)
+   abstract fun registerEvBatteryStateOfCharge(listener: EvBatteryStateOfChargeListener)
+   abstract fun registerEvChargePortOpen(listener: EvChargePortOpenListener)
+   abstract fun registerInstantaneousEvEfficiency(listener: EvBatteryEfficiencyListener)
+   abstract fun registerSinceChargeEvEfficiency(listener: EvBatteryEfficiencyListener)
+   abstract fun setEvChargeCurrentDrawLimit(value: Float, onComplete: (Float?) -> Unit = …, onFailed: (Exception) -> Unit = …)
+   abstract fun setEvChargePercentLimit(value: Float, onComplete: (Float?) -> Unit = …, onFailed: (Exception) -> Unit = …)
+   abstract fun setEvChargePortOpen(value: Boolean, onComplete: (Boolean?) -> Unit = …, onFailed: (Exception) -> Unit = …)
+   abstract fun setEvChargeSwitch(value: Boolean, onComplete: (Boolean?) -> Unit = …, onFailed: (Exception) -> Unit = …)
+   abstract fun unregisterCumulativeEvEfficiency(listener: EvBatteryEfficiencyListener)
+   abstract fun unregisterCurrentEvEfficiency(listener: EvBatteryEfficiencyListener)
+   abstract fun unregisterEvBatteryLevel(listener: EvBatteryLevelListener)
+   abstract fun unregisterEvBatteryStateOfCharge(listener: EvBatteryStateOfChargeListener)
+   abstract fun unregisterEvChargePortOpen(listener: EvChargePortOpenListener)
+   abstract fun unregisterInstantaneousEvEfficiency(listener: EvBatteryEfficiencyListener)
+   abstract fun unregisterSinceChargeEvEfficiency(listener: EvBatteryEfficiencyListener)
+
+== interface ai.pleos.playground.vehicle.api.Fuel   [Lai/pleos/playground/vehicle/api/Fuel;]
+   abstract fun checkCumulativeFuelEconomyCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkCurrentFuelEconomyCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkFuelPercentCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkInstantaneousFuelEconomyCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSinceChargeFuelEconomyCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getCumulativeFuelEconomy(onComplete: (Float?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getCurrentFuelEconomy(onComplete: (Float?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getFuelPercent(onComplete: (Int?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getInstantaneousFuelEconomy(onComplete: (Float?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getSinceChargeFuelEconomy(onComplete: (Float?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun registerCumulativeFuelEconomy(listener: FuelEconomyListener)
+   abstract fun registerCurrentFuelEconomy(listener: FuelEconomyListener)
+   abstract fun registerFuelPercent(listener: FuelPercentListener)
+   abstract fun registerInstantaneousFuelEconomy(listener: FuelEconomyListener)
+   abstract fun registerSinceChargeFuelEconomy(listener: FuelEconomyListener)
+   abstract fun unregisterCumulativeFuelEconomy(listener: FuelEconomyListener)
+   abstract fun unregisterCurrentFuelEconomy(listener: FuelEconomyListener)
+   abstract fun unregisterFuelPercent(listener: FuelPercentListener)
+   abstract fun unregisterInstantaneousFuelEconomy(listener: FuelEconomyListener)
+   abstract fun unregisterSinceChargeFuelEconomy(listener: FuelEconomyListener)
+
+== interface ai.pleos.playground.vehicle.api.Gear   [Lai/pleos/playground/vehicle/api/Gear;]
+   abstract fun getCurrentGearSelectionState(onComplete: (VehicleGear?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun registerGearSelection(listener: GearSelectionListener)
+   abstract fun unregisterGearSelection(listener: GearSelectionListener)
+
+== interface ai.pleos.playground.vehicle.api.Odometer   [Lai/pleos/playground/vehicle/api/Odometer;]
+   abstract fun checkCurrentDistanceDrivenCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkTripCumulativeDrivingDistanceCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkTripCumulativeDrivingTimeCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkTripCurrentDrivingDistanceCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkTripCurrentDrivingTimeCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkTripDrivingDistanceCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkTripDrivingTimeCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkTripInstantaneousDrivingDistanceCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkTripSinceRefillDrivingDistanceCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkTripSinceRefillDrivingTimeCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getCurrentDistanceDriven(onComplete: (Float?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getRangeRemainingDistance(onComplete: (Float?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getTripCumulativeDrivingDistance(onComplete: (Float?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getTripCumulativeDrivingTime(onComplete: (Int?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getTripCurrentDrivingDistance(onComplete: (Float?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getTripCurrentDrivingTime(onComplete: (Int?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getTripInstantaneousDrivingDistance(onComplete: (Float?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getTripSinceRefillDrivingDistance(onComplete: (Float?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getTripSinceRefillDrivingTime(onComplete: (Int?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun registerDistanceDriven(listener: DistanceDrivenListener)
+   abstract fun registerRangeRemainingListener(listener: RangeRemainingListener)
+   abstract fun registerTripCumulativeDrivingDistance(listener: DistanceDrivenListener)
+   abstract fun registerTripCumulativeDrivingTime(listener: DrivingTimeListener)
+   abstract fun registerTripCurrentDrivingDistance(listener: DistanceDrivenListener)
+   abstract fun registerTripCurrentDrivingTime(listener: DrivingTimeListener)
+   abstract fun registerTripInstantaneousDrivingDistance(listener: DistanceDrivenListener)
+   abstract fun registerTripSinceRefillDrivingDistance(listener: DistanceDrivenListener)
+   abstract fun registerTripSinceRefillDrivingTime(listener: DrivingTimeListener)
+   abstract fun setRangeRemainingDistance(value: Float, onComplete: (Float?) -> Unit = …, onFailed: (Exception) -> Unit = …)
+   abstract fun unregisterDistanceDriven(listener: DistanceDrivenListener)
+   abstract fun unregisterRangeRemainingListener(listener: RangeRemainingListener)
+   abstract fun unregisterTripCumulativeDrivingDistance(listener: DistanceDrivenListener)
+   abstract fun unregisterTripCumulativeDrivingTime(listener: DrivingTimeListener)
+   abstract fun unregisterTripCurrentDrivingDistance(listener: DistanceDrivenListener)
+   abstract fun unregisterTripCurrentDrivingTime(listener: DrivingTimeListener)
+   abstract fun unregisterTripInstantaneousDrivingDistance(listener: DistanceDrivenListener)
+   abstract fun unregisterTripSinceRefillDrivingDistance(listener: DistanceDrivenListener)
+   abstract fun unregisterTripSinceRefillDrivingTime(listener: DrivingTimeListener)
+
+== interface ai.pleos.playground.vehicle.api.Seat   [Lai/pleos/playground/vehicle/api/Seat;]
+   abstract fun checkMoveSeatBackrestAngleCapabilities(onComplete: (CapabilityConfig, List<SeatArea>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkMoveSeatBeltHeightCapabilities(onComplete: (CapabilityConfig, List<SeatArea>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkMoveSeatDepthCapabilities(onComplete: (CapabilityConfig, List<SeatArea>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkMoveSeatForeAftCapabilities(onComplete: (CapabilityConfig, List<SeatArea>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkMoveSeatHeadrestAngleCapabilities(onComplete: (CapabilityConfig, List<SeatArea>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkMoveSeatHeadrestForeAftCapabilities(onComplete: (CapabilityConfig, List<SeatArea>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkMoveSeatHeadrestHeightCapabilities(onComplete: (CapabilityConfig, List<SeatArea>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkMoveSeatHeightCapabilities(onComplete: (CapabilityConfig, List<SeatArea>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkMoveSeatLumbarForeAftCapabilities(onComplete: (CapabilityConfig, List<SeatArea>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkMoveSeatLumbarSideSupportCapabilities(onComplete: (CapabilityConfig, List<SeatArea>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkMoveSeatTiltCapabilities(onComplete: (CapabilityConfig, List<SeatArea>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatBackrestAngleCapabilities(onComplete: (Map<SeatArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatBackrestAnglePositionCapabilities(onComplete: (CapabilityConfig, Map<SeatArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatBeltBuckledCapabilities(onComplete: (CapabilityConfig, List<SeatArea>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatBeltBuckledCapabilities(onComplete: (List<SeatArea>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatBeltHeightCapabilities(onComplete: (Map<SeatArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatBeltHeightPositionCapabilities(onComplete: (CapabilityConfig, Map<SeatArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatDepthCapabilities(onComplete: (Map<SeatArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatDepthPositionCapabilities(onComplete: (CapabilityConfig, Map<SeatArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatForeAftCapabilities(onComplete: (Map<SeatArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatForeAftPositionCapabilities(onComplete: (CapabilityConfig, Map<SeatArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatHeadrestAngleCapabilities(onComplete: (Map<SeatArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatHeadrestAnglePositionCapabilities(onComplete: (CapabilityConfig, Map<SeatArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatHeadrestForeAftCapabilities(onComplete: (Map<SeatArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatHeadrestForeAftPositionCapabilities(onComplete: (CapabilityConfig, Map<SeatArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatHeadrestHeightCapabilities(onComplete: (Map<SeatArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatHeadrestHeightPositionCapabilities(onComplete: (CapabilityConfig, Map<SeatArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatHeightCapabilities(onComplete: (Map<SeatArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatHeightPositionCapabilities(onComplete: (CapabilityConfig, Map<SeatArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatLumbarForeAftCapabilities(onComplete: (Map<SeatArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatLumbarForeAftPositionCapabilities(onComplete: (CapabilityConfig, Map<SeatArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatLumbarSideSupportCapabilities(onComplete: (Map<SeatArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatLumbarSideSupportPositionCapabilities(onComplete: (CapabilityConfig, Map<SeatArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatMemoryCapabilities(onComplete: (CapabilityConfig, Map<SeatArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatOccupancyCapabilities(onComplete: (CapabilityConfig, List<SeatArea>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatOccupancyCapabilities(onComplete: (List<SeatArea>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatTemperatureCapabilities(onComplete: (CapabilityConfig, Map<SeatArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatTemperatureCapabilities(onComplete: (Map<SeatArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatTiltCapabilities(onComplete: (Map<SeatArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatTiltPositionCapabilities(onComplete: (CapabilityConfig, Map<SeatArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatVentilationCapabilities(onComplete: (CapabilityConfig, Map<SeatArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSeatVentilationCapabilities(onComplete: (Map<SeatArea, AreaBounds<Int>>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getCurrentSeatBackrestAnglePosition(area: SeatArea, onComplete: (Int?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getCurrentSeatBeltBuckledState(area: SeatArea, onComplete: (Boolean?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getCurrentSeatBeltHeightPosition(area: SeatArea, onComplete: (Int?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getCurrentSeatDepthPosition(area: SeatArea, onComplete: (Int?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getCurrentSeatForeAftPosition(area: SeatArea, onComplete: (Int?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getCurrentSeatHeadrestAnglePosition(area: SeatArea, onComplete: (Int?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getCurrentSeatHeadrestForeAftPosition(area: SeatArea, onComplete: (Int?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getCurrentSeatHeadrestHeightAftPosition(area: SeatArea, onComplete: (Int?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getCurrentSeatHeightPosition(area: SeatArea, onComplete: (Int?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getCurrentSeatLumbarForeAftPosition(area: SeatArea, onComplete: (Int?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getCurrentSeatLumbarSideSupportPosition(area: SeatArea, onComplete: (Int?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getCurrentSeatOccupancy(area: SeatArea, onComplete: (Boolean?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getCurrentSeatTiltPosition(area: SeatArea, onComplete: (Int?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getHvacSeatTemperature(area: SeatArea, onComplete: (Int?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getHvacSeatVentilationState(area: SeatArea, onComplete: (Int?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun moveSeatBackrestAngle(area: SeatArea, value: MoveControl, onComplete: (SeatArea, MoveControl?) -> Unit = …, onFailed: (Exception) -> Unit = …)
+   abstract fun moveSeatBeltHeight(area: SeatArea, value: MoveControl, onComplete: (SeatArea, MoveControl?) -> Unit = …, onFailed: (Exception) -> Unit = …)
+   abstract fun moveSeatDepth(area: SeatArea, value: MoveControl, onComplete: (SeatArea, MoveControl?) -> Unit = …, onFailed: (Exception) -> Unit = …)
+   abstract fun moveSeatForeAft(area: SeatArea, value: MoveControl, onComplete: (SeatArea, MoveControl?) -> Unit = …, onFailed: (Exception) -> Unit = …)
+   abstract fun moveSeatHeadrestAngle(area: SeatArea, value: MoveControl, onComplete: (SeatArea, MoveControl?) -> Unit = …, onFailed: (Exception) -> Unit = …)
+   abstract fun moveSeatHeadrestForeAft(area: SeatArea, value: MoveControl, onComplete: (SeatArea, MoveControl?) -> Unit = …, onFailed: (Exception) -> Unit = …)
+   abstract fun moveSeatHeadrestHeight(area: SeatArea, value: MoveControl, onComplete: (SeatArea, MoveControl?) -> Unit = …, onFailed: (Exception) -> Unit = …)
+   abstract fun moveSeatHeight(area: SeatArea, value: MoveControl, onComplete: (SeatArea, MoveControl?) -> Unit = …, onFailed: (Exception) -> Unit = …)
+   abstract fun moveSeatLumbarForeAft(area: SeatArea, value: MoveControl, onComplete: (SeatArea, MoveControl?) -> Unit = …, onFailed: (Exception) -> Unit = …)
+   abstract fun moveSeatLumbarSideSupport(area: SeatArea, value: MoveControl, onComplete: (SeatArea, MoveControl?) -> Unit = …, onFailed: (Exception) -> Unit = …)
+   abstract fun moveSeatTilt(area: SeatArea, value: MoveControl, onComplete: (SeatArea, MoveControl?) -> Unit = …, onFailed: (Exception) -> Unit = …)
+   abstract fun registerHvacSeatTemperature(area: SeatArea, listener: HvacSeatTemperatureListener)
+   abstract fun registerHvacSeatVentilation(area: SeatArea, listener: HvacSeatVentilationListener)
+   abstract fun registerSeatBackrestAnglePosition(area: SeatArea, listener: SeatBackrestAnglePositionListener)
+   abstract fun registerSeatBeltBuckledState(area: SeatArea, listener: SeatBeltBuckledStateListener)
+   abstract fun registerSeatBeltHeightPosition(area: SeatArea, listener: SeatBeltHeightPositionListener)
+   abstract fun registerSeatDepthPosition(area: SeatArea, listener: SeatDepthPositionListener)
+   abstract fun registerSeatForeAftPosition(area: SeatArea, listener: SeatForeAftPositionListener)
+   abstract fun registerSeatHeadrestAnglePosition(area: SeatArea, listener: SeatHeadrestAnglePositionListener)
+   abstract fun registerSeatHeadrestForeAftPosition(area: SeatArea, listener: SeatHeadrestForeAftPositionListener)
+   abstract fun registerSeatHeadrestHeightAftPosition(area: SeatArea, listener: SeatHeadrestHeightAftPositionListener)
+   abstract fun registerSeatHeightPosition(area: SeatArea, listener: SeatHeightPositionListener)
+   abstract fun registerSeatLumbarForeAftPosition(area: SeatArea, listener: SeatLumbarForeAftPositionListener)
+   abstract fun registerSeatLumbarSideSupportPosition(area: SeatArea, listener: SeatLumbarSideSupportPositionListener)
+   abstract fun registerSeatOccupancy(area: SeatArea, listener: SeatOccupancyListener)
+   abstract fun registerSeatTiltPosition(area: SeatArea, listener: SeatTiltPositionListener)
+   abstract fun selectSeatMemory(area: SeatArea, value: Int, onFailed: (Exception) -> Unit = …)
+   abstract fun setHvacSeatTemperature(area: SeatArea, value: Int, onComplete: (SeatArea, Int?) -> Unit = …, onFailed: (Exception) -> Unit = …)
+   abstract fun setHvacSeatVentilation(area: SeatArea, value: Int, onComplete: (SeatArea, Int?) -> Unit = …, onFailed: (Exception) -> Unit = …)
+   abstract fun unregisterHvacSeatTemperature(area: SeatArea, listener: HvacSeatTemperatureListener)
+   abstract fun unregisterHvacSeatVentilation(area: SeatArea, listener: HvacSeatVentilationListener)
+   abstract fun unregisterSeatBackrestAnglePosition(area: SeatArea, listener: SeatBackrestAnglePositionListener)
+   abstract fun unregisterSeatBeltBuckledState(area: SeatArea, listener: SeatBeltBuckledStateListener)
+   abstract fun unregisterSeatBeltHeightPosition(area: SeatArea, listener: SeatBeltHeightPositionListener)
+   abstract fun unregisterSeatDepthPosition(area: SeatArea, listener: SeatDepthPositionListener)
+   abstract fun unregisterSeatForeAftPosition(area: SeatArea, listener: SeatForeAftPositionListener)
+   abstract fun unregisterSeatHeadrestAnglePosition(area: SeatArea, listener: SeatHeadrestAnglePositionListener)
+   abstract fun unregisterSeatHeadrestForeAftPosition(area: SeatArea, listener: SeatHeadrestForeAftPositionListener)
+   abstract fun unregisterSeatHeadrestHeightAftPosition(area: SeatArea, listener: SeatHeadrestHeightAftPositionListener)
+   abstract fun unregisterSeatHeightPosition(area: SeatArea, listener: SeatHeightPositionListener)
+   abstract fun unregisterSeatLumbarForeAftPosition(area: SeatArea, listener: SeatLumbarForeAftPositionListener)
+   abstract fun unregisterSeatLumbarSideSupportPosition(area: SeatArea, listener: SeatLumbarSideSupportPositionListener)
+   abstract fun unregisterSeatOccupancy(area: SeatArea, listener: SeatOccupancyListener)
+   abstract fun unregisterSeatTiltPosition(area: SeatArea, listener: SeatTiltPositionListener)
+
+== interface ai.pleos.playground.vehicle.api.SteeringWheel   [Lai/pleos/playground/vehicle/api/SteeringWheel;]
+   abstract fun checkHvacSteeringWheelHeatCapabilities(onComplete: (AreaBounds<Int>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkHvacSteeringWheelHeatCapabilities(onComplete: (CapabilityConfig, AreaBounds<Int>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun checkSteeringWheelAngleCapabilities(onComplete: (CapabilityConfig, AreaBounds<Float>) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getCurrentSteeringWheelAngle(onComplete: (Float?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getHvacSteeringWheelHeatState(onComplete: (Int?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun registerHvacSteeringWheelHeatState(listener: HvacSteeringWheelHeatStateListener)
+   abstract fun registerSteeringWheelAngle(listener: SteeringWheelAngleListener)
+   abstract fun setHvacSteeringWheelHeat(value: Int, onComplete: (Int?) -> Unit = …, onFailed: (Exception) -> Unit = …)
+   abstract fun unregisterHvacSteeringWheelHeatState(listener: HvacSteeringWheelHeatStateListener)
+   abstract fun unregisterSteeringWheelAngle(listener: SteeringWheelAngleListener)
+
+== interface ai.pleos.playground.vehicle.api.TurnSignal   [Lai/pleos/playground/vehicle/api/TurnSignal;]
+   abstract fun checkTurnSignalStateCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun getCurrentTurnSignalState(onComplete: (TurnSignalValue?) -> Unit, onFailed: (Exception) -> Unit)
+   abstract fun registerTurnSignalState(listener: TurnSignalStateListener)
+   abstract fun unregisterTurnSignalState(listener: TurnSignalStateListener)
+
+== sealed interface ai.pleos.playground.vehicle.listener.VehicleListener   [Lai/pleos/playground/vehicle/listener/VehicleListener;]
+   abstract fun onFailed(e: Exception)
+
+== interface ai.pleos.playground.vehicle.listener.TripEvEfficiencyListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/TripEvEfficiencyListener;]
+   abstract fun onTripEvEfficiencyUpdated(statistics: TripStatistics<Float>?)
+
+== interface ai.pleos.playground.vehicle.listener.TripFuelEconomyListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/TripFuelEconomyListener;]
+   abstract fun onTripFuelEconomyUpdated(statistics: TripStatistics<Float>?)
+
+== interface ai.pleos.playground.vehicle.listener.HvacTemperatureListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/HvacTemperatureListener;]
+   abstract fun onHvacTemperatureUpdated(temperature: Float?)
+
+== interface ai.pleos.playground.vehicle.listener.TripDrivingDistanceListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/TripDrivingDistanceListener;]
+   abstract fun onTripDrivingDistanceUpdated(statistics: TripStatistics<Float>?)
+
+== interface ai.pleos.playground.vehicle.listener.TripDrivingTimeListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/TripDrivingTimeListener;]
+   abstract fun onTripDrivingTimeUpdated(statistics: TripStatistics<Int>?)
+
+== class ai.pleos.playground.vehicle.api.model.area.DoorArea : Area   [Lai/pleos/playground/vehicle/api/model/area/DoorArea;]
+   constructor(vararg values: DoorValue)
+   val values: Array<out DoorValue>
+
+== class ai.pleos.playground.vehicle.api.model.area.SeatArea : Area   [Lai/pleos/playground/vehicle/api/model/area/SeatArea;]
+   constructor(vararg values: SeatValue)
+   val values: Array<out SeatValue>
+
+== enum class ai.pleos.playground.vehicle.api.model.capability.AccessType : Enum<AccessType>   [Lai/pleos/playground/vehicle/api/model/capability/AccessType;]
+   entries: NONE, READ, WRITE, READ_WRITE
+
+== data class ai.pleos.playground.vehicle.api.model.capability.AreaBounds   [Lai/pleos/playground/vehicle/api/model/capability/AreaBounds;]
+   constructor(minValue: T0, maxValue: T0)
+   val minValue: T0
+   val maxValue: T0
+
+== data class ai.pleos.playground.vehicle.api.model.capability.CapabilityConfig   [Lai/pleos/playground/vehicle/api/model/capability/CapabilityConfig;]
+   constructor(accessType: AccessType = …)
+   val accessType: AccessType
+
+== enum class ai.pleos.playground.vehicle.constant.area.DoorValue : Enum<DoorValue>, AreaValue   [Lai/pleos/playground/vehicle/constant/area/DoorValue;]
+   entries: ROW_1_LEFT, ROW_1_RIGHT, ROW_2_LEFT, ROW_2_RIGHT, ROW_3_LEFT, ROW_3_RIGHT, HOOD, REAR
+   val id: Int
+
+== enum class ai.pleos.playground.vehicle.constant.area.SeatValue : Enum<SeatValue>, AreaValue   [Lai/pleos/playground/vehicle/constant/area/SeatValue;]
+   entries: ROW_1_LEFT, ROW_1_CENTER, ROW_1_RIGHT, ROW_2_LEFT, ROW_2_CENTER, ROW_2_RIGHT, ROW_3_LEFT, ROW_3_CENTER, ROW_3_RIGHT
+   val id: Int
+
+== enum class ai.pleos.playground.vehicle.constant.area.TurnSignalValue : Enum<TurnSignalValue>, AreaValue   [Lai/pleos/playground/vehicle/constant/area/TurnSignalValue;]
+   entries: OFF, RIGHT, LEFT
+   val id: Int
+
+== enum class ai.pleos.playground.vehicle.constant.control.VehicleGear : Enum<VehicleGear>   [Lai/pleos/playground/vehicle/constant/control/VehicleGear;]
+   entries: GEAR_UNKNOWN, GEAR_NEUTRAL, GEAR_REVERSE, GEAR_PARK, GEAR_DRIVE, GEAR_1, GEAR_2, GEAR_3, GEAR_4, GEAR_5, GEAR_6, GEAR_7, GEAR_8, GEAR_9
+
+== interface ai.pleos.playground.vehicle.listener.AmbientColorAutoByDriveModeEnabledListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/AmbientColorAutoByDriveModeEnabledListener;]
+   abstract fun onAmbientColorAutoByDriveModeEnabledUpdated(enabled: Boolean?)
+
+== interface ai.pleos.playground.vehicle.listener.AmbientLightBrightnessColorListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/AmbientLightBrightnessColorListener;]
+   abstract fun onBrightnessColorUpdated(argbColor: Int?)
+
+== interface ai.pleos.playground.vehicle.listener.AmbientLightBrightnessListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/AmbientLightBrightnessListener;]
+   abstract fun onBrightnessUpdated(brightness: Int?)
+
+== interface ai.pleos.playground.vehicle.listener.BrakePedalStatusListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/BrakePedalStatusListener;]
+   abstract fun onBrakePedalStatusUpdated(status: Boolean?)
+
+== interface ai.pleos.playground.vehicle.listener.CruiseControlStateListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/CruiseControlStateListener;]
+   abstract fun onCruiseControlStateUpdated(state: CruiseControl?)
+
+== interface ai.pleos.playground.vehicle.listener.CruiseControlTargetSpeedListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/CruiseControlTargetSpeedListener;]
+   abstract fun onCruiseControlTargetSpeedUpdated(speed: Float?)
+
+== interface ai.pleos.playground.vehicle.listener.DistanceDrivenListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/DistanceDrivenListener;]
+   abstract fun onDistanceDrivenUpdated(value: Float?)
+
+== interface ai.pleos.playground.vehicle.listener.DoorLockStateListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/DoorLockStateListener;]
+   abstract fun onDoorLockStateUpdated(state: Boolean?)
+
+== interface ai.pleos.playground.vehicle.listener.DoorPositionListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/DoorPositionListener;]
+   abstract fun onPositionUpdated(pos: Int?)
+
+== interface ai.pleos.playground.vehicle.listener.DrivingModeStateListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/DrivingModeStateListener;]
+   abstract fun onDrivingModeStateUpdated(state: DrivingModeType?)
+
+== interface ai.pleos.playground.vehicle.listener.DrivingTimeListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/DrivingTimeListener;]
+   abstract fun onDrivingTimeUpdated(value: Int?)
+
+== interface ai.pleos.playground.vehicle.listener.EtcsVoiceGuidanceVolumeListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/EtcsVoiceGuidanceVolumeListener;]
+   abstract fun onEtcsVoiceGuidanceVolumeUpdated(volume: Int?)
+
+== interface ai.pleos.playground.vehicle.listener.EvBatteryEfficiencyListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/EvBatteryEfficiencyListener;]
+   abstract fun onEvBatteryEfficiencyUpdated(efficiency: Float?)
+
+== interface ai.pleos.playground.vehicle.listener.EvBatteryLevelListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/EvBatteryLevelListener;]
+   abstract fun onEvBatteryLevelUpdated(level: Float?)
+
+== interface ai.pleos.playground.vehicle.listener.EvBatteryStateOfChargeListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/EvBatteryStateOfChargeListener;]
+   abstract fun onEvBatteryStateOfChargeUpdated(value: Int?)
+
+== interface ai.pleos.playground.vehicle.listener.EvChargePortOpenListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/EvChargePortOpenListener;]
+   abstract fun onEvChargePortOpenUpdated(isOpened: Boolean?)
+
+== interface ai.pleos.playground.vehicle.listener.FuelEconomyListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/FuelEconomyListener;]
+   abstract fun onFuelEconomyUpdated(efficiency: Float?)
+
+== interface ai.pleos.playground.vehicle.listener.FuelPercentListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/FuelPercentListener;]
+   abstract fun onFuelPercentUpdated(value: Int?)
+
+== interface ai.pleos.playground.vehicle.listener.GearSelectionListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/GearSelectionListener;]
+   abstract fun onSelected(gear: VehicleGear?)
+
+== interface ai.pleos.playground.vehicle.listener.GloveBoxLockStateListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/GloveBoxLockStateListener;]
+   abstract fun onGloveBoxLockStateUpdated(state: Boolean?)
+
+== interface ai.pleos.playground.vehicle.listener.HvacAcStateListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/HvacAcStateListener;]
+   abstract fun onHvacAcStateUpdated(state: Boolean?)
+
+== interface ai.pleos.playground.vehicle.listener.HvacAirCleanerStateListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/HvacAirCleanerStateListener;]
+   abstract fun onHvacAirCleanerStateUpdated(state: Boolean?)
+
+== interface ai.pleos.playground.vehicle.listener.HvacAutoStateListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/HvacAutoStateListener;]
+   abstract fun onHvacAutoStateUpdated(state: Boolean?)
+
+== interface ai.pleos.playground.vehicle.listener.HvacDefrosterStateListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/HvacDefrosterStateListener;]
+   abstract fun onHvacDefrosterStateUpdated(state: Boolean?)
+
+== interface ai.pleos.playground.vehicle.listener.HvacDualStateListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/HvacDualStateListener;]
+   abstract fun onHvacDualStateUpdated(state: Boolean?)
+
+== interface ai.pleos.playground.vehicle.listener.HvacFanSpeedListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/HvacFanSpeedListener;]
+   abstract fun onHvacFanSpeedUpdated(speed: Int?)
+
+== interface ai.pleos.playground.vehicle.listener.HvacMaxAcStateListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/HvacMaxAcStateListener;]
+   abstract fun onHvacMaxAcStateUpdated(state: Boolean?)
+
+== interface ai.pleos.playground.vehicle.listener.HvacMaxDefrostStateListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/HvacMaxDefrostStateListener;]
+   abstract fun onHvacMaxDefrostStateUpdated(state: Boolean?)
+
+== interface ai.pleos.playground.vehicle.listener.HvacPowerStateListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/HvacPowerStateListener;]
+   abstract fun onHvacPowerStateUpdated(state: Boolean?)
+
+== interface ai.pleos.playground.vehicle.listener.HvacRecirculationStateListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/HvacRecirculationStateListener;]
+   abstract fun onHvacAutoRecirculationStateUpdated(state: Boolean?)
+
+== interface ai.pleos.playground.vehicle.listener.HvacSeatTemperatureListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/HvacSeatTemperatureListener;]
+   abstract fun onHvacSeatTemperatureUpdated(temperature: Int?)
+
+== interface ai.pleos.playground.vehicle.listener.HvacSeatVentilationListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/HvacSeatVentilationListener;]
+   abstract fun onHvacSeatVentilationUpdated(ventilation: Int?)
+
+== interface ai.pleos.playground.vehicle.listener.HvacSideMirrorHeatStateListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/HvacSideMirrorHeatStateListener;]
+   abstract fun onHvacSideMirrorHeatStateUpdated(state: Int?)
+
+== interface ai.pleos.playground.vehicle.listener.HvacSteeringWheelHeatStateListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/HvacSteeringWheelHeatStateListener;]
+   abstract fun onHvacSteeringWheelHeatStateUpdated(state: Int?)
+
+== interface ai.pleos.playground.vehicle.listener.HvacTemperatureValueListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/HvacTemperatureValueListener;]
+   abstract fun onHvacTemperatureUpdated(celsius: Float?, fahrenheit: Float?)
+
+== interface ai.pleos.playground.vehicle.listener.LightStateListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/LightStateListener;]
+   abstract fun onLightStateUpdated(state: LightState?)
+
+== interface ai.pleos.playground.vehicle.listener.LowWasherFluidWaringListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/LowWasherFluidWaringListener;]
+   abstract fun onLowWasherFluidWaringUpdated(state: Boolean?)
+
+== interface ai.pleos.playground.vehicle.listener.OilLevelStateListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/OilLevelStateListener;]
+   abstract fun onOilLevelUpdated(level: OilLevelState?)
+
+== interface ai.pleos.playground.vehicle.listener.PowerDownWarningIndicatorListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/PowerDownWarningIndicatorListener;]
+   abstract fun onPowerDownWarningIndicatorUpdated(state: Boolean?)
+
+== interface ai.pleos.playground.vehicle.listener.RangeRemainingListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/RangeRemainingListener;]
+   abstract fun onRangeRemainingChanged(rangeRemaining: Float?)
+
+== interface ai.pleos.playground.vehicle.listener.SeatAirbagDeployedListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/SeatAirbagDeployedListener;]
+   abstract fun onSeatAirbagDeployUpdated(deployed: Boolean?)
+
+== interface ai.pleos.playground.vehicle.listener.SeatAirbagEnabledListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/SeatAirbagEnabledListener;]
+   abstract fun onSeatAirbagEnabledUpdated(enabled: Boolean?)
+
+== interface ai.pleos.playground.vehicle.listener.SeatBackrestAnglePositionListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/SeatBackrestAnglePositionListener;]
+   abstract fun onSeatBackrestAnglePositionUpdated(position: Int?)
+
+== interface ai.pleos.playground.vehicle.listener.SeatBeltBuckledStateListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/SeatBeltBuckledStateListener;]
+   abstract fun onSeatBeltBuckledStateUpdated(state: Boolean?)
+
+== interface ai.pleos.playground.vehicle.listener.SeatBeltHeightPositionListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/SeatBeltHeightPositionListener;]
+   abstract fun onSeatBeltHeightPositionUpdated(position: Int?)
+
+== interface ai.pleos.playground.vehicle.listener.SeatBeltNotBuckledWarningListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/SeatBeltNotBuckledWarningListener;]
+   abstract fun onSeatBeltNotBuckledWarningUpdated(state: Boolean?)
+
+== interface ai.pleos.playground.vehicle.listener.SeatDepthPositionListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/SeatDepthPositionListener;]
+   abstract fun onSeatDepthPositionUpdated(position: Int?)
+
+== interface ai.pleos.playground.vehicle.listener.SeatForeAftPositionListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/SeatForeAftPositionListener;]
+   abstract fun onSeatForeAftPositionUpdated(position: Int?)
+
+== interface ai.pleos.playground.vehicle.listener.SeatHeadrestAnglePositionListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/SeatHeadrestAnglePositionListener;]
+   abstract fun onSeatHeadrestAnglePositionUpdated(position: Int?)
+
+== interface ai.pleos.playground.vehicle.listener.SeatHeadrestForeAftPositionListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/SeatHeadrestForeAftPositionListener;]
+   abstract fun onSeatHeadrestForeAftPositionUpdated(position: Int?)
+
+== interface ai.pleos.playground.vehicle.listener.SeatHeadrestHeightAftPositionListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/SeatHeadrestHeightAftPositionListener;]
+   abstract fun onSeatHeadrestHeightAftPositionUpdated(position: Int?)
+
+== interface ai.pleos.playground.vehicle.listener.SeatHeightPositionListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/SeatHeightPositionListener;]
+   abstract fun onSeatHeightPositionUpdated(position: Int?)
+
+== interface ai.pleos.playground.vehicle.listener.SeatLumbarForeAftPositionListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/SeatLumbarForeAftPositionListener;]
+   abstract fun onSeatLumbarForeAftPositionUpdated(position: Int?)
+
+== interface ai.pleos.playground.vehicle.listener.SeatLumbarSideSupportPositionListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/SeatLumbarSideSupportPositionListener;]
+   abstract fun onSeatLumbarSideSupportPositionUpdated(position: Int?)
+
+== interface ai.pleos.playground.vehicle.listener.SeatOccupancyListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/SeatOccupancyListener;]
+   abstract fun onSeatOccupancyUpdated(occupancy: Boolean?)
+
+== interface ai.pleos.playground.vehicle.listener.SeatTiltPositionListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/SeatTiltPositionListener;]
+   abstract fun onSeatTiltPositionUpdated(position: Int?)
+
+== interface ai.pleos.playground.vehicle.listener.SmartGlassLevelListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/SmartGlassLevelListener;]
+   abstract fun onSmartGlassLevelUpdated(level: Int?)
+
+== interface ai.pleos.playground.vehicle.listener.SmartGlassStateListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/SmartGlassStateListener;]
+   abstract fun onSmartGlassStateUpdated(state: Boolean?)
+
+== interface ai.pleos.playground.vehicle.listener.SteeringWheelAngleListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/SteeringWheelAngleListener;]
+   abstract fun onSteeringWheelAngleUpdated(angle: Float?)
+
+== interface ai.pleos.playground.vehicle.listener.TelltaleInfoListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/TelltaleInfoListener;]
+   abstract fun onTelltaleInfoUpdated(telltales: Telltales?)
+
+== interface ai.pleos.playground.vehicle.listener.TemperatureDisplayUnitListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/TemperatureDisplayUnitListener;]
+   abstract fun onTemperatureDisplayUnitUpdated(unit: TemperatureUnit?)
+
+== interface ai.pleos.playground.vehicle.listener.TirePressureListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/TirePressureListener;]
+   abstract fun onTirePressureUpdated(pressure: Float?)
+
+== interface ai.pleos.playground.vehicle.listener.TurnSignalStateListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/TurnSignalStateListener;]
+   abstract fun onTurnSignalStateUpdated(state: TurnSignalValue?)
+
+== interface ai.pleos.playground.vehicle.listener.WindowLockStateListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/WindowLockStateListener;]
+   abstract fun onWindowLockStateUpdated(state: Boolean?)
+
+== interface ai.pleos.playground.vehicle.listener.WindowPositionListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/WindowPositionListener;]
+   abstract fun onWindowPositionUpdated(position: Int?)
+
+== interface ai.pleos.playground.vehicle.listener.WiperStateListener : VehicleListener   [Lai/pleos/playground/vehicle/listener/WiperStateListener;]
+   abstract fun onWiperStateUpdated(state: WiperState?)
+

@@ -33,7 +33,8 @@ Kotlin → JS   window.__pleos.resolve(id, json)      결과(JSON 글)
 | `NaviHelper.removeWaypoint` | `{idx: "FIRST" \| "SECOND" \| "ALL"}` | `null` | `removeWaypoint(WaypointIndex)` |
 | `NaviHelper.changeRouteOption` | `{option}` | `null` | `changeRouteOption(RouteOption)` |
 | `NaviHelper.cancelRoute` | — | `null` | `cancelRoute()` |
-| `NaviHelper.requestRoute`, `requestRouteWithWaypoints` | — | 항상 실패 `UNVERIFIED_ROUTE_INFO` | `RouteInfo` 필드 미확인 → 부르지 않는다. 목적지는 Pleos 내비에서 정한다 |
+| `NaviHelper.requestRoute` | `{latitude, longitude, name}` | `null` | `requestRoute(RouteInfo(latitude, longitude, poiName = name, poiId = "", address = "", poiSubId = "0"))`(실제 SDK 메타데이터로 확인). `onRoutingCompleted`/`onRouteStarted`/`onWayPointInfo`를 2.5초 기다리고, `onError`면 실패. 웹은 경유지가 안 될 때의 대체 경로와 그 복귀에서만 쓴다 — 목적지는 Pleos 내비에서 정한다. 임의 좌표를 내비가 받는지 🧪 |
+| `NaviHelper.requestRouteWithWaypoints` | `{dest: {latitude, longitude, name}, waypoints: [RequestWaypointInfo 모양]}` | `null` | `requestRouteWithWaypoints(RouteWithWaypointsRequest(destination, waypoints))`. 출발 전 브리핑에서 고른 매물에 한 번 시도, 안 되면 `addWaypoint` |
 | `Vehicle.getCarInfo` | — | `{manufacturer: null, model: null, modelYear: null}` | CarInfo는 VIN·CRN만 확인 → 앱이 차종을 한 번 고르게 한다 |
 | `Vehicle.capabilities` | — | `{steeringWheelAngle, evBatteryStateOfCharge}` = AccessType 이름 | `checkSteeringWheelAngleCapabilities`, `checkEvBatteryStateOfChargeCapabilities` |
 | `Vehicle.registerSeatOccupancy` | `{area: ["ROW_2_LEFT","ROW_2_CENTER","ROW_2_RIGHT"], tag: "row2"}` 또는 `{area: ["ROW_3_LEFT","ROW_3_RIGHT"], tag: "row3"}` | `{tag, registered: [실제로 등록한 이름]}` | 줄(tag)마다 한 번. 좌석마다 `registerSeatOccupancy(SeatArea(sv), listener)`. `SeatValue.valueOf`가 모르는 이름은 건너뛴다 |
@@ -42,9 +43,9 @@ Kotlin → JS   window.__pleos.resolve(id, json)      결과(JSON 글)
 | `Vehicle.registerTurnSignalState` | — | `null` | `registerTurnSignalState(listener)` |
 | `Vehicle.registerSteeringWheelAngle` | — | `null` | `registerSteeringWheelAngle(listener)` — 0.15초에 한 번 또는 2° 넘게 바뀔 때만 웹으로 |
 | `Vehicle.registerBrakePedalStatus` | — | `null` | `registerBrakePedalStatus(listener)` |
-| `Vehicle.getOdometerKm` | — | km | Odometer 미확인 → 대체: NaviHelper 위치를 1초마다 누적한 거리(순간 이동·제자리 흔들림 제외) |
-| `Vehicle.getFuelRangeKm` | — | `null` | Fuel 미확인 |
-| `Vehicle.registerTrunkOpen` | — | `null`(이벤트 없음) | Door 트렁크 미확인. 웹은 이 메서드를 부르지 않는다(브리지 계약 시험이 확인). 셸의 `null` 응답은 예전 웹을 위한 것 |
+| `Vehicle.getOdometerKm` | — | km 또는 `null` | `Odometer.getCurrentDistanceDriven(onComplete, onFailed)`(실제 SDK 바이너리 확인, 단위 🧪). 웹은 출발·도착 값의 차이만 쓰므로 한 주행 안에서 출처를 바꾸지 않는다: 차가 한 번 답하면 계속 차 값(안 오면 `null`), 처음부터 안 되면 대체(↪) NaviHelper 위치를 1초마다 누적한 거리(순간 이동·제자리 흔들림 제외). 출처는 `Vehicle.odometerSource` 이벤트로 알린다 |
+| `Vehicle.getFuelRangeKm` | — | km 또는 `null` | `Odometer.getRangeRemainingDistance(onComplete, onFailed)`(바이너리 확인, 단위 🧪) — 내연기관·전기차 공통 주행 가능 거리. 5초 캐시 |
+| `Vehicle.registerTrunkOpen` | — | `null` | `Door.registerDoorPosition(DoorArea(DoorValue.REAR), DoorPositionListener)`(바이너리 확인). 한 번만 등록. 열림 판정(`position != 0`)은 에뮬레이터에서 확인 🧪 |
 | `CarUx.current` | — | `true`(주행 중) / `false` | AAOS `CarUxRestrictionsManager.isRequiresDistractionOptimization`. 못 쓰면 대체: 위치 변화 속도 > 5km/h |
 | `Voice.capabilities` | — | `{tts, stt, ttsEngine: "pleos" \| "android" \| "none", sttEngine: "pleos" \| "android" \| "none"}` | |
 | `Voice.speak` | `{text}` | `null`(말이 끝나면) | Pleos TextToSpeech(ON_DEVICE) → 안 되면 안드로이드 TextToSpeech |
@@ -58,17 +59,21 @@ Kotlin → JS   window.__pleos.resolve(id, json)      결과(JSON 글)
 | `NaviHelper.onNavigationStatus` | 상태 이름 | 리스너 |
 | `NaviHelper.onDestinationInfo` | 목적지 또는 `null`(`onRouteCancelled`) | 리스너 |
 | `NaviHelper.onWayPointInfo` | 경유지 목록 | 리스너 |
-| `NaviHelper.onWayPointArrived` | `{latitude, longitude, …, raw}` — 좌표는 **콜백을 받은 순간의 현재 위치** | 리스너(WaypointArrivedInfo 필드 미확인 → 대체) |
-| `NaviHelper.onDestinationArrived` | `null` | 대체: 안내 중이던 목적지가 300m 안에서 안내가 끝나거나, 남은 거리 30m 미만 |
+| `NaviHelper.onWayPointArrived` | `{name, address, index: "FIRST" \| "SECOND", distance, duration, latitude, longitude, poiId: ""}` — `WaypointArrivedInfo(distance, duration, index, name, address)`(바이너리 확인)에 좌표가 없어 **콜백을 받은 순간의 현재 위치**를 같이 보낸다. 웹은 좌표로 거래 지점을 맞춘다 | 리스너 |
+| `NaviHelper.onDestinationArrived` | `{name, address, distance, duration}` 또는 `null`(대체) | 리스너 `onDestinationArrived(DestinationArrivedInfo)`(문서엔 없고 바이너리에만 있음) 또는 대체: 안내 중이던 목적지가 300m 안에서 안내가 끝나거나 남은 거리 30m 미만. 같은 목적지엔 한 번만 |
 | `NaviHelper.onTBTInfo` | TBT 목록 | 리스너 + 1초 조회 |
 | `NaviHelper.onTripInfo` | Trip 결과 | 리스너 |
 | `NaviHelper.onRouteOptionChanged` | 옵션 이름 | 리스너 |
 | `NaviHelper.onError` | NaviErrorCode 이름 | 리스너 |
+| `NaviHelper.onRouteStarted` | `{name, distance, duration}` | 리스너 `onRouteStarted(RouteStartInfo)` — 기록용 |
 | `Vehicle.onSeatOccupancyUpdated` | `{tag: "row2" \| "row3", occupied}` — 그 줄에 한 곳이라도 앉았으면 `true`. (예전 셸의 태그 없는 `true/false`는 웹이 2열로 본다) | 리스너 |
 | `Vehicle.onEvBatteryStateOfChargeUpdated` | % | 리스너 |
 | `Vehicle.onTurnSignalStateUpdated` | `"OFF" \| "LEFT" \| "RIGHT"` | 리스너 |
 | `Vehicle.onSteeringWheelAngleUpdated` | ° (좌측 음수) | 리스너 |
 | `Vehicle.onBrakePedalStatusUpdated` | `true/false` | 리스너 |
+| `Vehicle.onTrunkOpen` | `{open, position}` | `DoorPositionListener.onPositionUpdated(Int?)` — 웹은 `open`이 `true → false`로 바뀌면 "실으셨나요?" |
+| `Vehicle.onFailed` | `{event, error}` | 모든 Vehicle 리스너의 `onFailed(Exception)`(바이너리 확인: 리스너는 모두 `VehicleListener`를 상속). 기록 서랍용 |
+| `Vehicle.odometerSource` | `"pleos" \| "location"` | 주행거리 출처가 정해질 때 한 번 |
 | `restriction` | 주행 중이면 `true` | 0.5초마다 확인해 바뀔 때만 |
 
 ## 웹이 실제 SDK 모드에서 다르게 하는 것

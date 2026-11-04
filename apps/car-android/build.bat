@@ -36,6 +36,7 @@ echo ANDROID_HOME=%ANDROID_HOME% >> "%LOG%"
 set "ADB=%ANDROID_HOME%\platform-tools\adb.exe"
 
 if /i "%~1"=="install" goto :install
+if /i "%~1"=="release" goto :release
 
 rem --- 1) build the car web screen so the app can also run without the PC server ---
 echo. >> "%LOG%"
@@ -79,6 +80,24 @@ rem emulator localhost:8787 -> PC 8787 (the app uses 10.0.2.2:8787 by default; b
 "%ADB%" shell am start -n ai.jhgo.car/.MainActivity >> "%LOG%" 2>&1
 findstr /b /c:"EXIT_" "%LOG%"
 echo Installed. Keep the PC server running: npm start (repo root). Log: %LOG%
+
+:release
+rem submission APK: pleosRelease (signed with the debug key so it installs on the emulator; see README) -> <repo>\apk\
+pushd "%HERE%"
+echo. >> "%LOG%"
+echo ===== assemblePleosRelease ===== >> "%LOG%"
+call gradlew.bat assemblePleosRelease --no-daemon --console=plain >> "%LOG%" 2>&1
+echo EXIT_RELEASE=!ERRORLEVEL! >> "%LOG%"
+popd
+set "RAPK=%HERE%app\build\outputs\apk\pleos\release\app-pleos-release.apk"
+if exist "%RAPK%" (
+  if not exist "%ROOT%\apk" mkdir "%ROOT%\apk"
+  copy /y "%RAPK%" "%ROOT%\apk\juhaengjung-go_pleos_release.apk" >> "%LOG%" 2>&1
+  echo Copied to %ROOT%\apk\juhaengjung-go_pleos_release.apk
+)
+findstr /b /c:"EXIT_" "%LOG%"
+echo Log: %LOG%
+goto :done
 
 :done
 endlocal

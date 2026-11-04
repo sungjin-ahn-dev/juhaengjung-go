@@ -1,6 +1,6 @@
 # 차량 앱 셸 (Android, Pleos Connect)
 
-차량 화면은 웹(`apps/car-web`)이다. 이 앱은 WebView로 그 화면을 띄우고 `window.PleosBridge`를 붙여서, 웹이 실제 Pleos SDK(NaviHelper 3.0.5·Vehicle 2.3.2·TextToSpeech 3.3.1)를 부르게 한다. 프로토콜은 `docs/BRIDGE.md`, SDK별 확인 현황은 `docs/API_MATRIX.md`.
+차량 화면은 웹(`apps/car-web`)이다. 이 앱은 WebView로 그 화면을 띄우고 `window.PleosBridge`를 붙여서, 웹이 실제 Pleos SDK(NaviHelper 3.0.5·Vehicle 2.3.2·TextToSpeech 3.3.1·SpeechToText 3.3.1)를 부르게 한다. 2026-11-04에 PC에서 실제 SDK로 `pleosDebug`·`pleosRelease` 빌드에 성공했다(에뮬레이터 실행은 아직). 프로토콜은 `docs/BRIDGE.md`, SDK별 확인 현황은 `docs/API_MATRIX.md`.
 
 | 플레이버 | 하는 일 |
 |---|---|
@@ -11,14 +11,23 @@
 
 방법 1 — Android Studio: 이 폴더(`apps/car-android`)를 열고 빌드 변형에서 `demoDebug` 또는 `pleosDebug`를 고른다. Pleos Maven(`nexus-playground.pleos.ai`)은 계정 없이 받을 수 있다.
 
-방법 2 — 명령: `apps\car-android\build.bat`. 웹 화면을 먼저 빌드해 앱 안에 넣고(서버 없이 체험용), `demo`·`pleos`를 차례로 빌드한다. 결과는 `build_log.txt`의 `EXIT_DEMO`·`EXIT_PLEOS`(0이면 성공).
+방법 2 — 명령(탐색기에서 두 번 클릭해도 된다):
 
-빌드 오류가 나면 그 줄이 문서와 실제 SDK의 차이다. 먼저 볼 곳은 `PleosBackend.kt`의 `TripRequest`·`TripInfo`·`WaypointArrivedInfo` import(패키지를 다른 data 클래스와 같다고 적었다)와 `TripRequest(..., poiSubId = null)`.
+| 파일 | 하는 일 | 결과 |
+|---|---|---|
+| `build.bat` | 웹 화면을 먼저 빌드해 앱 안에 넣고(서버 없이 체험용), `demoDebug`·`pleosDebug`를 차례로 빌드 | `build_log.txt`의 `EXIT_DEMO`·`EXIT_PLEOS`(0이면 성공), `app/build/outputs/apk/{demo,pleos}/debug/` |
+| `install.bat` | (= `build.bat install`) 켜져 있는 에뮬레이터에 pleosDebug 설치, `adb reverse tcp:8787 tcp:8787`, 앱 실행 | |
+| `release.bat` | (= `build.bat release`) `pleosRelease` 빌드 → 저장소 루트 `apk/juhaengjung-go_pleos_release.apk`로 복사(제출용, debug 키 서명) | |
+
+빌드 오류가 나면 그 줄이 문서와 실제 SDK의 차이다. 지금까지 나온 차이는 Vehicle 리스너의 `onFailed(e: Exception)` 하나였다(`docs/API_MATRIX.md`). 시그니처는 실제 SDK 바이너리에서 뽑은 `tools/sdk-dump/pleos-sdk-signatures.txt`와 맞춰 본다.
+
+**Gradle JVM이 죽을 때**(`hs_err_pid*.log`, `EXCEPTION_ACCESS_VIOLATION`): 일부 PC(i9-14900KF 등)에서 JIT·R8 중에 크래시한다. `gradle.properties`에 C1만 쓰고 병렬을 줄이는 설정을 넣어 두었다(느려지지만 끝까지 간다). 안 나는 PC에서는 지워도 된다.
 
 ## 에뮬레이터에서 실행
 
+0. (처음 한 번) 에뮬레이터 만들기: Android Studio → SDK Manager → SDK Update Sites에 `https://nexus-playground.pleos.ai/repository/raw-releases/connect-avd/2.x/crp-sys-img.xml` 추가 → SDK Platforms에서 Pleos Connect 시스템 이미지(2.1.0, API 34) 설치 → Device Manager에서 Automotive 기기로 AVD 생성(Cold boot, RAM 4 GB).
 1. PC에서 저장소 루트 `npm start` (서버 8787).
-2. Pleos Connect 에뮬레이터(API 34 Automotive)를 켠 뒤 `build.bat install` — pleos APK 설치, `adb reverse tcp:8787 tcp:8787`, 앱 실행.
+2. 에뮬레이터를 켠 뒤 `install.bat` — pleos APK 설치, `adb reverse tcp:8787 tcp:8787`, 앱 실행.
 3. 앱은 `http://10.0.2.2:8787/car/`를 연다. 못 붙으면 연결 설정 화면이 뜬다: 주소를 고치거나(실기기는 PC의 LAN 주소) '서버 없이 체험'(앱 안 화면 + 페이지 안 서버)을 누른다.
 4. 시연 매물은 수원~송파 도로망 위에 있다. 에뮬레이터 위치를 수원시청 근처로 두고 Pleos 내비에서 목적지를 송파로 정하면 출발 전 브리핑이 열린다. 판매자는 PC나 폰 브라우저의 `/seller/`.
 5. 웹 화면 디버깅: PC 크롬 `chrome://inspect` → WebView.

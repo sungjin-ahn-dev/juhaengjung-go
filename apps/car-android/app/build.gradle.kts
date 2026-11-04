@@ -26,9 +26,12 @@ android {
     }
     buildTypes {
         debug { isMinifyEnabled = false }
-        release { isMinifyEnabled = false; proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt")) }
+        // 공모전 제출 APK: 서명 키가 따로 없어 디버그 키로 서명한다(에뮬레이터·심사용 설치에는 충분). 스토어 배포 때 바꾼다
+        release { isMinifyEnabled = false; proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt")); signingConfig = signingConfigs.getByName("debug") }
     }
     buildFeatures { buildConfig = true }
+    // 제출용 release 빌드가 lint-gradle 다운로드(dl.google.com)에 막히지 않게 — lint는 debug에서 돌린다
+    lint { checkReleaseBuilds = false; abortOnError = false }
     // AAOS 플랫폼 라이브러리(android.car): 주행 중 여부(CarUxRestrictions). pleos 플레이버에서만 참조한다.
     useLibrary("android.car")
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }

@@ -135,6 +135,7 @@ export function createBridgePlatform(voice: VoicePort, now: () => number = () =>
         on("NaviHelper.onTripInfo", (v) => l.onTripInfo?.(v as TripInfo)),
         on("NaviHelper.onRouteOptionChanged", (v) => l.onRouteOptionChanged?.(v as RouteOption)),
         on("NaviHelper.onError", (v) => l.onError?.(v as never)),
+        // 셸: 실제 SDK 콜백(DestinationArrivedInfo) 또는 남은 거리 판정(↪, null) — 같은 목적지엔 한 번만 온다
         on("NaviHelper.onDestinationArrived", () => l.onDestinationArrived?.()),
       ];
       return () => offs.forEach((o) => o());
@@ -163,8 +164,12 @@ export function createBridgePlatform(voice: VoicePort, now: () => number = () =>
     registerSteeringWheelAngle: (cb) => sub("Vehicle.registerSteeringWheelAngle", "Vehicle.onSteeringWheelAngleUpdated", cb),
     registerBrakePedalStatus: (cb) => sub("Vehicle.registerBrakePedalStatus", "Vehicle.onBrakePedalStatusUpdated", cb),
     getOdometerKm: () => call<number | null>("Vehicle.getOdometerKm"),
-    // Door(트렁크)는 레퍼런스에서 확인하지 못했다 — 셸에 묻지 않는다(docs/BRIDGE.md). 트렁크 장면은 시뮬레이터에만
-    registerTrunkOpen: () => () => {},
+    // 트렁크: 셸이 Door.registerDoorPosition(REAR)(실제 SDK 바이너리에서 확인)로 받아 {open, position}을 보낸다(docs/BRIDGE.md). 등록이 안 되면 null 한 번
+    registerTrunkOpen: (cb) => {
+      const off = on("Vehicle.onTrunkOpen", (v) => cb(v !== null && typeof v === "object" ? ((v as { open?: boolean | null }).open ?? null) : (v as boolean | null)));
+      call("Vehicle.registerTrunkOpen").catch(() => cb(null));
+      return off;
+    },
   };
 
   const restriction: DrivingRestrictionPort = {
@@ -192,6 +197,8 @@ const NOISY: Record<string, (v: unknown) => string> = {
   "NaviHelper.onCurrentLocationInfo": () => "",
   "Vehicle.onSteeringWheelAngleUpdated": (v) => String(Math.round(Number(v) / 10)),
   "Vehicle.onEvBatteryStateOfChargeUpdated": (v) => String(v),
+  "Vehicle.onTrunkOpen": (v) => ((v as { open?: boolean } | null)?.open ? "열림" : "닫힘"),
+  "Vehicle.onFailed": (v) => String((v as { event?: string } | null)?.event ?? ""),
 };
 
 const QUIET = new Set([

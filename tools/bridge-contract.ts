@@ -53,7 +53,7 @@ const MOCK = `
 (() => {
   const st = {
     status: "FREE_DRIVE", dest: null, loc: { latitude: ${DEMO_PLACES.start.lat}, longitude: ${DEMO_PLACES.start.lng}, heading: 0, address: "" },
-    wps: [], tbt: [], restricted: false, soc: 62, odoKm: 0, failAddWaypoint: false,
+    wps: [], tbt: [], restricted: false, soc: 62, odoKm: 0, failAddWaypoint: false, trunkRegistered: false,
   };
   const calls = [];
   const hav = (a, b) => { const R = 6371000, r = Math.PI / 180; const dLa = (b.latitude - a.latitude) * r, dLo = (b.longitude - a.longitude) * r;
@@ -79,8 +79,9 @@ const MOCK = `
     "NaviHelper.removeWaypoint": (a) => { if (a.idx === "ALL") st.wps = []; else if (a.idx === "FIRST") st.wps.shift(); else st.wps.splice(1, 1); return null; },
     "NaviHelper.changeRouteOption": () => null,
     "NaviHelper.cancelRoute": () => { st.status = "FREE_DRIVE"; st.dest = null; return null; },
-    "NaviHelper.requestRoute": () => { throw new Error("UNVERIFIED_ROUTE_INFO"); },
-    "NaviHelper.requestRouteWithWaypoints": () => { throw new Error("UNVERIFIED_ROUTE_INFO"); },
+    // Kotlin: RouteInfo(실제 SDK 확인)로 부른다. 이 시험에서는 내비가 임의 좌표 경로를 거절하는 경우(onError CAUSE_SEARCH_ROUTE)를 흉내낸다 — 받아 주는 경우는 에뮬레이터에서 확인(🧪)
+    "NaviHelper.requestRoute": () => { setTimeout(() => emit("NaviHelper.onError", "CAUSE_SEARCH_ROUTE"), 5); throw new Error("NAVI_CAUSE_SEARCH_ROUTE"); },
+    "NaviHelper.requestRouteWithWaypoints": () => { setTimeout(() => emit("NaviHelper.onError", "CAUSE_SEARCH_ROUTE"), 5); throw new Error("NAVI_CAUSE_SEARCH_ROUTE"); },
     "Vehicle.getCarInfo": () => ({ manufacturer: null, model: null, modelYear: null }),
     "Vehicle.capabilities": () => ({ steeringWheelAngle: "READ", evBatteryStateOfCharge: "READ" }),
     // Kotlin과 같이: 줄(tag)마다 등록, 결과는 등록한 SeatValue 이름(이 SDK에 없는 이름은 건너뜀)
@@ -92,7 +93,7 @@ const MOCK = `
     "Vehicle.registerSteeringWheelAngle": () => null,
     "Vehicle.registerBrakePedalStatus": () => null,
     "Vehicle.getOdometerKm": () => st.odoKm,
-    "Vehicle.registerTrunkOpen": () => null,
+    "Vehicle.registerTrunkOpen": () => { st.trunkRegistered = true; return null; },
     "CarUx.current": () => st.restricted,
     "Voice.capabilities": () => ({ tts: true, stt: false, ttsEngine: "pleos" }),
     "Voice.speak": () => null,
@@ -299,18 +300,19 @@ type MockCall = { method: string; args: Record<string, unknown> };
           paused = true;
           await mock.set({ restricted: false, wps: [] });
           await mock.emit("restriction", false);
-          await mock.emit("NaviHelper.onWayPointArrived", { name: "", address: "", poiId: "", remainDistance: 0, remainTime: 0, latitude: p.point.lat, longitude: p.point.lng, raw: "WaypointArrivedInfo(...)" });
+          // Kotlin: WaypointArrivedInfo(distance, duration, index, name, address) + 지금 위치
+          await mock.emit("NaviHelper.onWayPointArrived", { name: "캠핑마켓 영통점", address: "", poiId: "", index: "FIRST", distance: 0, duration: 0, remainDistance: 0, remainTime: 0, latitude: p.point.lat, longitude: p.point.lng });
           await mock.emit("NaviHelper.onWayPointInfo", []);
           viaAlong = null;
         }
-        // 목적지 도착: Kotlin은 ROUTE_DRIVE → INACTIVE 전환(300m 안)에서 onDestinationArrived를 만든다
+        // 목적지 도착: Kotlin은 실제 SDK onDestinationArrived(DestinationArrivedInfo) 또는 ROUTE_DRIVE → INACTIVE 전환(300m 안) 중 먼저 온 것 한 번
         if (s >= route.distanceM - 1 && !state.arrivedHome) {
           state.arrivedHome = true;
           paused = true;
           await mock.set({ status: "INACTIVE", restricted: false });
           await mock.emit("restriction", false);
           await mock.emit("NaviHelper.onNavigationStatus", "INACTIVE");
-          await mock.emit("NaviHelper.onDestinationArrived", null);
+          await mock.emit("NaviHelper.onDestinationArrived", { name: "집", address: "", distance: 0, duration: 0 });
         }
       }
     }
@@ -400,13 +402,18 @@ type MockCall = { method: string; args: Record<string, unknown> };
       log("마지막 호출:", last.join(", "));
       throw e;
     });
-    check(true, "onWayPointArrived(지금 위치) + 정차 → 현장 확인 화면");
+    check(true, "onWayPointArrived(이름·거리·순번 + 지금 위치) + 정차 → 현장 확인 화면");
     await recMark("arrive");
     await recCap("도착", "onWayPointArrived와 정차(주행 제한 해제)가 겹치면 현장 확인 화면을 열어요");
     if (REC) await page.waitForTimeout(3500);
     await recMark("arrive-end");
     await api("POST", `/v1/seller/trades/${tradeId}/handed`, sellerToken);
     await inspect.getByText("판매자가 건넸다고 표시했어요").waitFor({ timeout: 10000 });
+    // 트렁크 열림→닫힘(셸: Vehicle.onTrunkOpen {open, position}) → "실으셨나요?"
+    await mock.emit("Vehicle.onTrunkOpen", { open: true, position: 100 });
+    await mock.emit("Vehicle.onTrunkOpen", { open: false, position: 0 });
+    await inspect.getByText("트렁크를 닫았어요. 실으셨나요?").waitFor({ timeout: 5000 });
+    check(true, "Vehicle.onTrunkOpen 열림→닫힘 → '실으셨나요?' 안내");
     await page.screenshot({ path: path.join(OUT, "bridge-04-inspect.png") });
     await inspect.getByRole("button", { name: "받았어요" }).click();
     await page.waitForTimeout(800);
@@ -423,10 +430,10 @@ type MockCall = { method: string; args: Record<string, unknown> };
 
     const all = await calls();
     const routeIdx = all.map((c, i) => (c.method.startsWith("NaviHelper.requestRoute") ? i : -1)).filter((i) => i >= 0);
-    check(routeIdx.every((i) => i >= failFrom && i < failTo), "목적지 설정 API(RouteInfo 미확인)는 경유지 실패 대체에서만 시도 — 정상 흐름은 쓰지 않음");
+    check(routeIdx.every((i) => i >= failFrom && i < failTo), "목적지 설정 API(requestRoute)는 경유지 실패 대체에서만 시도 — 정상 흐름은 쓰지 않음(목적지는 Pleos 내비에서)");
     const unknown = all.filter((c) => !c.method.includes("."));
     check(unknown.length === 0, "모든 호출이 '도메인.메서드' 이름");
-    check(!all.some((c) => c.method === "Vehicle.registerTrunkOpen"), "Door(트렁크, 미확인)는 셸에 묻지 않음");
+    check(all.filter((c) => c.method === "Vehicle.registerTrunkOpen").length === 1, "트렁크(Door.registerDoorPosition REAR)는 셸에 한 번만 등록");
 
     // Gleo AI 음성 기능: 셸의 assets/schema.json(actionCalls) = 매니페스트 intent-filter = 웹 처리기 이름, 셸이 부르는 입구가 응답을 돌려준다
     const schema = JSON.parse(fs.readFileSync(path.join(ROOT, "apps/car-android/app/src/main/assets/schema.json"), "utf8")) as { actionCalls: { function: { name: string } }[] };

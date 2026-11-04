@@ -100,7 +100,7 @@ node node_modules/tsx/dist/cli.mjs tools/video-short.ts <클립 폴더> <출력 
 ## 테스트 환경과 제출용 APK
 
 - 개발·확인: Node 22, npm 10. 차 화면·폰 웹은 Chromium 계열 브라우저(E2E는 Playwright 1.56 Chromium). 서버는 `npm start`(기본 8787, SQLite `data/`), 체험 페이지는 서버 없이 한 파일.
-- 차량 앱 빌드: Android Studio(AGP 8.7, Kotlin 2.0, API 34), Pleos SDK Maven 접근 권한(`apps/car-android/README.md`). 에뮬레이터: Pleos Connect Emulator(API 34) + Virtual Console. 앱 안 '연결 설정'에서 PC 서버 주소(기본 `http://10.0.2.2:8787`)를 바꾼다.
+- 차량 앱 빌드: Android Studio(AGP 8.7.3, Kotlin 2.0.21, API 34, JBR 21) + Pleos SDK Maven(`nexus-playground.pleos.ai`, 계정 없이). `apps/car-android/build.bat`(demo·pleos 디버그), `install.bat`(에뮬레이터 설치·실행), `release.bat`(제출용 APK). 2026-11-04 실제 SDK로 빌드 성공. 에뮬레이터: Pleos Connect Emulator(2.1.0, API 34) + Virtual Console — 만드는 법은 `apps/car-android/README.md`. 앱 안 '연결 설정'에서 PC 서버 주소(기본 `http://10.0.2.2:8787`)를 바꾼다.
 - 폰: 같은 와이파이에서 `http://<PC IP>:8787/seller/`·`/buyer/`. 웹 푸시는 HTTPS 주소에서만.
-- 공모전 제출용 APK는 `apk/<팀명>_주행중GO_release.apk`에 둔다(`pleosRelease` 빌드 → 이름 바꿔 복사. GitHub 용량을 넘으면 Releases에 올리고 여기 링크를 적는다). 아직 넣지 않았다 — Pleos SDK 바이너리로 빌드한 뒤 추가.
+- 공모전 제출용 APK: `release.bat`이 `apk/juhaengjung-go_pleos_release.apk`(27.8 MB, pleosRelease, debug 키 서명)를 만든다. 접수 때 팀명으로 이름을 바꿔 커밋한다(GitHub 100 MB 한도 안). 빌드마다 커밋하지 말고 제출 직전 것만.
 - 접수 양식에 옮길 글: `docs/02_접수양식_초안.md`.

@@ -4,8 +4,8 @@
 TripRoom(`../triproom`)·멀미예보(`../motioncast`)와 별개 저장소다. 코드는 복사해 쓰되 서로 import하지 않는다.
 
 ## 반드시 지킬 것
-- Pleos SDK 시그니처·권한·enum은 공식 레퍼런스(document.pleos.ai)에서 확인한 것만 쓴다. 미확인은 `TODO(G0)`와 API_MATRIX ❌/📄로 남기고, 대신 확인된 API로 대체(↪)하거나 거절한다.
-- 문서 존재 ≠ 에뮬레이터 동작 ≠ 실차 검증. 스텁 컴파일은 실제 SDK 컴파일이 아니다. 실행하지 못한 검증은 "미실행"으로 쓴다.
+- Pleos SDK 시그니처·권한·enum은 확인한 것만 쓴다 — 실제 SDK 바이너리에서 뽑은 `tools/sdk-dump/pleos-sdk-signatures.txt`(매개변수 이름·순서·null·기본값)가 1순위, 공식 문서(document.pleos.ai)가 2순위. 미확인은 `TODO(G0)`와 API_MATRIX ❌/📄로 남기고, 대신 확인된 API로 대체(↪)하거나 거절한다.
+- 시그니처 확인 ≠ 에뮬레이터 동작 ≠ 실차 검증. 단위·값의 뜻·콜백 조건은 에뮬레이터에서 확인(🧪)하기 전까지 가정이라고 쓴다. 스텁 컴파일은 실제 SDK 컴파일이 아니다(실제 컴파일은 PC `build.bat`). 실행하지 못한 검증은 "미실행"으로 쓴다.
 - 구매자 위치·경로는 주행 세션 메모리에만 둔다(DB·로그·판매자 화면 금지). 판매자에게는 도착 예정과 차종·적재 판단만, 정확한 거래 지점은 수락 뒤 구매자에게만.
 - 차 쪽 실패(내비 오류·경유지 실패)로 앱이 거래를 끝내면 구매자 신뢰도에 넣지 않는다(`system` 취소).
 - 사용자 문구는 한국어, 짧고 구체적으로. 억지 감성·귀여움은 넣지 않는다. 조사는 `josa()`로.
@@ -18,7 +18,7 @@ TripRoom(`../triproom`)·멀미예보(`../motioncast`)와 별개 저장소다. �
 ## 작업 루틴
 - `npm test` · `npm run typecheck` 통과.
 - 화면을 바꾸면 `npm run build:web` 뒤 `npm run e2e`(스크린샷 `tools/out/`을 직접 본다).
-- 차량 앱·브리지를 바꾸면 `npm run e2e:bridge`. Kotlin을 바꾸면 API_MATRIX 시그니처로 만든 스텁 컴파일로 최소 확인하고, 실제 빌드는 PC에서.
+- 차량 앱·브리지를 바꾸면 `npm run e2e:bridge`. Kotlin을 바꾸면 스텁 컴파일(`tools/sdk-dump` 시그니처와 같은 스텁)로 최소 확인하고, 실제 빌드는 PC에서 `apps\car-android\build.bat`(결과 `build_log.txt`).
 - 체험 페이지: `npm run build -w apps/demo` → `npm run e2e:auto`(자동 시연이 끝까지 가는지) → `apps/demo/dist/jhgo-demo.html`을 같은 경로로 다시 게시.
 - 화면이 크게 바뀌면 시연 영상도 다시 만든다(README '시연 영상'). 영상 설명에는 시뮬레이터 녹화인지 SDK 모드(가짜 브리지)인지 적는다.
 - 판단은 가이드, 진행은 STATUS에 한 줄씩.

@@ -25,12 +25,15 @@ import kotlin.math.sqrt
 
 // ---- Pleos Vehicle SDK 2.3.2 (공식 API 레퍼런스 시그니처 — 멀미예보·TripRoom docs/API_MATRIX.md) ----
 import ai.pleos.playground.vehicle.Vehicle
+import ai.pleos.playground.vehicle.api.model.area.DoorArea
 import ai.pleos.playground.vehicle.api.model.area.SeatArea
 import ai.pleos.playground.vehicle.api.model.capability.AreaBounds
 import ai.pleos.playground.vehicle.api.model.capability.CapabilityConfig
+import ai.pleos.playground.vehicle.constant.area.DoorValue
 import ai.pleos.playground.vehicle.constant.area.SeatValue
 import ai.pleos.playground.vehicle.constant.area.TurnSignalValue
 import ai.pleos.playground.vehicle.listener.BrakePedalStatusListener
+import ai.pleos.playground.vehicle.listener.DoorPositionListener
 import ai.pleos.playground.vehicle.listener.EvBatteryStateOfChargeListener
 import ai.pleos.playground.vehicle.listener.SeatOccupancyListener
 import ai.pleos.playground.vehicle.listener.SteeringWheelAngleListener
@@ -42,6 +45,7 @@ import ai.pleos.playground.navi.constants.NavigationStatus
 import ai.pleos.playground.navi.constants.RouteOption
 import ai.pleos.playground.navi.constants.WaypointIndex
 import ai.pleos.playground.navi.data.CurrentLocationInfo
+import ai.pleos.playground.navi.data.DestinationArrivedInfo
 import ai.pleos.playground.navi.data.DestinationInfo
 import ai.pleos.playground.navi.data.RequestWaypointInfo
 import ai.pleos.playground.navi.data.TBTInfo
@@ -49,6 +53,9 @@ import ai.pleos.playground.navi.data.WaypointChangedInfo
 import ai.pleos.playground.navi.data.WaypointInfo
 // TODO(G0) 아래 세 클래스는 필드·생성자는 레퍼런스에서 확인했고, 패키지는 다른 data 클래스와 같은 곳으로 적었다.
 //          컴파일 오류가 나면 import 줄만 레퍼런스의 패키지로 고치면 된다(docs/API_MATRIX.md).
+import ai.pleos.playground.navi.data.RouteInfo
+import ai.pleos.playground.navi.data.RouteStartInfo
+import ai.pleos.playground.navi.data.RouteWithWaypointsRequest
 import ai.pleos.playground.navi.data.TripInfo
 import ai.pleos.playground.navi.data.TripRequest
 import ai.pleos.playground.navi.data.WaypointArrivedInfo
@@ -58,15 +65,16 @@ import ai.pleos.playground.navi.helper.listener.NaviHelperEventListener
 /**
  * 실제 Pleos Connect SDK로 브리지 메서드를 처리한다. 메서드 목록은 docs/BRIDGE.md.
  *
- * 레퍼런스로 확인한 것만 부른다. 확인하지 못한 기능은 대신할 수 있으면 확인된 API로 대신하고(아래 '대체'), 아니면 거절한다.
- *  - 목적지 설정(requestRoute·requestRouteWithWaypoints): RouteInfo 필드 미확인 → 거절. 목적지는 Pleos 내비에서 정한다.
- *  - 차종(CarInfo): VIN·CRN만 확인, 모델명 없음 → null. 앱이 한 번 고르게 한다.
- *  - 주행거리(Odometer): 시그니처 미확인 → 대체: NaviHelper 현재 위치를 1초마다 누적한 거리.
- *  - 내비 상태 조회: getter 미확인 → onNavigationStatus로 받은 값, 아직 없으면 목적지 유무로 추정.
- *  - 목적지 도착: 전용 콜백 미확인 → 대체: 안내 중(ROUTE_DRIVE)이던 목적지가 300m 안에서 안내가 끝나면 도착.
- *  - 경유지 도착 지점: WaypointArrivedInfo 필드 미확인 → 대체: 도착 콜백을 받은 순간의 현재 위치.
+ * 확인한 것만 부른다(docs/API_MATRIX.md — 2026-11-04부터는 실제 SDK 바이너리(dex)의 Kotlin 메타데이터로 시그니처를 확인했고, 실제 SDK로 컴파일했다).
+ * 동작은 에뮬레이터에서 확인해야 한다(🧪). 확인하지 못한 것은 확인된 API로 대신하고(아래 '대체' ↪), 아니면 거절한다.
+ *  - 목적지 설정(requestRoute·requestRouteWithWaypoints): RouteInfo(latitude, longitude, poiName, poiId, address, poiSubId, …) 확인 → 부른다. 웹은 경유지가 안 될 때의 대체 경로에서만 쓴다.
+ *  - 차종(CarInfo): VIN·CRN만 있고 모델명 없음 → null. 앱이 한 번 고르게 한다.
+ *  - 주행거리(Odometer.getCurrentDistanceDriven): 한 주행 안에서 출처를 바꾸지 않는다. 처음부터 안 되면 대체: NaviHelper 현재 위치를 1초마다 누적한 거리.
+ *  - 내비 상태 조회: getter 없음 → onNavigationStatus로 받은 값, 아직 없으면 목적지 유무로 추정.
+ *  - 목적지 도착: onDestinationArrived(DestinationArrivedInfo)(문서엔 없음) + 대체: 안내 중(ROUTE_DRIVE)이던 목적지가 300m 안에서 안내가 끝나면 도착. 같은 목적지엔 한 번만.
+ *  - 경유지 도착 지점: WaypointArrivedInfo에 좌표가 없다 → 도착 콜백을 받은 순간의 현재 위치를 같이 보낸다.
  *  - 주행 중 여부: AAOS CarUxRestrictionsManager. 못 쓰면 대체: 위치 변화로 잰 속도 > 5km/h.
- *  - 트렁크·연료 주행 가능 거리: 미확인 → 이벤트 없음 / null.
+ *  - 트렁크(Door REAR 위치)·주행 가능 거리(Odometer.getRangeRemainingDistance): 부른다. 값의 뜻·단위는 🧪.
  */
 class PleosBackend(private val context: Context) : SdkBackend {
     private var emit: (String, Any?) -> Unit = { _, _ -> }
@@ -76,6 +84,12 @@ class PleosBackend(private val context: Context) : SdkBackend {
 
     override fun setEmitter(emit: (event: String, payload: Any?) -> Unit) {
         this.emit = emit
+    }
+
+    /** Vehicle 리스너의 onFailed(실제 SDK에만 있음, 문서엔 없음): 로그와 SDK 기록 서랍에 남기고 값은 보내지 않는다(웹은 못 받은 신호를 보수적으로 다룬다) */
+    private fun emitFailed(event: String, e: Exception) {
+        android.util.Log.w("PleosBackend", "$event 실패: ${e.javaClass.simpleName}: ${e.message}")
+        emit("Vehicle.onFailed", JSONObject().put("event", event).put("error", "${e.javaClass.simpleName}: ${e.message}"))
     }
 
     override suspend fun call(method: String, args: JSONObject): Any? = when (method) {
@@ -100,8 +114,8 @@ class PleosBackend(private val context: Context) : SdkBackend {
             navi().cancelRoute()
             null
         }
-        "NaviHelper.requestRoute", "NaviHelper.requestRouteWithWaypoints" ->
-            throw UnsupportedOperationException("UNVERIFIED_ROUTE_INFO: RouteInfo 필드를 아직 확인하지 못했어요(G0). 목적지는 Pleos 내비에서 정해 주세요")
+        "NaviHelper.requestRoute" -> requestRoute(routeInfo(args), null)
+        "NaviHelper.requestRouteWithWaypoints" -> requestRoute(routeInfo(args.getJSONObject("dest")), args.optJSONArray("waypoints"))
 
         // ── Vehicle ──
         "Vehicle.getCarInfo" -> JSONObject().put("manufacturer", JSONObject.NULL).put("model", JSONObject.NULL).put("modelYear", JSONObject.NULL)
@@ -109,12 +123,12 @@ class PleosBackend(private val context: Context) : SdkBackend {
         "Vehicle.registerSeatOccupancy" -> registerSeats(args.optJSONArray("area"), args.optString("tag", "row2"))
         "Vehicle.getEvBatteryStateOfCharge" -> soc()
         "Vehicle.registerEvBatteryStateOfCharge" -> registerSoc()
-        "Vehicle.getFuelRangeKm" -> null
+        "Vehicle.getFuelRangeKm" -> rangeRemainingKm() // 실제 SDK 바이너리에서 확인한 Odometer.getRangeRemainingDistance(11-04). 단위(km)는 에뮬레이터에서 확인
         "Vehicle.registerTurnSignalState" -> registerTurnSignal()
         "Vehicle.registerSteeringWheelAngle" -> registerSteering()
         "Vehicle.registerBrakePedalStatus" -> registerBrake()
-        "Vehicle.getOdometerKm" -> traveledM / 1000.0
-        "Vehicle.registerTrunkOpen" -> null
+        "Vehicle.getOdometerKm" -> odometerKm() // Odometer.getCurrentDistanceDriven(바이너리 확인) → 안 되면 위치 누적(↪)
+        "Vehicle.registerTrunkOpen" -> registerTrunk() // Door.registerDoorPosition(DoorArea(DoorValue.REAR)) — 바이너리 확인, 열림 값은 에뮬레이터에서 확인
 
         // ── 주행 중 여부(AAOS) ──
         "CarUx.current" -> {
@@ -229,22 +243,46 @@ class PleosBackend(private val context: Context) : SdkBackend {
             lastWpsAt = 0L
         }
 
+        override fun onRoutingCompleted() {
+            routeWaiter?.complete(Unit)
+            lastDestAt = 0L
+        }
+
+        override fun onRouteStarted(routeStartInfo: RouteStartInfo) {
+            routeWaiter?.complete(Unit)
+            lastDestAt = 0L
+            emit("NaviHelper.onRouteStarted", JSONObject().put("name", routeStartInfo.name).put("distance", routeStartInfo.distance).put("duration", routeStartInfo.duration))
+        }
+
         override fun onWayPointArrived(waypointArrivedInfo: WaypointArrivedInfo) {
-            // 대체: WaypointArrivedInfo 필드 미확인 → 도착한 지점은 지금 위치
+            // WaypointArrivedInfo(distance, duration, index, name, address) — 실제 SDK 바이너리에서 확인(11-04). 좌표는 없어 지금 위치를 같이 보낸다
             scope.launch {
                 val here = runCatching { location() }.getOrNull()
                 val o = JSONObject()
-                    .put("name", "")
-                    .put("address", "")
+                    .put("name", waypointArrivedInfo.name)
+                    .put("address", waypointArrivedInfo.address)
                     .put("poiId", "")
+                    .put("index", waypointArrivedInfo.index.name)
+                    .put("distance", waypointArrivedInfo.distance)
+                    .put("duration", waypointArrivedInfo.duration)
                     .put("remainDistance", 0)
                     .put("remainTime", 0)
                     .put("latitude", here?.optDouble("latitude") ?: JSONObject.NULL)
                     .put("longitude", here?.optDouble("longitude") ?: JSONObject.NULL)
-                    .put("raw", waypointArrivedInfo.toString())
                 lastWpsAt = 0L
                 emit("NaviHelper.onWayPointArrived", o)
             }
+        }
+
+        /** 목적지 도착 — 문서엔 없고 실제 SDK 바이너리에만 있는 콜백(11-04). 남은 거리로 판정하는 대체(destinationArrived)와 같은 목적지에 두 번 알리지 않는다 */
+        override fun onDestinationArrived(destinationArrivedInfo: DestinationArrivedInfo) {
+            val key = lastDest?.let { "${it.latitude},${it.longitude}" } ?: "sdk:${destinationArrivedInfo.name}"
+            if (arrivedFor == key) return
+            arrivedFor = key
+            emit(
+                "NaviHelper.onDestinationArrived",
+                JSONObject().put("name", destinationArrivedInfo.name).put("address", destinationArrivedInfo.address).put("distance", destinationArrivedInfo.distance).put("duration", destinationArrivedInfo.duration),
+            )
         }
 
         override fun onTBTInfo(tbtInfoList: List<TBTInfo>) {
@@ -362,6 +400,52 @@ class PleosBackend(private val context: Context) : SdkBackend {
         } finally {
             tripWaiter = null
         }
+    }
+
+    /** 웹의 {latitude, longitude, name} → RouteInfo(실제 SDK 메타데이터로 확인: poiName·poiId·address·poiSubId는 String, 나머지는 기본값) */
+    private fun routeInfo(a: JSONObject): RouteInfo = RouteInfo(
+        latitude = a.getDouble("latitude"),
+        longitude = a.getDouble("longitude"),
+        poiName = a.optString("name").ifEmpty { a.optString("poiName") },
+        poiId = a.optString("poiId"),
+        address = a.optString("address"),
+        poiSubId = a.optString("poiSubId").ifEmpty { "0" },
+    )
+
+    /**
+     * 목적지 설정(권한 NAVI_ROUTE_SEARCH). 임의 좌표·빈 poiId를 내비가 받는지는 에뮬레이터에서 확인할 것 🧪.
+     * onRoutingCompleted/onRouteStarted/onDestinationInfo가 오면 끝, onError면 실패. 2.5초 안에 아무 응답이 없어도 실패로 보지 않는다(웹이 getDestinationInfo로 확인).
+     */
+    private suspend fun requestRoute(dest: RouteInfo, waypoints: org.json.JSONArray?): Any? {
+        val n = navi()
+        val w = CompletableDeferred<Unit>()
+        routeWaiter = w
+        try {
+            if (waypoints != null && waypoints.length() > 0) {
+                val list = (0 until waypoints.length()).map { i: Int ->
+                    val a: JSONObject = waypoints.getJSONObject(i)
+                    RequestWaypointInfo(
+                        latitude = a.getDouble("latitude"),
+                        longitude = a.getDouble("longitude"),
+                        poiName = a.optString("poiName"),
+                        waypointIndex = WaypointIndex.valueOf(a.optString("waypointIndex", "FIRST")),
+                        poiId = a.optString("poiId"),
+                        address = a.optString("address"),
+                        poiSubId = a.optString("poiSubId").takeIf { it.isNotEmpty() } ?: "0",
+                        poiProvider = a.optString("poiProvider"),
+                    )
+                }
+                n.requestRouteWithWaypoints(RouteWithWaypointsRequest(destination = dest, waypoints = list))
+            } else {
+                n.requestRoute(dest)
+            }
+            withTimeoutOrNull(2500L) { w.await() }
+            lastDestAt = 0L
+            lastWpsAt = 0L
+        } finally {
+            routeWaiter = null
+        }
+        return null
     }
 
     /** 경유지 추가(권한 NAVI_ROUTE_SEARCH, 최대 2개). 반영 확인은 웹이 getWaypointInfo로 다시 조회해서 한다. */
@@ -502,6 +586,66 @@ class PleosBackend(private val context: Context) : SdkBackend {
         return withTimeoutOrNull(3000L) { d.await() }
     }
 
+    /**
+     * 누적 주행거리: Odometer.getCurrentDistanceDriven((Float?) -> Unit, (Exception) -> Unit) — 실제 SDK 바이너리 확인(11-04). 단위는 에뮬레이터에서 확인 🧪(km로 가정).
+     * 웹은 출발 때와 도착 때 값의 차이만 쓰므로 한 주행 안에서 출처를 바꾸지 않는다: 차가 한 번 답하면 계속 차 값, 처음부터 안 되면 위치 누적(↪)
+     */
+    private suspend fun odometerKm(): Double? {
+        if (odoSource != "location") {
+            val d = CompletableDeferred<Float?>()
+            try {
+                vehicle().getOdometer().getCurrentDistanceDriven({ v -> d.complete(v) }, { _ -> d.complete(null) })
+            } catch (e: Throwable) {
+                d.complete(null)
+            }
+            val v = withTimeoutOrNull(2000L) { d.await() }
+            if (v != null && v.isFinite() && v >= 0f) {
+                if (odoSource == null) emit("Vehicle.odometerSource", "pleos")
+                odoSource = "pleos"
+                return v.toDouble()
+            }
+            if (odoSource == "pleos") return null // 차 값으로 시작한 주행 — 위치 누적을 섞으면 차이가 틀어지니 모른다고 답한다
+            odoSource = "location"
+            emit("Vehicle.odometerSource", "location")
+        }
+        return traveledM / 1000.0
+    }
+    private var odoSource: String? = null
+
+    /** Odometer.getRangeRemainingDistance(onComplete: (Float?) -> Unit, onFailed) — 바이너리 확인. 내연기관·전기차 공통 주행 가능 거리. 단위 🧪 */
+    private suspend fun rangeRemainingKm(): Double? {
+        if (now() - rangeAt < 5000L) return rangeKm // 웹이 1초마다 묻는다 → 차에는 5초에 한 번만
+        val d = CompletableDeferred<Float?>()
+        try {
+            vehicle().getOdometer().getRangeRemainingDistance({ v -> d.complete(v) }, { _ -> d.complete(null) })
+        } catch (e: Throwable) {
+            d.complete(null)
+        }
+        val v = withTimeoutOrNull(2000L) { d.await() }
+        rangeKm = if (v != null && v.isFinite() && v >= 0f) v.toDouble() else null
+        rangeAt = now()
+        return rangeKm
+    }
+    private var rangeKm: Double? = null
+    private var rangeAt = 0L
+
+    /**
+     * 트렁크: Door.registerDoorPosition(DoorArea(DoorValue.REAR), DoorPositionListener{onPositionUpdated(Int?)}) — 바이너리 확인(11-04).
+     * 위치 값의 뜻(0=닫힘, 그 밖=열림)은 에뮬레이터에서 확인할 것 🧪. 웹에는 open: Boolean으로 보낸다
+     */
+    private fun registerTrunk(): Any? = once("trunk") {
+        val l = object : DoorPositionListener {
+            override fun onFailed(e: Exception) = emitFailed("Vehicle.onTrunkOpen", e)
+            override fun onPositionUpdated(position: Int?) {
+                if (position == null) return
+                emit("Vehicle.onTrunkOpen", JSONObject().put("open", position != 0).put("position", position))
+            }
+        }
+        vehicle().getDoor().registerDoorPosition(DoorArea(DoorValue.REAR), l)
+        trunkListener = l
+    }
+    private var trunkListener: DoorPositionListener? = null
+
     private val registered = HashSet<String>()
 
     /** 같은 리스너를 두 번 등록하지 않는다(웹이 다시 시작해도) */
@@ -538,6 +682,8 @@ class PleosBackend(private val context: Context) : SdkBackend {
             for (name in names) {
                 val sv = runCatching { SeatValue.valueOf(name) }.getOrNull() ?: continue
                 val l = object : SeatOccupancyListener {
+                    // 실제 SDK(2.3.2 바이너리, 2026-11-04 확인): 모든 Vehicle 리스너는 VehicleListener.onFailed(Exception)을 가진다
+                    override fun onFailed(e: Exception) = emitFailed("Vehicle.onSeatOccupancyUpdated", e)
                     override fun onSeatOccupancyUpdated(occupancy: Boolean?) {
                         if (occupancy == null) return
                         val any = synchronized(seatState) {
@@ -561,6 +707,7 @@ class PleosBackend(private val context: Context) : SdkBackend {
 
     private fun registerSoc(): Any? = once("soc") {
         val l = object : EvBatteryStateOfChargeListener {
+            override fun onFailed(e: Exception) = emitFailed("Vehicle.onEvBatteryStateOfChargeUpdated", e)
             override fun onEvBatteryStateOfChargeUpdated(value: Int?) {
                 emit("Vehicle.onEvBatteryStateOfChargeUpdated", value)
             }
@@ -571,6 +718,7 @@ class PleosBackend(private val context: Context) : SdkBackend {
 
     private fun registerTurnSignal(): Any? = once("turn") {
         val l = object : TurnSignalStateListener {
+            override fun onFailed(e: Exception) = emitFailed("Vehicle.onTurnSignalStateUpdated", e)
             override fun onTurnSignalStateUpdated(state: TurnSignalValue?) {
                 emit("Vehicle.onTurnSignalStateUpdated", state?.name)
             }
@@ -584,6 +732,7 @@ class PleosBackend(private val context: Context) : SdkBackend {
 
     private fun registerSteering(): Any? = once("steer") {
         val l = object : SteeringWheelAngleListener {
+            override fun onFailed(e: Exception) = emitFailed("Vehicle.onSteeringWheelAngleUpdated", e)
             override fun onSteeringWheelAngleUpdated(angle: Float?) {
                 if (angle == null) return
                 // 갱신 주기를 모른다(G0) → 0.15초에 한 번, 또는 2° 넘게 바뀔 때만 웹으로
@@ -600,6 +749,7 @@ class PleosBackend(private val context: Context) : SdkBackend {
 
     private fun registerBrake(): Any? = once("brake") {
         val l = object : BrakePedalStatusListener {
+            override fun onFailed(e: Exception) = emitFailed("Vehicle.onBrakePedalStatusUpdated", e)
             override fun onBrakePedalStatusUpdated(status: Boolean?) {
                 emit("Vehicle.onBrakePedalStatusUpdated", status)
             }
@@ -617,6 +767,7 @@ class PleosBackend(private val context: Context) : SdkBackend {
             runCatching { turnListener?.let { v.getTurnSignal().unregisterTurnSignalState(it) } }
             runCatching { steerListener?.let { v.getSteeringWheel().unregisterSteeringWheelAngle(it) } }
             runCatching { brakeListener?.let { v.getBrake().unregisterBrakePedalStatus(it) } }
+            runCatching { trunkListener?.let { v.getDoor().unregisterDoorPosition(DoorArea(DoorValue.REAR), it) } }
             runCatching { v.release() }
         }
         runCatching { naviOrNull?.removeListener(naviListener) }
