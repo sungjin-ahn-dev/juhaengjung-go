@@ -214,7 +214,8 @@ interface Mark {
     await cap("판매자 폰", "도착 3분 전에 만남 화면이 떠요. '지금 나가요'를 누르면 구매자 차에 보여요");
     await page.waitForTimeout(2200);
     await handoff.getByTestId("coming").click();
-    await page.getByTestId("trade-seller-coming").waitFor({ timeout: 10000 });
+    // 차가 이미 도착해 현장 확인이 열렸으면 기다림 패널 쪽에 뜬다
+    await page.locator('[data-testid="trade-seller-coming"], [data-testid="seller-coming"]').first().waitFor({ timeout: 10000 });
     await page.waitForTimeout(1800);
     const inspect = page.getByTestId("sheet-inspect");
     await inspect.waitFor({ timeout: 90000 });
