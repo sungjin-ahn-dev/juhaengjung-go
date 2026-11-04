@@ -268,8 +268,8 @@ export function createApp(svc: Service, opts: AppOptions) {
   app.post("/v1/drive/context", auth("buyer"), async (c) => c.json(svc.driveContext(c.get("user"), ctxOf(await body(c)))));
   // 대화로 고르기(T34): 운전자의 말 + 지금 맥락 → 답(두 문장 안)과 행동(request·choose·dismiss 또는 없음)
   app.post("/v1/assist", auth("buyer"), async (c) => {
-    const b = await body<{ ctx?: DriveContextInput; question: string; focusId?: string | null; alert?: { kind: "single" | "contention"; listingIds: string[] } | null; driving?: boolean }>(c);
-    return c.json(await svc.assistFor(c.get("user"), ctxOf(b), b));
+    const b = await body<{ ctx?: DriveContextInput; question: string; focusId?: string | null; alert?: { kind: "single" | "contention"; listingIds: string[] } | null; driving?: boolean; quick?: boolean }>(c);
+    return c.json(await svc.assistFor(c.get("user"), ctxOf(b), { ...b, quick: b.quick === true }));
   });
   app.post("/v1/drive/alerted", auth("buyer"), async (c) => {
     const b = await body<{ listingIds?: string[] }>(c);

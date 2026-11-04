@@ -94,7 +94,7 @@ node node_modules/tsx/dist/cli.mjs tools/video-short.ts <클립 폴더> <출력 
 
 ## 차량 앱(Android)
 
-`apps/car-android/README.md`. Pleos Connect 에뮬레이터에서 PC 서버의 차량 화면을 띄우고 실제 NaviHelper·Vehicle SDK를 부른다. Gleo AI 음성 비서가 앱 기능 세 개(`assets/schema.json`: 관심 추가·알림 답하기·가는 길 요약)를 부를 수 있고, 시뮬레이터에서는 가상 콘솔 'Gleo AI 음성 기능'으로 같은 호출을 흉내 낸다(`docs/BRIDGE.md`).
+`apps/car-android/README.md`. Pleos Connect 에뮬레이터에서 PC 서버의 차량 화면을 띄우고 실제 NaviHelper·Vehicle·TextToSpeech·SpeechToText SDK를 부른다(음성은 둘 다 ON_DEVICE, 안 되면 안드로이드 표준으로 내려감). Gleo AI 음성 비서가 앱 기능 세 개(`assets/schema.json`: 관심 추가·알림 답하기·매물에 대해 묻기)를 부를 수 있고, 시뮬레이터에서는 가상 콘솔 'Gleo AI 음성 기능'으로 같은 호출을 흉내 낸다(`docs/BRIDGE.md`).
 
 ## 테스트 환경과 제출용 APK
 

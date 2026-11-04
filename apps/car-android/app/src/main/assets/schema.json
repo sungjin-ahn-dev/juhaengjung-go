@@ -1,6 +1,7 @@
 {
   "packageName": "ai.jhgo.car",
-  "appDescription": "Finds second-hand items for sale near the driver's route and lets the driver stop by after the seller accepts. Voice functions: add an interest, answer the current stop-by question, and ask anything about the listings on the route (condition, price, detour, comparison, picking one).",
+  "appDescription": "Finds second-hand items for sale near the driver's route and lets the driver stop by after the seller accepts.",
+  "invokeWord": "주행중고",
   "version": "0.1.0",
   "actionCalls": [
     {
@@ -8,11 +9,11 @@
       "function": {
         "component": "activity",
         "name": "ADD_INTEREST",
-        "description": "Adds a keyword the driver wants to buy to the interest list so matching listings near the route are announced.",
+        "description": "Adds an item the driver wants to buy to the interest list so matching listings near the route are announced.",
         "parameters": {
           "type": "object",
           "properties": {
-            "keyword": { "type": "string", "description": "Item the driver wants, such as a stroller or a camping chair." },
+            "keyword": { "type": "string", "description": "The item the driver wants to buy." },
             "goLevel": {
               "type": "string",
               "description": "How far the driver is willing to detour for it.",
@@ -28,12 +29,12 @@
       "function": {
         "component": "activity",
         "name": "ANSWER_ALERT",
-        "description": "Answers the stop-by question currently shown on screen: yes or no, or the item name when two items are offered.",
+        "description": "Answers the stop-by question currently shown on screen with yes or no, or with the item name when two items are offered.",
         "parameters": {
           "type": "object",
           "properties": {
             "answer": { "type": "string", "description": "Whether to stop by.", "enum": ["yes", "no"] },
-            "item": { "type": "string", "description": "Item name to choose when the app asks which of two items to stop by for." }
+            "item": { "type": "string", "description": "The item to choose when the app offers two items." }
           },
           "required": []
         }
@@ -44,7 +45,7 @@
       "function": {
         "component": "activity",
         "name": "ASK_ABOUT_LISTINGS",
-        "description": "Asks the app about the second-hand listings along the current route in the driver's own words, such as what is available, the condition or price of an item, how far the detour is, which of two is better, or picking one. The app answers aloud in Korean.",
+        "description": "Answers the driver's question about the second-hand listings along the current route and can pick one on request. The app answers aloud in Korean.",
         "parameters": {
           "type": "object",
           "properties": {

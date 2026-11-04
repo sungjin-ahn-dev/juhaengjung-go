@@ -148,6 +148,16 @@ export interface ServiceDeps {
   briefAI?: BriefEngine;
   /** 대화로 고르기(T34)의 AI(Node 서버, API 키가 있을 때). 없으면 규칙 조수 */
   assistAI?: AssistEngine;
+  /** quick 요청(Gleo 경로 — Gleo는 7초 뒤 취소)에서 AI를 기다리는 최대 시간. 기본 3000ms, 넘으면 규칙 조수 */
+  assistQuickMs?: number;
+}
+
+/** 타이머가 프로세스를 붙잡지 않도록 unref */
+function sleep(ms: number): Promise<void> {
+  return new Promise((res) => {
+    const t = setTimeout(res, ms);
+    (t as unknown as { unref?: () => void }).unref?.();
+  });
 }
 
 interface PushDoc {
@@ -652,7 +662,7 @@ export class Service {
   }
 
   /** 대화로 고르기(T34): 지금 맥락으로 후보를 다시 계산해 사실표를 만들고, AI(있으면) 또는 규칙 조수가 답한다 */
-  async assistFor(buyer: User, ctx: DriveContextInput, q: { question: string; focusId?: string | null; alert?: { kind: "single" | "contention"; listingIds: string[] } | null; driving?: boolean }): Promise<AssistResult> {
+  async assistFor(buyer: User, ctx: DriveContextInput, q: { question: string; focusId?: string | null; alert?: { kind: "single" | "contention"; listingIds: string[] } | null; driving?: boolean; quick?: boolean }): Promise<AssistResult> {
     this.requireRole(buyer, "buyer");
     const question = (q.question ?? "").trim().slice(0, 200);
     const s = this.sessionFor(buyer, ctx);
@@ -680,7 +690,10 @@ export class Service {
     const alert = q.alert && Array.isArray(q.alert.listingIds) ? { kind: q.alert.kind === "contention" ? ("contention" as const) : ("single" as const), listingIds: q.alert.listingIds.filter((x) => typeof x === "string") } : null;
     const input = { question, facts, focusId: q.focusId ?? null, alert, driving: !!q.driving };
     if (this.d.assistAI && question) {
-      const r = await this.d.assistAI.assist(input).catch(() => null);
+      // quick(Gleo 경로): Gleo가 7초 뒤 취소하므로 AI를 짧게만 기다리고 규칙 조수로 간다. 엔진이 시간을 안 지켜도 여기서 끊는다
+      const quickMs = q.quick ? (this.d.assistQuickMs ?? 3000) : null;
+      const ai = this.d.assistAI.assist(input, quickMs ? { timeoutMs: quickMs } : undefined).catch(() => null);
+      const r = quickMs ? await Promise.race([ai, sleep(quickMs).then(() => null)]) : await ai;
       if (r) return r;
     }
     return assist(input);

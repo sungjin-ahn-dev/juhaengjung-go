@@ -17,4 +17,6 @@
     <uses-permission android:name="pleos.car.permission.NAVI_ROUTE_SEARCH" />
     <!-- Pleos TextToSpeech SDK 3.3.1 -->
     <uses-permission android:name="pleos.car.permission.TTS_SERVICE" />
+    <!-- Pleos SpeechToText SDK 3.3.1 (ON_DEVICE, 앱 등록 불필요). 안드로이드 SpeechRecognizer 대체용 RECORD_AUDIO는 main 매니페스트 -->
+    <uses-permission android:name="pleos.car.permission.STT_SERVICE" />
 </manifest>

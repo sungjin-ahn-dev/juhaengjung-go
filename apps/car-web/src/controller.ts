@@ -696,7 +696,8 @@ export class CarController {
   }
 
   /** 운전자의 말 → 서버 조수(지금 맥락의 사실로 답) → 읽어 주고, 행동이 있으면 그대로 한다 */
-  async ask(question: string): Promise<AssistResult | null> {
+  /** opts.quick: Gleo 경로(7초 안에 답해야 함) — 서버가 AI를 짧게만 기다리고 규칙 조수로 */
+  async ask(question: string, opts: { quick?: boolean } = {}): Promise<AssistResult | null> {
     const q = question.trim();
     if (!q) return null;
     const a = this.state.alert;
@@ -704,7 +705,7 @@ export class CarController {
     this.set({ chat: { q, a: "…", at: Date.now(), source: "rule" } });
     try {
       const ctx = await this.buildCtx();
-      const r = await this.api.call<AssistResult>("POST", "/v1/assist", { ctx, question: q, focusId: this.state.focusId, alert, driving: this.state.restricted });
+      const r = await this.api.call<AssistResult>("POST", "/v1/assist", { ctx, question: q, focusId: this.state.focusId, alert, driving: this.state.restricted, quick: opts.quick === true });
       this.set({ chat: { q, a: r.text, at: Date.now(), source: r.source }, focusId: r.focusId ?? this.state.focusId });
       this.say(r.text);
       if (r.action) await this.applyAssistAction(r.action);

@@ -29,6 +29,8 @@ export interface BackendOptions {
   briefAI?: BriefEngine;
   /** 대화로 고르기의 AI(Node 서버, API 키가 있을 때) */
   assistAI?: AssistEngine;
+  /** quick(Gleo 경로) 요청에서 AI를 기다리는 최대 시간(ms). 기본 3000 */
+  assistQuickMs?: number;
 }
 
 /** 시연 모드 기본값: 정산·자동 확인을 짧게(가상 시간) */
@@ -57,7 +59,7 @@ export function createBackend(o: BackendOptions = {}) {
   const clock = o.clock ?? (demo ? new DemoClock(DEMO_START, o.rate ?? 1) : new RealClock());
   const bus = new EventBus();
   const push = typeof o.push === "function" ? o.push(store) : o.push;
-  const svc = new Service({ store, bus, clock, router: o.router ?? createRouter(), config: o.config ?? (demo ? DEMO_SERVICE_CONFIG : undefined), push, sizeAI: o.sizeAI, briefAI: o.briefAI, assistAI: o.assistAI });
+  const svc = new Service({ store, bus, clock, router: o.router ?? createRouter(), config: o.config ?? (demo ? DEMO_SERVICE_CONFIG : undefined), push, sizeAI: o.sizeAI, briefAI: o.briefAI, assistAI: o.assistAI, assistQuickMs: o.assistQuickMs });
   if (o.seed && store.list("users").length === 0) seedDemo(svc, { includeCarSeat: o.includeCarSeat });
   const app = createApp(svc, { demo, sseHeartbeatMs: o.sseHeartbeatMs });
   return { app, svc, store, clock, bus };

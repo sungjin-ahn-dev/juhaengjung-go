@@ -13,7 +13,7 @@ function at(min: number) {
   return { location: pointAtAlong(base.line, s).point, remainTimeS: Math.round(base.durationS - timeAtAlong(base, s)) };
 }
 
-function setup(includeCarSeat = true, extra: { push?: PushSender; sizeAI?: SizeEstimator; briefAI?: BriefEngine; assistAI?: AssistEngine } = {}) {
+function setup(includeCarSeat = true, extra: { push?: PushSender; sizeAI?: SizeEstimator; briefAI?: BriefEngine; assistAI?: AssistEngine; assistQuickMs?: number } = {}) {
   const clock = new ManualClock(DEMO_START);
   const b = createBackend({ demo: true, clock, config: DEMO_SERVICE_CONFIG, ...extra });
   const anon = createLocalClient(b);
@@ -630,6 +630,24 @@ describe("대화로 고르기(T34)", () => {
     // AI 답이 깨지면 규칙 조수로
     reply = "모르겠어요";
     expect((await car.call<{ source: string }>("POST", "/v1/assist", { ctx: ctx(s, 0), question: "카시트 얼마야?" })).source).toBe("rule");
+  });
+
+  it("Gleo 경로(quick): AI가 늦으면 기다리지 않고 규칙 조수가 답한다 — Gleo는 7초 뒤 취소", async () => {
+    // 느린 가짜 AI(200ms). quick 한도 30ms → 규칙, quick이 아니면 AI
+    const assistAI: AssistEngine = {
+      name: "slow",
+      assist: (i, o) => new Promise((res) => setTimeout(() => res(o?.timeoutMs && o.timeoutMs < 200 ? null : parseAiAssist('{"answer":"AI가 답했어요","action":null}', i)), 200)),
+    };
+    s = setup(true, { assistAI, assistQuickMs: 30 });
+    await s.anon.call("POST", "/v1/demo/reset", {});
+    car = await login(s, "김주행");
+    const t0 = Date.now();
+    const quick = await car.call<{ text: string; source: string }>("POST", "/v1/assist", { ctx: ctx(s, 0), question: "카시트 흠집 있어?", quick: true });
+    expect(quick.source).toBe("rule");
+    expect(Date.now() - t0).toBeLessThan(190);
+    expect(quick.text).toContain("카시트");
+    const slow = await car.call<{ source: string }>("POST", "/v1/assist", { ctx: ctx(s, 0), question: "카시트 흠집 있어?" });
+    expect(slow.source).toBe("ai");
   });
 });
 

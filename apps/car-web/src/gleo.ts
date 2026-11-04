@@ -71,7 +71,7 @@ export async function handleGleo(c: CarController, req: GleoRequest): Promise<Gl
       // 운전자의 말을 그대로 앱 조수(T34)에게 — 앱이 한국어로 읽어 주므로 Gleo에는 silent로, 영어 message와 data에 답을 담는다
       const question = str("question") || "가는 길에 뭐 있어?";
       if (c.state.mode === "idle") return { functionName: name, status: "fail", message: "Set a destination first; listings follow the route." };
-      const r = await c.ask(question);
+      const r = await c.ask(question, { quick: true }); // Gleo는 7초 뒤 취소: AI는 3초만 기다리고 규칙 조수로
       if (!r) return { functionName: name, status: "fail", message: "The app could not answer right now." };
       if (!c.state.restricted && (r.intent === "list" || r.intent === "recommend")) c.open("briefing");
       const acted = r.action ? ` Action taken: ${r.action.type}.` : "";

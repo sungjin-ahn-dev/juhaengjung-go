@@ -18,7 +18,7 @@ android {
     }
 
     // demo:  SDK 없이 WebView만. 차량 화면은 웹의 시뮬레이터·가상 콘솔로 돈다(빌드 확인용).
-    // pleos: WebView에 PleosBridge를 붙여 실제 NaviHelper·Vehicle·TextToSpeech SDK를 부른다.
+    // pleos: WebView에 PleosBridge를 붙여 실제 NaviHelper·Vehicle·TextToSpeech·SpeechToText SDK를 부른다.
     flavorDimensions += "sdk"
     productFlavors {
         create("demo") { dimension = "sdk"; applicationIdSuffix = ".demo"; versionNameSuffix = "-demo" }
@@ -53,4 +53,5 @@ dependencies {
     "pleosImplementation"(libs.pleos.vehicle)
     "pleosImplementation"(libs.pleos.navihelper)
     "pleosImplementation"(libs.pleos.tts)
+    "pleosImplementation"(libs.pleos.stt)
 }

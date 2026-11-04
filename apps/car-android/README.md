@@ -33,7 +33,9 @@
 app/src/main/java/ai/jhgo/car/MainActivity.kt    WebView, 권한, 연결 설정, 서버 없이 체험
 app/src/main/java/ai/jhgo/car/PleosBridge.kt     JS ↔ Kotlin 통로, SdkBackend 인터페이스
 app/src/pleos/java/ai/jhgo/car/PleosBackend.kt   NaviHelper·Vehicle·CarUxRestrictions 호출
-app/src/pleos/java/ai/jhgo/car/NativeVoice.kt    Pleos TTS → 안드로이드 TTS, SpeechRecognizer
+app/src/pleos/java/ai/jhgo/car/NativeVoice.kt    Pleos TTS·STT(ON_DEVICE) → 안 되면 안드로이드 TTS·SpeechRecognizer
+app/src/main/java/ai/jhgo/car/GleoBridge.kt      Gleo AI 음성 기능(Intent → 웹 → APP_ACTION_RESPONSE)
+app/src/main/assets/schema.json                  Gleo App Schema(기능 3개, 공식 작성 규칙)
 app/src/pleos/AndroidManifest.xml                Pleos 권한
 app/src/demo/java/ai/jhgo/car/SdkBackends.kt     브리지 없음
 app/src/main/res/mipmap-*/                       런처 아이콘(어댑티브: 아스팔트색 바탕 + 'GO!' 도현체, 폰 웹 아이콘과 같은 표식)

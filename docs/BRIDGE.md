@@ -46,10 +46,10 @@ Kotlin → JS   window.__pleos.resolve(id, json)      결과(JSON 글)
 | `Vehicle.getFuelRangeKm` | — | `null` | Fuel 미확인 |
 | `Vehicle.registerTrunkOpen` | — | `null`(이벤트 없음) | Door 트렁크 미확인. 웹은 이 메서드를 부르지 않는다(브리지 계약 시험이 확인). 셸의 `null` 응답은 예전 웹을 위한 것 |
 | `CarUx.current` | — | `true`(주행 중) / `false` | AAOS `CarUxRestrictionsManager.isRequiresDistractionOptimization`. 못 쓰면 대체: 위치 변화 속도 > 5km/h |
-| `Voice.capabilities` | — | `{tts, stt, ttsEngine: "pleos" \| "android" \| "none"}` | |
+| `Voice.capabilities` | — | `{tts, stt, ttsEngine: "pleos" \| "android" \| "none", sttEngine: "pleos" \| "android" \| "none"}` | |
 | `Voice.speak` | `{text}` | `null`(말이 끝나면) | Pleos TextToSpeech(ON_DEVICE) → 안 되면 안드로이드 TextToSpeech |
 | `Voice.stop` | — | `null` | |
-| `Voice.listen` | `{words, timeoutMs}` | 들은 단어 또는 `null` | 안드로이드 SpeechRecognizer, 정해진 단어만(띄어쓰기 무시) |
+| `Voice.listen` | `{words, timeoutMs}` | 들은 단어 또는 `null` | Pleos SpeechToText(ON_DEVICE, ko-KR) `request()` → `onUpdated(stt, completed=true)`; 시간이 지나면 `stop()` 뒤 부분 결과. 초기화 실패나 NOT_SUPPORTED_API·PERMISSION_DENIED·UNAVAILABLE_LANGUAGE면 안드로이드 SpeechRecognizer(↪). 정해진 단어만(띄어쓰기 무시), `words: []`면 들은 문장 그대로 |
 
 ## 이벤트
 

@@ -7,7 +7,8 @@ import type { AssistAction, AssistFact, AssistInput, AssistResult } from "@jhgo/
 
 export interface AssistEngine {
   readonly name: string;
-  assist(input: AssistInput): Promise<AssistResult | null>;
+  /** opts.timeoutMs: 이 시간 안에 못 답하면 null(Gleo는 7초 안에 답해야 해서 quick 요청은 짧게) */
+  assist(input: AssistInput, opts?: { timeoutMs?: number }): Promise<AssistResult | null>;
 }
 
 /** 모델에 주는 사실표 — 정확한 위치는 없다. 숫자는 읽기 쉬운 단위로 */
@@ -74,9 +75,9 @@ export function createClaudeAssistEngine(opts: { apiKey: string; model?: string;
   const f = opts.fetchImpl ?? fetch;
   return {
     name: `claude:${model}`,
-    async assist(i) {
+    async assist(i, o) {
       const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 8000);
+      const timer = setTimeout(() => ctrl.abort(), o?.timeoutMs ?? opts.timeoutMs ?? 8000);
       try {
         const r = await f("https://api.anthropic.com/v1/messages", {
           method: "POST",
