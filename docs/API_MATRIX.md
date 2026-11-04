@@ -51,7 +51,7 @@
 | 배터리 | `getEvBattery().getEvBatteryStateOfCharge(onComplete: (Int?) -> Unit, onFailed: (Exception) -> Unit)`, `registerEvBatteryStateOfCharge(EvBatteryStateOfChargeListener)`, `checkEvBatteryStateOfChargeCapabilities(onComplete: (CapabilityConfig) -> Unit, onFailed)`; 그 밖에 `getEvBatteryLevel/Capacity`, 효율, 충전 포트·스위치 | ✅ | CAR_ENERGY | 도착 배터리 15% 확인 | Energy 조작 반영 |
 | 지원 확인 | `CapabilityConfig(accessType: AccessType = …)`, `AccessType` {NONE, READ, WRITE, READ_WRITE}, `AreaBounds<T>(minValue, maxValue)` | ✅ | — | Vehicle.capabilities | |
 | 주행거리 | `getOdometer().getCurrentDistanceDriven(onComplete: (Float?) -> Unit, onFailed)`, `registerDistanceDriven(DistanceDrivenListener{onDistanceDrivenUpdated(Float?)})`, trip 누적·현재·주유 뒤 거리/시간도 있음 | ✅ (10-22엔 📄) | — (권한 미확인) | `Vehicle.getOdometerKm` — 한 주행 안에서 출처 고정, 안 되면 ↪ NaviHelper 위치 누적 | **단위**(km로 가정), 권한 |
-| 주행 가능 거리 | `getOdometer().getRangeRemainingDistance(onComplete: (Float?) -> Unit, onFailed)`, `registerRangeRemainingListener` — 내연기관·전기차 공통 | ✅ (10-22엔 Fuel로 📄) | — | `Vehicle.getFuelRangeKm`(5초 캐시) | 단위, 전기차에서도 값이 오는지 |
+| 주행 가능 거리 | `getOdometer().getRangeRemainingDistance(onComplete: (Float?) -> Unit, onFailed)`, `registerRangeRemainingListener` — 내연기관·전기차 공통. **@Deprecated**(실제 빌드 경고: "use the Google RANGE_REMAINING property" = AAOS `VehiclePropertyIds.RANGE_REMAINING`) | ✅ (10-22엔 Fuel로 📄) | — | `Vehicle.getFuelRangeKm`(5초 캐시). 값이 안 오면 `CarPropertyManager`의 RANGE_REMAINING(CAR_ENERGY)으로 바꾼다 | 단위, 전기차에서도 값이 오는지, deprecated라 값이 null인지 |
 | 연료 | `getFuel().getFuelPercent(onComplete: (Int?) -> Unit, onFailed)`, `registerFuelPercent(FuelPercentListener)`, 연비 | ✅ | — | 쓰지 않음(주행 가능 거리로 충분) | |
 | 트렁크 | `getDoor().registerDoorPosition(area: DoorArea(vararg DoorValue), listener: DoorPositionListener{onPositionUpdated(position: Int?)})`, `unregisterDoorPosition`, `getCurrentDoorPosition(area, onComplete: (Int?) -> Unit, onFailed)`, `checkDoorPositionCapabilities(onComplete: (Map<DoorArea, AreaBounds<Int>>) -> Unit, onFailed)`. `DoorValue` {ROW_1_LEFT, ROW_1_RIGHT, ROW_2_LEFT, ROW_2_RIGHT, ROW_3_LEFT, ROW_3_RIGHT, HOOD, **REAR**} | ✅ (10-22엔 ❌) | — (CAR_DOORS 추정, 미확인) | `Vehicle.registerTrunkOpen` → `Vehicle.onTrunkOpen {open: position != 0, position}` → "실으셨나요?" | **position 값의 뜻**(0=닫힘? 범위는 checkDoorPositionCapabilities), 트렁크가 REAR인지, 권한 |
 | 기어 | `getGear().registerGearSelection(GearSelectionListener{onSelected(gear: VehicleGear?)})`, `getCurrentGearSelectionState`. `VehicleGear` {GEAR_UNKNOWN, GEAR_NEUTRAL, GEAR_REVERSE, GEAR_PARK, GEAR_DRIVE, GEAR_1…GEAR_9} | ✅ | — | 쓰지 않음 — 주행 중 여부는 AAOS CarUxRestrictions. 그게 안 되면 GEAR_PARK로 대체할 수 있다 | |
@@ -108,6 +108,7 @@ SDK가 아니라 스키마 + Intent 규약이다(2026-11-03·04 문서를 이 �
 - 이 PC(i9-14900KF)에서는 Gradle 데몬 JVM이 JIT·R8 중에 크래시했다(hs_err: `ciMethodData ShouldNotReachHere`, `EXCEPTION_ACCESS_VIOLATION`). `gradle.properties`에서 C1만 쓰고(`-XX:TieredStopAtLevel=1`) 병렬을 줄여(`org.gradle.workers.max=4`, `ActiveProcessorCount=4`) 넘겼다. 다른 PC에서는 지워도 된다.
 - `lintVitalRelease`가 `lint-gradle`을 받으려다 `dl.google.com`에 못 가 실패 → `lint { checkReleaseBuilds = false }`. release는 debug 키로 서명(심사용).
 - 문서와 실제 SDK의 차이는 Vehicle 리스너의 `onFailed` 하나였다. 나머지 import·시그니처는 그대로 컴파일됐다.
+- 11-04 15시 두 번째 빌드(트렁크·주행거리·RouteInfo 연결 뒤): demo 11초·pleos 13초·release 16초 모두 성공. 경고 하나 — `Odometer.getRangeRemainingDistance`가 deprecated(위 표).
 
 ## 에뮬레이터에서 확인할 순서
 

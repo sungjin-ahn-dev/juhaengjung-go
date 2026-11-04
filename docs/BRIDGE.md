@@ -44,7 +44,7 @@ Kotlin → JS   window.__pleos.resolve(id, json)      결과(JSON 글)
 | `Vehicle.registerSteeringWheelAngle` | — | `null` | `registerSteeringWheelAngle(listener)` — 0.15초에 한 번 또는 2° 넘게 바뀔 때만 웹으로 |
 | `Vehicle.registerBrakePedalStatus` | — | `null` | `registerBrakePedalStatus(listener)` |
 | `Vehicle.getOdometerKm` | — | km 또는 `null` | `Odometer.getCurrentDistanceDriven(onComplete, onFailed)`(실제 SDK 바이너리 확인, 단위 🧪). 웹은 출발·도착 값의 차이만 쓰므로 한 주행 안에서 출처를 바꾸지 않는다: 차가 한 번 답하면 계속 차 값(안 오면 `null`), 처음부터 안 되면 대체(↪) NaviHelper 위치를 1초마다 누적한 거리(순간 이동·제자리 흔들림 제외). 출처는 `Vehicle.odometerSource` 이벤트로 알린다 |
-| `Vehicle.getFuelRangeKm` | — | km 또는 `null` | `Odometer.getRangeRemainingDistance(onComplete, onFailed)`(바이너리 확인, 단위 🧪) — 내연기관·전기차 공통 주행 가능 거리. 5초 캐시 |
+| `Vehicle.getFuelRangeKm` | — | km 또는 `null` | `Odometer.getRangeRemainingDistance(onComplete, onFailed)`(바이너리 확인, 단위 🧪, SDK가 deprecated로 표시 — 안 오면 AAOS RANGE_REMAINING 속성으로) — 내연기관·전기차 공통 주행 가능 거리. 5초 캐시 |
 | `Vehicle.registerTrunkOpen` | — | `null` | `Door.registerDoorPosition(DoorArea(DoorValue.REAR), DoorPositionListener)`(바이너리 확인). 한 번만 등록. 열림 판정(`position != 0`)은 에뮬레이터에서 확인 🧪 |
 | `CarUx.current` | — | `true`(주행 중) / `false` | AAOS `CarUxRestrictionsManager.isRequiresDistractionOptimization`. 못 쓰면 대체: 위치 변화 속도 > 5km/h |
 | `Voice.capabilities` | — | `{tts, stt, ttsEngine: "pleos" \| "android" \| "none", sttEngine: "pleos" \| "android" \| "none"}` | |
