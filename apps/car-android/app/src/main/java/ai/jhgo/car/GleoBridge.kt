@@ -81,7 +81,7 @@ class GleoBridge(private val context: Context, private val web: WebView) {
     companion object {
         private const val TAG = "JhgoGleo"
         /** assets/schema.json actionCalls의 이름과 같아야 한다(브리지 계약 시험이 맞춘다) */
-        val FUNCTIONS = setOf("ADD_INTEREST", "ANSWER_ALERT", "SHOW_BRIEFING")
+        val FUNCTIONS = setOf("ADD_INTEREST", "ANSWER_ALERT", "ASK_ABOUT_LISTINGS")
         const val EXTRA_PARAM = "ACTION_PARAM"
         const val ACTION_RESPONSE = "ai.pleos.playground.intent.action.APP_ACTION_RESPONSE"
     }

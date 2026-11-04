@@ -286,7 +286,11 @@ select:focus-visible {
   flex: 1;
 }
 .c-rail .mic {
+  color: #9aa7b8;
+}
+.c-rail .mic.on {
   color: var(--kraft);
+  background: var(--kraft-soft);
 }
 
 /* ───── 아래: 도착 정보 ───── */
@@ -734,12 +738,24 @@ select:focus-visible {
   font-size: 13.5px;
   color: var(--muted);
 }
-.c-brief-say {
-  margin-top: 10px;
-  height: 38px;
-  padding: 0 14px;
-  font-size: 14.5px;
+.c-brief-hint {
+  display: flex;
+  align-items: flex-start;
   gap: 6px;
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.c-brief-hint svg {
+  flex: none;
+  margin-top: 2px;
+}
+.c-voice-q {
+  display: block;
+  font-size: 13.5px;
+  color: var(--muted);
+  margin-bottom: 2px;
 }
 /* 거래가 잡힌 매물: 버튼 대신 상태 글자. 카드 색도 크라프트 기운을 살짝 */
 .c-item-mine {
@@ -1717,6 +1733,16 @@ select:focus-visible {
   color: #5d6878;
   font-size: 12.5px;
   line-height: 1.45;
+}
+.vc-say {
+  flex: 1 1 220px;
+  min-width: 160px;
+  border: 1px solid #c5cdd8;
+  border-radius: 9px;
+  padding: 7px 10px;
+  font-size: 13px;
+  color: var(--console-ink);
+  background: #fff;
 }
 /* Gleo 응답: 셸이 브로드캐스트로 돌려주는 것과 같은 내용 */
 .vc-gleo {

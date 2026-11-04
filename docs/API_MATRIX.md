@@ -65,7 +65,7 @@ SDK가 아니라 스키마 + Intent 규약이다(2026-11-03 문서를 이 작업
 
 | 기능 | 규약 | 판정 | 쓰는 곳 | 🧪 |
 |---|---|---|---|---|
-| 음성 기능 선언 | `assets/schema.json` — `packageName`, `appDescription`, `version`, `actionCalls`(최대 3개: `type:"function"`, `function{component:"activity"|"service", name 대문자_스네이크, description 영어, parameters(JSON Schema object, type은 string·number·boolean·array, enum은 문자열만)}`) | 📄 | `apps/car-android/app/src/main/assets/schema.json` — ADD_INTEREST(keyword, goLevel enum), ANSWER_ALERT(answer enum yes·no, item), SHOW_BRIEFING | 부팅 때 Gleo가 assets를 읽는지, 에뮬레이터에 Gleo가 있는지 |
+| 음성 기능 선언 | `assets/schema.json` — `packageName`, `appDescription`, `version`, `actionCalls`(최대 3개: `type:"function"`, `function{component:"activity"|"service", name 대문자_스네이크, description 영어, parameters(JSON Schema object, type은 string·number·boolean·array, enum은 문자열만)}`) | 📄 | `apps/car-android/app/src/main/assets/schema.json` — ADD_INTEREST(keyword, goLevel enum), ANSWER_ALERT(answer enum yes·no, item), ASK_ABOUT_LISTINGS(question → 앱 조수, silent) | 부팅 때 Gleo가 assets를 읽는지, 에뮬레이터에 Gleo가 있는지 |
 | 호출 받기 | Gleo → `startActivity`(action = function 이름, extra `ACTION_PARAM` = 인자 JSON 문자열) / service면 `sendBroadcast`. 매니페스트 `<intent-filter><action name=function/><category DEFAULT/></intent-filter>` | 📄 | `MainActivity`(singleTask, `onNewIntent`) → `GleoBridge.handle` → 웹 `window.__jhgoGleo` | 실제 action·extra 이름이 문서와 같은지 |
 | 결과 돌려주기 | `sendBroadcast(Intent("ai.pleos.playground.intent.action.APP_ACTION_RESPONSE").putExtra("packageName", …).putExtra("response", JSON))` — `functionName`, `status`(success·asking·fail), `message`(영어 문장), `data`(JSON 배열 문자열), `mode`(voice·beep·silent). 7초 안에 | 📄 | `GleoBridge.send`(웹이 안 답하면 5초 뒤 fail) | Gleo가 message로 뭐라고 말하는지 |
 

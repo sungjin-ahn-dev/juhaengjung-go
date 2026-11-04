@@ -14,7 +14,7 @@ import "./demo.css";
 
 // ── 자동 시연: 버튼 하나로 7단계가 저절로 진행된다(클릭 없이 보기). 차·판매자 폰·서버는 손으로 할 때와 같은 길을 지난다 ──
 const GUIDE_STEPS = [
-  "목적지를 송파 집으로 정해요. 길 위의 관심 매물이 번호 핀과 목록으로 보여요",
+  "목적지를 송파 집으로 정해요. 길 위의 관심 매물이 번호 핀과 목록으로 보이고, 고르면 읽어 줘요. 조수에게 \"카시트 흠집 있어?\"라고 물어봐요",
   "2열에 아이가 타고(아기 침대 제외), 10배속으로 출발해요",
   "영통 캠핑의자 알림. 말로 \"아니\"라고 답해요",
   "분당: 카시트? 유모차? 말로 \"카시트\", 이어서 \"응\"",
@@ -55,7 +55,16 @@ async function runGuide(boot: CarBoot, seller: ApiClient, clock: AppClock, set: 
   set({ step: 1, note: "" });
   await c.setDestination(DEMO_PLACES.home);
   await until(() => c.state.mode === "route" && c.state.candidates.length > 0, 20000, "브리핑");
-  await pause(4500);
+  await pause(2500);
+  // 목록 1위를 고르면 읽어 주고(T33), 조수에게 묻는다(T34)
+  const top = [...c.state.candidates].filter((x) => x.exclusions.length === 0).sort((x, y) => y.score - x.score)[0];
+  if (top) {
+    c.setFocus(top.listingId);
+    c.speakBrief(top.listingId);
+    await pause(3000);
+    await c.ask(`${top.categoryLabel} 흠집 있어?`);
+    await pause(3500);
+  }
 
   set({ step: 2 });
   sim.setRow2Occupied(true);

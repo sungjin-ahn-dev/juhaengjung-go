@@ -100,11 +100,7 @@ export function GoList({
                 key={x.listingId}
                 ref={(el) => void (el ? rows.current.set(x.listingId, el) : rows.current.delete(x.listingId))}
                 className={`c-item compact ${selectedId === x.listingId ? "on" : ""}`}
-                onClick={() => {
-                  onSelect(x.listingId);
-                  // 주행 중엔 사진을 볼 수 없으니 누르면 판매자 글 요약과 사진에서 본 상태를 읽어 준다(T33)
-                  c.speakBrief(x.listingId);
-                }}
+                onClick={() => onSelect(x.listingId)}
                 data-testid={`go-row-${x.categoryLabel}`}
               >
                 <div className="c-rank">{x.rank}</div>
@@ -257,9 +253,9 @@ function BriefCard({ x, s, c }: { x: RankedItem; s: CarState; c: CarController }
           사진 분석 없음(서버에 AI 키가 없을 때). 판매자 표시: {x.condition ? CONDITION_KO[x.condition] : "상태 미정"}
         </p>
       )}
-      <button className="c-btn c-brief-say" onClick={() => c.speakBrief(x.listingId)} data-testid="brief-say">
-        <Volume2 size={18} strokeWidth={2.2} aria-hidden="true" /> 들려주기
-      </button>
+      <p className="c-brief-hint">
+        <Volume2 size={15} strokeWidth={2.2} aria-hidden="true" /> 읽어 드렸어요. 더 궁금하면 마이크를 누르고 물어보세요 — "흠집 있어?", "얼마나 돌아가?", "이걸로 할게"
+      </p>
     </div>
   );
 }

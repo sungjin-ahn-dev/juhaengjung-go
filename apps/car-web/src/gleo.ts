@@ -8,7 +8,7 @@
 import { GO_LABEL, type GoLevel } from "@jhgo/core";
 import type { CarController } from "./controller.ts";
 
-export const GLEO_FUNCTIONS = ["ADD_INTEREST", "ANSWER_ALERT", "SHOW_BRIEFING"] as const;
+export const GLEO_FUNCTIONS = ["ADD_INTEREST", "ANSWER_ALERT", "ASK_ABOUT_LISTINGS"] as const;
 export type GleoFunction = (typeof GLEO_FUNCTIONS)[number];
 
 export interface GleoRequest {
@@ -67,13 +67,15 @@ export async function handleGleo(c: CarController, req: GleoRequest): Promise<Gl
         mode: "silent",
       };
     }
-    if (name === "SHOW_BRIEFING") {
-      const items = (c.state.candidates.length ? c.state.candidates : (c.state.briefing?.items ?? [])).filter((x) => x.exclusions.length === 0);
-      if (c.state.mode === "idle") return { functionName: name, status: "fail", message: "Set a destination first; the briefing follows the route." };
-      const top = [...items].sort((x, y) => y.score - x.score).slice(0, 3);
-      if (!c.state.restricted) c.open("briefing");
-      const summary = top.length ? `${top.length === items.length ? top.length : items.length} listings along the route. ` + top.map((x) => `${x.categoryLabel}, ${x.detourMin} minutes extra`).join("; ") + "." : "No listings along this route.";
-      return { functionName: name, status: "success", message: summary, data: data(top.map((x) => ({ item: x.categoryLabel, title: x.title, detourMin: x.detourMin, price: x.price }))) };
+    if (name === "ASK_ABOUT_LISTINGS") {
+      // 운전자의 말을 그대로 앱 조수(T34)에게 — 앱이 한국어로 읽어 주므로 Gleo에는 silent로, 영어 message와 data에 답을 담는다
+      const question = str("question") || "가는 길에 뭐 있어?";
+      if (c.state.mode === "idle") return { functionName: name, status: "fail", message: "Set a destination first; listings follow the route." };
+      const r = await c.ask(question);
+      if (!r) return { functionName: name, status: "fail", message: "The app could not answer right now." };
+      if (!c.state.restricted && (r.intent === "list" || r.intent === "recommend")) c.open("briefing");
+      const acted = r.action ? ` Action taken: ${r.action.type}.` : "";
+      return { functionName: name, status: "success", message: `The app answered in Korean and spoke it aloud.${acted}`, data: data([{ question, answer: r.text, action: r.action?.type ?? null, listingId: r.focusId }]), mode: "silent" };
     }
     return { functionName: name, status: "fail", message: "Unknown function." };
   } catch (e) {

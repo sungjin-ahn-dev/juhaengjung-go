@@ -19,6 +19,7 @@ import {
   type TripCheck,
   type VehicleProfile,
   type ListingBrief,
+  type AssistResult,
 } from "@jhgo/core";
 import type { ApiClient, AppEvent } from "@jhgo/api";
 import type { AppClock } from "./clock.ts";
@@ -156,6 +157,12 @@ export interface CarState {
   heard: { word: string; at: number } | null;
   /** 펼친 매물의 사진(최대 3장) — 브리핑 카드에서만 받아 온다 */
   briefPhotos: Record<string, string[]>;
+  /** 화면에서 고른 매물(목록·핀) — 조수가 "이거"를 알아듣는 기준 */
+  focusId: string | null;
+  /** 대화로 고르기(T34): 마지막 질문과 답 */
+  chat: { q: string; a: string; at: number; source: "rule" | "ai" } | null;
+  /** 마이크를 눌러 자유롭게 듣는 중 */
+  talking: boolean;
   /** 마지막으로 말한 시각 — 화면 자막은 이 뒤 몇 초만 보인다 */
   speechAt: number;
   holdNote: string | null;
@@ -202,6 +209,9 @@ const initialState: CarState = {
   lastSpeech: null,
   heard: null,
   briefPhotos: {},
+  focusId: null,
+  chat: null,
+  talking: false,
   speechAt: 0,
   holdNote: null,
   muted: false,
@@ -661,6 +671,71 @@ export class CarController {
     if (this.state.alert !== null && this.state.alert.shownAt === shown.shownAt) {
       this.set({ alert: { ...this.state.alert, listening: false }, heard: w ? { word: w, at: Date.now() } : this.state.heard });
       if (w) onWord(w);
+    }
+  }
+
+  setFocus(listingId: string | null) {
+    this.set({ focusId: listingId });
+  }
+
+  /** 마이크: 자유로운 한 마디를 듣고 조수에게 묻는다(T34). 알림이 듣는 중이면 그쪽이 먼저 */
+  async talk() {
+    if (this.state.talking) return;
+    if (!this.p.voice.stt) {
+      this.toast("이 차에서는 음성 인식이 안 돼요", "warn");
+      return;
+    }
+    this.set({ talking: true });
+    try {
+      const q = await this.p.voice.listenFree(7000);
+      if (q) await this.ask(q);
+      else this.toast("못 들었어요. 다시 눌러 말해 주세요", "warn");
+    } finally {
+      this.set({ talking: false });
+    }
+  }
+
+  /** 운전자의 말 → 서버 조수(지금 맥락의 사실로 답) → 읽어 주고, 행동이 있으면 그대로 한다 */
+  async ask(question: string): Promise<AssistResult | null> {
+    const q = question.trim();
+    if (!q) return null;
+    const a = this.state.alert;
+    const alert = a ? (a.kind === "contention" ? { kind: "contention" as const, listingIds: a.pair.map((x) => x.listingId) } : { kind: "single" as const, listingIds: [a.c.listingId] }) : null;
+    this.set({ chat: { q, a: "…", at: Date.now(), source: "rule" } });
+    try {
+      const ctx = await this.buildCtx();
+      const r = await this.api.call<AssistResult>("POST", "/v1/assist", { ctx, question: q, focusId: this.state.focusId, alert, driving: this.state.restricted });
+      this.set({ chat: { q, a: r.text, at: Date.now(), source: r.source }, focusId: r.focusId ?? this.state.focusId });
+      this.say(r.text);
+      if (r.action) await this.applyAssistAction(r.action);
+      return r;
+    } catch (e) {
+      const msg = "지금은 답하지 못했어요";
+      this.set({ chat: { q, a: msg, at: Date.now(), source: "rule" } });
+      this.toast(`${msg}: ${(e as Error).message}`, "warn");
+      return null;
+    }
+  }
+
+  private async applyAssistAction(act: NonNullable<AssistResult["action"]>) {
+    const a = this.state.alert;
+    if (act.type === "choose") {
+      if (a?.kind === "contention") this.choose(act.listingId);
+      return;
+    }
+    if (act.type === "dismiss") {
+      if (a?.kind === "single") this.closeAlert(true);
+      else if (a) this.closeAlert(false);
+      return;
+    }
+    // request: 떠 있는 알림이 그 매물이면 '들를게요'와 같고, 아니면 목록에서 미리 요청
+    if (a?.kind === "single" && a.c.listingId === act.listingId) {
+      this.set({ alert: null });
+      await this.request(act.listingId, "drive");
+    } else if (!this.state.trade) {
+      await this.request(act.listingId, "briefing");
+    } else {
+      this.toast("진행 중인 거래가 있어 지금은 요청하지 않아요", "warn");
     }
   }
 

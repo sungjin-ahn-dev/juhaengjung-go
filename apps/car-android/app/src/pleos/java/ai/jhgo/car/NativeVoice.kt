@@ -135,7 +135,7 @@ class NativeVoice(private val context: Context) {
         runCatching { SpeechRecognizer.isRecognitionAvailable(context) }.getOrDefault(false) &&
             context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
 
-    /** 정해진 단어 중 하나를 듣는다. 못 알아들으면 null */
+    /** 정해진 단어 중 하나를 듣는다(words가 비어 있으면 들은 문장 그대로). 못 알아들으면 null */
     suspend fun listen(words: List<String>, timeoutMs: Long): String? {
         if (!sttAvailable()) return null
         val r = recognizer ?: SpeechRecognizer.createSpeechRecognizer(context).also { recognizer = it }
@@ -183,8 +183,9 @@ class NativeVoice(private val context: Context) {
     companion object {
         private const val TAG = "NativeVoice"
 
-        /** 들은 문장 안에 정해진 단어가 있으면 그 단어(띄어쓰기 무시) */
+        /** 들은 문장 안에 정해진 단어가 있으면 그 단어(띄어쓰기 무시). words가 비어 있으면 들은 문장 그대로(대화로 고르기) */
         fun match(heard: List<String>, words: List<String>): String? {
+            if (words.isEmpty()) return heard.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() }
             for (h in heard) {
                 val hn = h.replace(" ", "")
                 for (w in words) if (hn.contains(w.replace(" ", ""))) return w

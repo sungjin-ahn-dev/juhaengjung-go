@@ -235,6 +235,11 @@ function createNativeVoice(call: <T>(method: string, args?: unknown, timeoutMs?:
       if (!caps.stt) return fallback.listen(words, timeoutMs);
       return call<string | null>("Voice.listen", { words, timeoutMs }, timeoutMs + 4000).catch(() => null);
     },
+    async listenFree(timeoutMs) {
+      // words가 비어 있으면 셸이 들은 문장을 그대로 준다(대화로 고르기)
+      if (!caps.stt) return fallback.listenFree(timeoutMs);
+      return call<string | null>("Voice.listen", { words: [], timeoutMs }, timeoutMs + 4000).catch(() => null);
+    },
     stop() {
       if (caps.tts) void call("Voice.stop").catch(() => {});
       fallback.stop();

@@ -133,7 +133,8 @@ export function needsMeasuredSize(size: SizeCm): boolean {
 
 /** 끝 글자에 받침이 있는지(한글 음절·숫자 읽기 기준). 영문 등은 받침 없음으로 본다 */
 function finalConsonant(word: string): number {
-  const ch = word.trim().slice(-1);
+  // 끝의 괄호·따옴표·문장부호는 건너뛴다: "긁힘(작음)" → "음"
+  const ch = word.trim().replace(/[)\]}»"'’”.!?…]+$/, "").slice(-1);
   if (!ch) return 0;
   const code = ch.charCodeAt(0);
   if (code >= 0xac00 && code <= 0xd7a3) return (code - 0xac00) % 28;

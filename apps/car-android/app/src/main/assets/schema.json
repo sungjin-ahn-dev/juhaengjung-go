@@ -1,6 +1,6 @@
 {
   "packageName": "ai.jhgo.car",
-  "appDescription": "Finds second-hand items for sale near the driver's route and lets the driver stop by after the seller accepts. Voice functions: add an interest, answer the current stop-by question, and summarize listings on the route.",
+  "appDescription": "Finds second-hand items for sale near the driver's route and lets the driver stop by after the seller accepts. Voice functions: add an interest, answer the current stop-by question, and ask anything about the listings on the route (condition, price, detour, comparison, picking one).",
   "version": "0.1.0",
   "actionCalls": [
     {
@@ -43,9 +43,15 @@
       "type": "function",
       "function": {
         "component": "activity",
-        "name": "SHOW_BRIEFING",
-        "description": "Summarizes the listings found along the current route and, when the car is parked, opens the list.",
-        "parameters": { "type": "object", "properties": {}, "required": [] }
+        "name": "ASK_ABOUT_LISTINGS",
+        "description": "Asks the app about the second-hand listings along the current route in the driver's own words, such as what is available, the condition or price of an item, how far the detour is, which of two is better, or picking one. The app answers aloud in Korean.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "question": { "type": "string", "description": "The driver's question or instruction about the listings, in their own words." }
+          },
+          "required": ["question"]
+        }
       }
     }
   ]

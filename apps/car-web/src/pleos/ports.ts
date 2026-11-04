@@ -157,6 +157,8 @@ export interface VoicePort {
   speak(text: string): Promise<void>;
   /** 정해진 단어 중 하나를 듣는다(못 들으면 null) */
   listen(words: string[], timeoutMs: number): Promise<string | null>;
+  /** 자유로운 한 마디를 듣는다 — 대화로 고르기(T34). 못 들으면 null */
+  listenFree(timeoutMs: number): Promise<string | null>;
   stop(): void;
   /** 시뮬레이터 전용: 마이크 대신 이 말을 들은 것으로 친다(듣는 중이 아니면 false). 실제 SDK 모드에는 없다 */
   hear?(word: string): boolean;

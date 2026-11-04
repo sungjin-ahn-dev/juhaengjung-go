@@ -13,3 +13,4 @@ export * from "./trade.ts";
 export { DEMO_NET, DEMO_PLACES } from "./data/demoNet.ts";
 export * from "./art.ts";
 export { briefSpeech, parseAiBrief, ruleBrief, sentencesOf, summarize, type ListingBrief } from "./brief.ts";
+export { assist, resolveItems, type AssistAction, type AssistFact, type AssistInput, type AssistResult } from "./assistant.ts";

@@ -118,15 +118,33 @@ async function waitHealth() {
     await bc.waitFor({ timeout: 5000 });
     const bct = await bc.innerText();
     check(bct.includes("판매자 글 요약") && bct.includes("아이가 커서 정리해요") && bct.includes("사진 분석 없음"), "고른 매물 아래 판매자 글 요약, 사진 분석 없음(AI 키 없음)이라고 정직하게 표시");
-    await car.getByTestId("brief-say").click();
     await car.waitForFunction(() => document.querySelector('[data-testid="voice-line"]')?.textContent?.includes("카시트 판매자 설명"), null, { timeout: 5000 });
-    check(true, "들려주기 → 자막에 '카시트 판매자 설명: …'");
+    check(true, "고르면 바로 읽어 줌 → 자막에 '카시트 판매자 설명: …'");
+    // 대화로 고르기(T34): 콘솔 '말하기'가 마이크를 대신한다. 규칙 조수(AI 키 없음)가 사실로만 답한다
+    const sayAsk = async (q) => {
+      await car.getByTestId("say-input").fill(q);
+      await car.getByTestId("say-send").click();
+      await car.waitForFunction((qq) => {
+        const t = document.querySelector('[data-testid="say-response"]')?.textContent ?? "";
+        return t.includes(qq) && !t.endsWith("…");
+      }, q, { timeout: 8000 });
+      return await car.getByTestId("say-response").innerText();
+    };
+    const s1 = await sayAsk("카시트 흠집 있어?");
+    check(s1.includes("사진 분석은 없고") && s1.includes("상태 상"), '"카시트 흠집 있어?" → 사진 분석 없음·판매자 표시 상태로 답함');
+    const s2 = await sayAsk("카시트랑 유모차 중에 뭐가 더 싸?");
+    check(/더 싸요/.test(s2) && s2.includes("카시트"), '"둘 중에 뭐가 더 싸?" → 가격 비교');
+    const s3 = await sayAsk("캠핑의자 얼마나 돌아가?");
+    check(/3분 더 걸려요/.test(s3), '"얼마나 돌아가?" → 우회 시간');
+    check((await car.getByTestId("voice-line").innerText()).includes("캠핑의자"), "조수 답을 자막으로도 보여 줌");
     await snapC("briefing");
     // Gleo AI 음성 기능(정차 중): 가는 길 요약과 관심 추가 — 콘솔이 Gleo 호출을 흉내 내면 앱이 Callback Schema대로 답한다
     await car.getByTestId("gleo-briefing").click();
     await car.getByTestId("gleo-response").waitFor({ timeout: 5000 });
     const gb = await car.getByTestId("gleo-response").innerText();
-    check(gb.includes("SHOW_BRIEFING") && gb.includes("success") && /listings along the route/.test(gb) && gb.includes("카시트"), 'Gleo "가는 길에 뭐 있어?" → SHOW_BRIEFING: 매물 수와 1위');
+    check(gb.includes("ASK_ABOUT_LISTINGS") && gb.includes("success") && gb.includes("answered in Korean"), 'Gleo "가는 길에 뭐 있어?" → ASK_ABOUT_LISTINGS: 앱 조수가 답하고 읽어 줌(silent)');
+    await car.waitForFunction(() => document.querySelector('[data-testid="say-response"]')?.textContent?.includes("알릴 수 있는 매물"), null, { timeout: 5000 });
+    check(true, '조수 답: "알릴 수 있는 매물 N개예요. 1위 …"');
     await car.getByTestId("gleo-add-interest").click();
     await car.waitForFunction(() => document.querySelector('[data-testid="gleo-response"]')?.textContent?.includes("ADD_INTEREST"), null, { timeout: 5000 });
     const ga = await car.getByTestId("gleo-response").innerText();

@@ -7,3 +7,4 @@ export { isPushSubscription, type PushPayload, type PushSender, type PushSubscri
 export { parseAiSize, photoForAi, type AiSizeResult, type SizeEstimator } from "./size-ai.ts";
 export { ApiCallError, createDirectClock, createHttpClient, createLocalClient, createSyncedClock, type ApiClient, type AppClock } from "./client.ts";
 export { briefPrompt, createClaudeBriefEngine, type BriefEngine } from "./brief-ai.ts";
+export { assistPrompt, createClaudeAssistEngine, factSheet, parseAiAssist, type AssistEngine } from "./assist-ai.ts";

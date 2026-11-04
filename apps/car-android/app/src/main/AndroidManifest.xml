@@ -34,7 +34,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
             <intent-filter>
-                <action android:name="SHOW_BRIEFING" />
+                <action android:name="ASK_ABOUT_LISTINGS" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>

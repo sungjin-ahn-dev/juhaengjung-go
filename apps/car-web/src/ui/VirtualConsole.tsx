@@ -30,6 +30,15 @@ export function VirtualConsole({
 }) {
   const [, setT] = useState(0);
   const [gleoLog, setGleoLog] = useState<{ said: string; res: GleoResponse } | null>(null);
+  const [say, setSay] = useState("");
+  /** 마이크 대신 말하기: 차가 자유롭게 듣는 중이면 그 말로, 아니면 바로 조수에게 */
+  const submitSay = () => {
+    const t = say.trim();
+    if (!t || !controller) return;
+    if (controller.state.talking || controller.state.alert?.listening) hear?.(t);
+    else void controller.ask(t);
+    setSay("");
+  };
   const askGleo = async (said: string, req: GleoRequest) => {
     if (!gleo) return;
     const res = await gleo(req);
@@ -163,6 +172,37 @@ export function VirtualConsole({
         </div>
       </section>
 
+      {hear && controller && (
+        <section>
+          <h4>말하기(대화로 고르기)</h4>
+          <p className="vc-help">실제 차에서는 왼쪽 '말하기'를 누르고 말해요. 여기서는 글로 넣으면 같은 조수가 답해요. 예: "카시트 흠집 있어?", "둘 중에 뭐가 더 싸?", "유모차로 할게"</p>
+          <div className="vc-row">
+            <input
+              className="vc-say"
+              value={say}
+              onChange={(e) => setSay(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submitSay()}
+              placeholder="운전자의 말"
+              data-testid="say-input"
+            />
+            <button onClick={submitSay} data-testid="say-send">
+              말하기
+            </button>
+            {["카시트 흠집 있어?", "둘 중에 뭐가 더 싸?", "얼마나 돌아가?", "이걸로 할게"].map((q) => (
+              <button key={q} onClick={() => void controller.ask(q)}>
+                "{q}"
+              </button>
+            ))}
+          </div>
+          {controller.state.chat && (
+            <div className="vc-gleo" data-testid="say-response">
+              <span>"{controller.state.chat.q}"</span>
+              <b className={controller.state.chat.source === "ai" ? "success" : ""}>{controller.state.chat.source === "ai" ? "AI" : "규칙"}</b> {controller.state.chat.a}
+            </div>
+          )}
+        </section>
+      )}
+
       {hear && (
         <section>
           <h4>음성 대답</h4>
@@ -193,7 +233,7 @@ export function VirtualConsole({
             <button onClick={() => void askGleo("주행중GO에 책상 관심 추가해 줘", { name: "ADD_INTEREST", params: { keyword: "책상", goLevel: "near" } })} data-testid="gleo-add-interest">
               "책상 관심 추가해 줘"
             </button>
-            <button onClick={() => void askGleo("가는 길에 뭐 있어?", { name: "SHOW_BRIEFING", params: {} })} data-testid="gleo-briefing">
+            <button onClick={() => void askGleo("가는 길에 뭐 있어?", { name: "ASK_ABOUT_LISTINGS", params: { question: "가는 길에 뭐 있어?" } })} data-testid="gleo-briefing">
               "가는 길에 뭐 있어?"
             </button>
             <button onClick={() => void askGleo("들를게", { name: "ANSWER_ALERT", params: { answer: "yes" } })} data-testid="gleo-yes">

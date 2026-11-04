@@ -17,6 +17,7 @@ import { createBackend } from "./backend.ts";
 import { createWebPushSender } from "./push-node.ts";
 import { createClaudeSizeEstimator } from "./size-ai-claude.ts";
 import { createClaudeBriefEngine } from "./brief-ai.ts";
+import { createClaudeAssistEngine } from "./assist-ai.ts";
 import { SqliteStore } from "./store-sqlite.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -37,6 +38,7 @@ const backend = createBackend({
   push: process.env.JHGO_PUSH === "0" ? undefined : (store) => createWebPushSender(store, { subject: process.env.JHGO_VAPID_SUBJECT }),
   sizeAI: apiKey ? createClaudeSizeEstimator({ apiKey, model: process.env.JHGO_AI_MODEL }) : undefined,
   briefAI: apiKey ? createClaudeBriefEngine({ apiKey, model: process.env.JHGO_AI_MODEL }) : undefined,
+  assistAI: apiKey ? createClaudeAssistEngine({ apiKey, model: process.env.JHGO_AI_MODEL }) : undefined,
 });
 const { app, svc } = backend;
 

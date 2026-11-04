@@ -266,6 +266,11 @@ export function createApp(svc: Service, opts: AppOptions) {
   };
   app.post("/v1/drive/briefing", auth("buyer"), async (c) => c.json(svc.briefing(c.get("user"), ctxOf(await body(c)))));
   app.post("/v1/drive/context", auth("buyer"), async (c) => c.json(svc.driveContext(c.get("user"), ctxOf(await body(c)))));
+  // 대화로 고르기(T34): 운전자의 말 + 지금 맥락 → 답(두 문장 안)과 행동(request·choose·dismiss 또는 없음)
+  app.post("/v1/assist", auth("buyer"), async (c) => {
+    const b = await body<{ ctx?: DriveContextInput; question: string; focusId?: string | null; alert?: { kind: "single" | "contention"; listingIds: string[] } | null; driving?: boolean }>(c);
+    return c.json(await svc.assistFor(c.get("user"), ctxOf(b), b));
+  });
   app.post("/v1/drive/alerted", auth("buyer"), async (c) => {
     const b = await body<{ listingIds?: string[] }>(c);
     svc.markAlerted(c.get("user"), b.listingIds ?? []);

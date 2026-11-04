@@ -54,6 +54,30 @@ export function createWebVoice(opts: { muted?: () => boolean; sim?: boolean } = 
       });
     },
     listen(words, timeoutMs) {
+      return listenWith(words, timeoutMs);
+    },
+    listenFree(timeoutMs) {
+      return listenWith([], timeoutMs);
+    },
+    stop() {
+      try {
+        synth?.cancel();
+        current?.stop();
+      } catch {
+        /* 무시 */
+      }
+    },
+    hear(word) {
+      if (!opts.sim || !waiting) return false;
+      // 정해진 말을 기다리는 중이면 그중 하나로 맞추고, 자유롭게 듣는 중이면 그대로
+      waiting.finish(waiting.words.length ? match(waiting.words, word) : word.trim() || null);
+      return true;
+    },
+  };
+
+  /** words가 비어 있으면 자유 듣기(들은 문장 그대로) */
+  function listenWith(words: string[], timeoutMs: number): Promise<string | null> {
+    {
       if (!RecCtor && !opts.sim) return Promise.resolve(null);
       return new Promise((resolve) => {
         let done = false;
@@ -80,7 +104,7 @@ export function createWebVoice(opts: { muted?: () => boolean; sim?: boolean } = 
           rec.maxAlternatives = 3;
           rec.onresult = (e) => {
             const alts = Array.from(e.results[0] ?? []).map((a) => a.transcript);
-            finish(alts.map((a) => match(words, a)).find((x) => x !== null) ?? null);
+            finish(words.length ? (alts.map((a) => match(words, a)).find((x) => x !== null) ?? null) : (alts[0]?.trim() || null));
           };
           // 시뮬레이터에서는 마이크가 막혀도(권한 없음·헤드리스) 끝내지 않고 콘솔의 대답을 기다린다
           rec.onerror = () => (opts.sim ? (current = null) : finish(null));
@@ -90,21 +114,8 @@ export function createWebVoice(opts: { muted?: () => boolean; sim?: boolean } = 
           if (!opts.sim) finish(null);
         }
       });
-    },
-    stop() {
-      try {
-        synth?.cancel();
-        current?.stop();
-      } catch {
-        /* 무시 */
-      }
-    },
-    hear(word) {
-      if (!opts.sim || !waiting) return false;
-      waiting.finish(match(waiting.words, word));
-      return true;
-    },
-  };
+    }
+  }
 }
 
 /** 대답 단어 → 의미 */

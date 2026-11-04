@@ -16,6 +16,9 @@ import {
   categoryDef,
   categoryLabel,
   ruleBrief,
+  assist,
+  type AssistFact,
+  type AssistResult,
   type ListingBrief,
   createTrade,
   DEFAULT_GO_SETTING,
@@ -70,6 +73,7 @@ import { maskName, newId, newToken, type AppEvent, type Clock, type EventBus, ty
 import { isPushSubscription, type PushSender, type PushSubscriptionJson } from "./push.ts";
 import { photoForAi, type SizeEstimator } from "./size-ai.ts";
 import type { BriefEngine } from "./brief-ai.ts";
+import type { AssistEngine } from "./assist-ai.ts";
 
 export interface User {
   id: string;
@@ -142,6 +146,8 @@ export interface ServiceDeps {
   sizeAI?: SizeEstimator;
   /** 물건 요약 브리핑(T33)의 사진 분석(Node 서버, API 키가 있을 때). 없으면 글 요약만(규칙) */
   briefAI?: BriefEngine;
+  /** 대화로 고르기(T34)의 AI(Node 서버, API 키가 있을 때). 없으면 규칙 조수 */
+  assistAI?: AssistEngine;
 }
 
 interface PushDoc {
@@ -643,6 +649,41 @@ export class Service {
       items: ev.candidates.map((c) => this.candidateView(c, s, ctx.location)),
       block: this.blockFor(buyer, ctx.now),
     };
+  }
+
+  /** 대화로 고르기(T34): 지금 맥락으로 후보를 다시 계산해 사실표를 만들고, AI(있으면) 또는 규칙 조수가 답한다 */
+  async assistFor(buyer: User, ctx: DriveContextInput, q: { question: string; focusId?: string | null; alert?: { kind: "single" | "contention"; listingIds: string[] } | null; driving?: boolean }): Promise<AssistResult> {
+    this.requireRole(buyer, "buyer");
+    const question = (q.question ?? "").trim().slice(0, 200);
+    const s = this.sessionFor(buyer, ctx);
+    const ev = this.evalFor(buyer, ctx, s, true);
+    const facts: AssistFact[] = ev.candidates.map((c) => {
+      const v = this.candidateView(c, s, ctx.location);
+      return {
+        listingId: v.listingId,
+        categoryLabel: v.categoryLabel,
+        title: v.title,
+        price: v.price,
+        referencePrice: v.referencePrice,
+        detourMin: v.detourMin,
+        fit: v.fit,
+        energy: { ok: v.energy.ok, arrivalSocPct: v.energy.arrivalSocPct, rangeAfterKm: v.energy.rangeAfterKm },
+        condition: v.condition,
+        brief: v.brief ? { summary: v.brief.summary, findings: v.brief.condition.findings, photoChecked: v.brief.condition.photoChecked, grade: v.brief.condition.grade } : null,
+        seller: v.seller,
+        goLevel: v.goLevel,
+        aheadM: v.aheadM,
+        score: v.score,
+        exclusions: v.exclusions as AssistFact["exclusions"],
+      };
+    });
+    const alert = q.alert && Array.isArray(q.alert.listingIds) ? { kind: q.alert.kind === "contention" ? ("contention" as const) : ("single" as const), listingIds: q.alert.listingIds.filter((x) => typeof x === "string") } : null;
+    const input = { question, facts, focusId: q.focusId ?? null, alert, driving: !!q.driving };
+    if (this.d.assistAI && question) {
+      const r = await this.d.assistAI.assist(input).catch(() => null);
+      if (r) return r;
+    }
+    return assist(input);
   }
 
   /** 주행 중 맥락 갱신 → 알릴 매물(T1~T7). 지나친 알림은 개인화(T14), 지나친 요청은 만료(T9) */

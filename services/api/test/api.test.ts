@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { DEMO_NET, DEMO_PLACES, Graph, GraphRouter, pointAtAlong, timeAtAlong, type DriveContext } from "@jhgo/core";
-import { createBackend, createLocalClient, DEMO_SERVICE_CONFIG, DEMO_START, ManualClock, parseAiSize, type AppEvent, type ApiClient, type BriefEngine, type PushPayload, type PushSender, type SizeEstimator } from "../src/index.ts";
+import { createBackend, createLocalClient, DEMO_SERVICE_CONFIG, DEMO_START, ManualClock, parseAiAssist, parseAiSize, type AppEvent, type ApiClient, type AssistEngine, type BriefEngine, type PushPayload, type PushSender, type SizeEstimator } from "../src/index.ts";
 import { SqliteStore } from "../src/store-sqlite.ts";
 
 const router = new GraphRouter(new Graph(DEMO_NET));
@@ -13,7 +13,7 @@ function at(min: number) {
   return { location: pointAtAlong(base.line, s).point, remainTimeS: Math.round(base.durationS - timeAtAlong(base, s)) };
 }
 
-function setup(includeCarSeat = true, extra: { push?: PushSender; sizeAI?: SizeEstimator; briefAI?: BriefEngine } = {}) {
+function setup(includeCarSeat = true, extra: { push?: PushSender; sizeAI?: SizeEstimator; briefAI?: BriefEngine; assistAI?: AssistEngine } = {}) {
   const clock = new ManualClock(DEMO_START);
   const b = createBackend({ demo: true, clock, config: DEMO_SERVICE_CONFIG, ...extra });
   const anon = createLocalClient(b);
@@ -578,6 +578,58 @@ describe("물건 요약 브리핑(T33)", () => {
     expect(await s.svc.refreshBriefAI(svgOnly.listing.id)).toBeNull();
     const b = await car.call<{ items: { listingId: string; brief: { source: string } | null }[] }>("POST", "/v1/drive/briefing", { ctx: ctx(s, 0) });
     expect(b.items.find((i) => i.listingId === listing.id)?.brief?.source).toBe("ai");
+  });
+});
+
+describe("대화로 고르기(T34)", () => {
+  it("규칙 조수: 지금 맥락의 후보 사실만으로 답하고 행동을 낸다", async () => {
+    const q = (question: string, extra: Record<string, unknown> = {}) => car.call<{ text: string; action: { type: string; listingId: string } | null; intent: string; source: string }>("POST", "/v1/assist", { ctx: ctx(s, 0), question, ...extra });
+    const a = await q("카시트 흠집 있어?");
+    expect(a.source).toBe("rule");
+    expect(a.intent).toBe("condition");
+    expect(a.text).toContain("사진 분석은 없고");
+    const b = await q("카시트랑 유모차 중에 뭐가 더 싸?");
+    expect(b.intent).toBe("compare");
+    expect(b.text).toMatch(/더 싸요/);
+    const list = await q("가는 길에 뭐 있어?");
+    expect(list.text).toMatch(/^알릴 수 있는 매물 \d개예요/);
+    // 제외된 매물(2열 착석 → 아기 침대)은 요청하지 않고 이유를 말한다
+    const blocked = await q("아기 침대로 할게");
+    expect(blocked.action).toBeNull();
+    expect(blocked.text).toContain("2열에 사람이 있어");
+    // 정차 중 이름을 대면 요청 행동
+    const req = await q("캠핑의자 미리 요청해 줘");
+    expect(req.action?.type).toBe("request");
+    // 경합 중 고르기
+    const brief = await car.call<{ items: { listingId: string; categoryLabel: string }[] }>("POST", "/v1/drive/briefing", { ctx: ctx(s, 0) });
+    const ids = ["카시트", "유모차"].map((l) => brief.items.find((i) => i.categoryLabel === l)!.listingId);
+    const ch = await q("유모차로 할게", { alert: { kind: "contention", listingIds: ids } });
+    expect(ch.action).toEqual({ type: "choose", listingId: ids[1] });
+    await expect(s.anon.call("POST", "/v1/assist", { ctx: ctx(s, 0), question: "x" })).rejects.toMatchObject({ status: 401 });
+  });
+
+  it("AI 조수가 있으면 그 답을 쓰되, 사실표 밖 매물·허용되지 않은 행동은 버린다", async () => {
+    let reply = "";
+    const assistAI: AssistEngine = { name: "fake", assist: async (i) => parseAiAssist(reply, i) };
+    s = setup(true, { assistAI });
+    await s.anon.call("POST", "/v1/demo/reset", {});
+    car = await login(s, "김주행");
+    const brief = await car.call<{ items: { listingId: string; categoryLabel: string; exclusions: string[] }[] }>("POST", "/v1/drive/briefing", { ctx: ctx(s, 0) });
+    const carSeat = brief.items.find((i) => i.categoryLabel === "카시트")!.listingId;
+    const bed = brief.items.find((i) => i.categoryLabel === "아기 침대")!.listingId;
+    reply = `{"answer":"카시트는 사진 분석이 없고 판매자는 상으로 표시했어요.","action":null,"focusId":"${carSeat}"}`;
+    const a = await car.call<{ text: string; source: string; focusId: string | null }>("POST", "/v1/assist", { ctx: ctx(s, 0), question: "카시트 흠집 있어?" });
+    expect(a).toMatchObject({ source: "ai", focusId: carSeat });
+    // 제외 매물 요청 → 행동 버림, 없는 매물 → 버림, 경합이 아닌데 choose → 버림
+    reply = `{"answer":"요청할게요","action":{"type":"request","listingId":"${bed}"}}`;
+    expect((await car.call<{ action: unknown }>("POST", "/v1/assist", { ctx: ctx(s, 0), question: "아기 침대로 할게" })).action).toBeNull();
+    reply = `{"answer":"요청할게요","action":{"type":"request","listingId":"nope"}}`;
+    expect((await car.call<{ action: unknown }>("POST", "/v1/assist", { ctx: ctx(s, 0), question: "할게" })).action).toBeNull();
+    reply = `{"answer":"고를게요","action":{"type":"choose","listingId":"${carSeat}"}}`;
+    expect((await car.call<{ action: unknown }>("POST", "/v1/assist", { ctx: ctx(s, 0), question: "카시트로" })).action).toBeNull();
+    // AI 답이 깨지면 규칙 조수로
+    reply = "모르겠어요";
+    expect((await car.call<{ source: string }>("POST", "/v1/assist", { ctx: ctx(s, 0), question: "카시트 얼마야?" })).source).toBe("rule");
   });
 });
 

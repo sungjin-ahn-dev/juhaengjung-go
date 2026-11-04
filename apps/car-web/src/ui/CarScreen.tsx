@@ -76,24 +76,32 @@ function useBridgeSnapshot(s: CarState, enabled: boolean): MapSnapshot | null {
 
 /** 말한 문장을 몇 초 동안 자막으로. 정차 중에는 다시 듣기 단추 */
 function VoiceLine({ s, c, now, sheetOpen }: { s: CarState; c: CarController; now: number; sheetOpen: boolean }) {
-  const listening = !!s.alert?.listening;
+  const listening = !!s.alert?.listening || s.talking;
   const heard = s.heard && now - s.heard.at < 3000 ? s.heard.word : null;
+  const chat = s.chat && now - s.chat.at < 14000 ? s.chat : null;
   const fresh = s.lastSpeech && now - s.speechAt < (s.alert ? 20000 : 9000);
-  if (!fresh && !listening && !heard) return null;
+  if (!fresh && !listening && !heard && !chat) return null;
   const Mic = UI.mic;
   const Sound = UI.sound;
-  const words = c.listenWords();
+  const words = s.talking ? [] : c.listenWords();
   return (
     <div className={`c-voice ${sheetOpen ? "beside-sheet" : ""}`} aria-live="polite">
       <div className={`c-voice-pill ${listening ? "listen" : ""}`} data-testid="voice-line">
         {listening ? <Mic size={24} aria-hidden="true" /> : <Sound size={24} aria-hidden="true" />}
         <div>
-          {heard ? (
+          {s.talking ? (
+            <span>물어보세요. 흠집, 가격, 얼마나 돌아가는지, "카시트로 할게"</span>
+          ) : heard ? (
             <span data-testid="voice-heard">"{heard}" — 알아들었어요</span>
+          ) : chat ? (
+            <span data-testid="voice-chat">
+              <small className="c-voice-q">"{chat.q}"</small>
+              {chat.a}
+            </span>
           ) : (
             s.lastSpeech
           )}
-          {listening && !heard && (
+          {listening && !heard && words.length > 0 && (
             <small>
               <span className="c-wave" aria-hidden="true">
                 <i />
@@ -176,7 +184,21 @@ export function CarScreen({ c, sim, now }: { c: CarController; sim: SimCar | nul
       <div className="c-stage-inner">
         <div className="c-screen" style={{ transform: `scale(${fit.scale})`, width: W }} data-testid="car-screen" data-restricted={s.restricted ? "1" : "0"}>
           {snap ? (
-            <MapView snap={snap} width={W} candidates={ranked} selectedId={selected} onPick={(id) => setSelectedId(id)} trade={s.trade} overview={overview} viewport={viewport} zoom={zoom} />
+            <MapView
+              snap={snap}
+              width={W}
+              candidates={ranked}
+              selectedId={selected}
+              onPick={(id) => {
+                setSelectedId(id);
+                c.setFocus(id);
+                c.speakBrief(id);
+              }}
+              trade={s.trade}
+              overview={overview}
+              viewport={viewport}
+              zoom={zoom}
+            />
           ) : (
             <div className="c-map" style={{ background: "var(--map)" }} />
           )}
@@ -196,9 +218,14 @@ export function CarScreen({ c, sim, now }: { c: CarController; sim: SimCar | nul
             {railBtn("brief", "브리핑", "briefing")}
             {railBtn("heart", "관심사", "interests")}
             <div className="grow" />
-            <button className={s.alert?.listening ? "mic" : ""} onClick={() => c.setMuted(!s.muted)} aria-label={s.muted ? "소리 켜기" : "소리 끄기"}>
-              <RailIcon name={s.alert?.listening ? "mic" : s.muted ? "mute" : "sound"} />
-              {s.alert?.listening ? "듣는 중" : s.muted ? "소리 꺼짐" : "소리"}
+            {/* 대화로 고르기(T34): 누르고 말하면 조수가 답한다. 알림이 듣는 중이면 그 표시 */}
+            <button className={s.talking || s.alert?.listening ? "mic on" : "mic"} onClick={() => void c.talk()} aria-label="말하기" data-testid="rail-talk">
+              <RailIcon name="mic" />
+              {s.talking || s.alert?.listening ? "듣는 중" : "말하기"}
+            </button>
+            <button onClick={() => c.setMuted(!s.muted)} aria-label={s.muted ? "소리 켜기" : "소리 끄기"}>
+              <RailIcon name={s.muted ? "mute" : "sound"} />
+              {s.muted ? "소리 꺼짐" : "소리"}
             </button>
           </nav>
 
@@ -256,7 +283,21 @@ export function CarScreen({ c, sim, now }: { c: CarController; sim: SimCar | nul
 
           {!sheetOpen && (
             <div className="c-side">
-              {showList && <GoList s={s} c={c} items={ranked} selectedId={selected} onSelect={(id) => setSelectedId((cur) => (cur === id ? null : id))} />}
+              {showList && (
+                <GoList
+                  s={s}
+                  c={c}
+                  items={ranked}
+                  selectedId={selected}
+                  onSelect={(id) => {
+                    // 고르면 바로 설명해 준다(T33) — 같은 걸 다시 누르면 접는다
+                    const next = selected === id ? null : id;
+                    setSelectedId(next);
+                    c.setFocus(next);
+                    if (next) c.speakBrief(next);
+                  }}
+                />
+              )}
               <GoPanel s={s} c={c} now={clockMs} />
             </div>
           )}
