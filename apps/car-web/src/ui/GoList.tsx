@@ -31,7 +31,12 @@ export function rankItems(s: CarState): RankedItem[] {
 
 const distText = (x: CandidateView, mode: CarState["mode"]) =>
   mode === "region" ? (x.fromHereM !== null ? `여기서 ${fmtKm(x.fromHereM)}` : "") : x.aheadM !== null ? `${fmtKm(x.aheadM)} 앞` : "";
-const detourText = (x: CandidateView, mode: CarState["mode"]) => (mode === "region" ? `${x.detourMin}분` : `+${x.detourMin}분`);
+/** 우회 시간(T36): 기대값, 주차·대기가 길어질 때까지 범위로 — "+12~14분" */
+const detourText = (x: CandidateView, mode: CarState["mode"]) => {
+  const range = x.detourMaxMin > x.detourMin ? `${x.detourMin}~${x.detourMaxMin}분` : `${x.detourMin}분`;
+  return mode === "region" ? range : `+${range}`;
+};
+const PARK_KO = { easy: "차 세우기 쉬움", hard: "주차 어려울 수 있음" } as const;
 
 export function GoList({
   s,
@@ -173,6 +178,8 @@ function Row({
           <span className={x.fit.kind === "trunk" ? "fit-trunk" : ""}>{x.fit.label}</span>
           {cheaper > 0 && <span>기준가보다 {fmtWon(cheaper)} 싸요</span>}
           {x.condition && <span>{CONDITION_KO[x.condition]}</span>}
+          {x.seller.shop && <span data-testid="chip-shop">판매점</span>}
+          {x.pickupAccess && <span data-testid={`chip-park-${x.pickupAccess}`}>{PARK_KO[x.pickupAccess]}</span>}
         </div>
         {out && <div className="c-item-why">{x.exclusions.map((e) => EXCLUSION_KO[e] ?? e).join(" / ")}</div>}
         <div className="c-item-foot">

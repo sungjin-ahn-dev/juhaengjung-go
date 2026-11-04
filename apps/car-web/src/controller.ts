@@ -45,6 +45,11 @@ export interface CandidateView {
   goLevel: GoLevel;
   interestType: "keyword" | "wish";
   detourMin: number;
+  /** 주차·대기가 길어질 때 — "길면 N분"(T36). detourMin과 같으면 범위 없음 */
+  detourMaxMin: number;
+  handover: { expectedMin: number; big: boolean; source: "rule" | "history" };
+  /** 차 세우기 쉬운지(T39) — 판매자가 표시한 경우에만 */
+  pickupAccess: "easy" | "hard" | null;
   detourS: number;
   timeToBranchS: number | null;
   /** 경로 매칭: 지금 위치에서 경로를 따라 몇 m 앞인지 */
@@ -59,7 +64,7 @@ export interface CandidateView {
   inWindow: boolean;
   score: number;
   speech: string;
-  seller: { completed: number; rating: number | null };
+  seller: { completed: number; rating: number | null; shop: boolean };
 }
 
 export interface TradeView {

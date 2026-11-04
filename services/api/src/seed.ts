@@ -28,7 +28,8 @@ export function placePoint(id: string) {
 }
 
 const WEEKDAY_EVENING: Availability[] = [{ days: [1, 2, 3, 4, 5], from: "18:00", to: "21:00" }];
-const EVERY_EVENING: Availability[] = [{ days: [0, 1, 2, 3, 4, 5, 6], from: "17:00", to: "22:00" }];
+/** 판매점 영업시간(T38) — 시연 시각(18시대)도 들어간다 */
+const SHOP_HOURS: Availability[] = [{ days: [0, 1, 2, 3, 4, 5, 6], from: "10:00", to: "21:00" }];
 
 export interface SeedResult {
   buyer: User;
@@ -49,7 +50,8 @@ export function seedDemo(svc: Service, opts: { includeCarSeat?: boolean } = {}):
     svc.addInterest(buyer, { type: "keyword", keyword, goLevel });
 
   const park = svc.createUser("seller", "박서연", { homePlace: placePoint("baekhyeon") });
-  const camp = svc.createUser("seller", "이캠핑", { homePlace: placePoint("yeongtong_side") });
+  // 판매점(T38): 영업시간 동안 반복 응대 — 초기 공급은 이런 판매점 몇 곳 + 큰 물건 일반 판매자로 시작한다(가이드)
+  const camp = svc.createUser("seller", "이캠핑", { homePlace: placePoint("yeongtong_side"), shop: { name: "캠핑마켓 영통점" } });
   const bed = svc.createUser("seller", "최보정", { homePlace: placePoint("bojeong") });
   const stroller = svc.createUser("seller", "정유진", { homePlace: placePoint("jeongja_side") });
   const sofa = svc.createUser("seller", "한소파", { homePlace: placePoint("suseo") });
@@ -64,8 +66,9 @@ export function seedDemo(svc: Service, opts: { includeCarSeat?: boolean } = {}):
     sizeSource: "seller_measured",
     photos: [productArt("camping_chair")],
     pickupPoint: placePoint("yeongtong_side"),
-    availability: EVERY_EVENING,
+    availability: SHOP_HOURS,
     autoAccept: true,
+    pickupAccess: "easy",
   });
   svc.createListing(bed, {
     title: "원목 아기 침대 (분해해 둠)",
@@ -78,6 +81,7 @@ export function seedDemo(svc: Service, opts: { includeCarSeat?: boolean } = {}):
     photos: [productArt("baby_bed")],
     pickupPoint: placePoint("bojeong"),
     availability: WEEKDAY_EVENING,
+    pickupAccess: "hard",
   });
   svc.createListing(stroller, {
     title: "디럭스 유모차 (접은 상태)",
@@ -103,6 +107,7 @@ export function seedDemo(svc: Service, opts: { includeCarSeat?: boolean } = {}):
       photos: [productArt("car_seat")],
       pickupPoint: placePoint("baekhyeon"),
       availability: WEEKDAY_EVENING,
+      pickupAccess: "easy",
     });
   svc.createListing(sofa, {
     title: "3인용 패브릭 소파",

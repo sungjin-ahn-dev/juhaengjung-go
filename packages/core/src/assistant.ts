@@ -17,11 +17,15 @@ export interface AssistFact {
   price: number;
   referencePrice: number;
   detourMin: number;
+  /** 주차·대기가 길어질 때(T36). detourMin과 같으면 범위 없음 */
+  detourMaxMin?: number;
+  /** 차 세우기 쉬운지(T39) — 모르면 없음 */
+  pickupAccess?: "easy" | "hard" | null;
   fit: { kind: "trunk" | "folded3" | "folded" | "none"; label: string };
   energy: { ok: boolean; arrivalSocPct?: number; rangeAfterKm?: number };
   condition: Condition | null;
   brief: { summary: string; findings: string[]; photoChecked: boolean; grade: Condition | null } | null;
-  seller: { completed: number; rating: number | null };
+  seller: { completed: number; rating: number | null; shop?: boolean };
   goLevel: GoLevel;
   aheadM: number | null;
   score: number;
@@ -93,9 +97,15 @@ function priceText(f: AssistFact): string {
   return `${f.categoryLabel} ${wonText(f.price)}, ${vs}.`;
 }
 
+/** 차 세우기 한마디(T39) — 아는 경우에만 */
+function parkingText(f: AssistFact): string {
+  return f.pickupAccess === "easy" ? " 차 세우기 쉬운 곳이에요." : f.pickupAccess === "hard" ? " 차 세우기는 어려울 수 있어요." : "";
+}
+
 function detourText(f: AssistFact): string {
   const ahead = f.aheadM !== null ? `${f.aheadM >= 1000 ? `${(f.aheadM / 1000).toFixed(f.aheadM >= 10000 ? 0 : 1)}km` : `${f.aheadM}m`} 앞, ` : "";
-  return `${josa(f.categoryLabel, "은/는")} ${ahead}들르면 ${f.detourMin}분 더 걸려요.`;
+  const range = f.detourMaxMin !== undefined && f.detourMaxMin > f.detourMin ? `, 주차·대기까지 길면 ${f.detourMaxMin}분이에요` : "";
+  return `${josa(f.categoryLabel, "은/는")} ${ahead}들르면 ${f.detourMin}분 더 걸려요${range}.${parkingText(f)}`;
 }
 
 function fitText(f: AssistFact): string {
@@ -109,7 +119,8 @@ function energyText(f: AssistFact): string {
 }
 
 function sellerText(f: AssistFact): string {
-  return f.seller.completed > 0 ? `${f.categoryLabel} 판매자는 거래 ${f.seller.completed}회${f.seller.rating ? `, 평점 ${f.seller.rating}` : ""}이에요.` : `${f.categoryLabel} 판매자는 아직 거래 기록이 없어요.`;
+  const who = f.seller.shop ? `${f.categoryLabel} 판매자는 영업시간에 바로 응대하는 판매점이고` : `${f.categoryLabel} 판매자는`;
+  return f.seller.completed > 0 ? `${who} 거래 ${f.seller.completed}회${f.seller.rating ? `, 평점 ${f.seller.rating}` : ""}이에요.` : `${who} 아직 거래 기록이 없어요.`;
 }
 
 function whyText(f: AssistFact): string {

@@ -147,6 +147,8 @@ export type TradeEvent =
 export type Effect =
   | { kind: "notify"; to: "buyer" | "seller"; type: string; data?: Record<string, unknown> }
   | { kind: "trust"; who: "buyer" | "seller"; field: "requests" | "responded" | "completed" | "canceled" | "noShow" | "mismatch" }
+  /** 구매자 도착 → 받았어요까지 걸린 시간(T36) — 판매자별 거래 시간 학습 */
+  | { kind: "handover"; sellerId: string; seconds: number }
   | { kind: "rating"; who: "buyer" | "seller"; stars: number }
   | { kind: "payment"; action: "hold" | "capture" | "refund"; amount: number }
   | { kind: "listing"; status: "active" | "reserved" | "sold" }
@@ -313,11 +315,15 @@ export function applyTradeEvent(t: Trade, ev: TradeEvent, now: number, cfg: Trad
     }
     case "BUYER_RECEIVED": {
       need(t, ["accepted", "arrived"], "받음 확인");
+      // 도착 → 받았어요가 실제 거래 시간(T36). 30초~30분 사이만 배운다(멈춰 둔 화면·오작동 제외)
+      const handoverS = t.arrivedAt ? Math.round((now - t.arrivedAt) / 1000) : null;
+      const learn: Effect[] = handoverS !== null && handoverS >= 30 && handoverS <= 1800 ? [{ kind: "handover", sellerId: t.sellerId, seconds: handoverS }] : [];
       return {
         trade: { ...t, status: "completed", receivedAt: now, completedAt: now, settleAt: now + cfg.settleAfterMs },
         effects: [
           { kind: "listing", status: "sold" },
           { kind: "personalization_trade", category: t.category },
+          ...learn,
           { kind: "notify", to: "seller", type: "trade.received", data: { settleAt: now + cfg.settleAfterMs } },
           { kind: "notify", to: "buyer", type: "trade.received", data: { settleAt: now + cfg.settleAfterMs } },
         ],

@@ -206,6 +206,8 @@ describe("거래 흐름 (T9~T13)", () => {
     expect(sum.ledger.map((x) => x.action).sort()).toEqual(["capture", "hold"]);
     expect(sum.ledger.every((x) => x.title.includes("카시트"))).toBe(true); // 정산 내역에 어떤 물건인지
     expect(sum.trust.completed).toBe(1);
+    // 거래 시간 학습(T36): 도착 → 받았어요가 판매자 기록으로 남는다(여기선 시계가 멈춰 있어 30초 미만 → 배우지 않음)
+    expect((sum.trust as { handoverCount?: number }).handoverCount ?? 0).toBe(0);
     const listings = await park.call<{ listings: { status: string }[] }>("GET", "/v1/seller/listings");
     expect(listings.listings[0].status).toBe("sold");
 
@@ -433,6 +435,82 @@ describe("판매자 편의 (T27 쉬기·기본값, T29 노출 수)", () => {
     const bed = await login(s, "최보정");
     const bl = await bed.call<{ listings: { stats?: { shown: number } }[] }>("GET", "/v1/seller/listings");
     expect(bl.listings[0].stats?.shown ?? 0).toBe(0);
+  });
+});
+
+describe("거래 시간·확인·판매점·차 세우기 (T36~T39)", () => {
+  it("우회 시간에 거래 시간(건네받기·기다림)이 들어가고 '길면 N분'이 같이 온다", async () => {
+    const r = await car.call<{ items: { categoryLabel: string; detourMin: number; detourMaxMin: number; handover: { expectedMin: number; source: string }; pickupAccess: string | null; seller: { shop: boolean } }[] }>("POST", "/v1/drive/briefing", { ctx: ctx(s, 0) });
+    const seat = r.items.find((i) => i.categoryLabel === "카시트")!;
+    expect(seat.detourMaxMin).toBeGreaterThanOrEqual(seat.detourMin);
+    expect(seat.handover).toMatchObject({ expectedMin: 3, source: "rule" }); // 90초 건네받기 + 60초 기다림
+    expect(seat.pickupAccess).toBe("easy");
+    expect(seat.seller.shop).toBe(false);
+    const camp = r.items.find((i) => i.categoryLabel === "캠핑의자")!;
+    expect(camp.seller.shop).toBe(true); // 이캠핑 = 캠핑마켓 영통점(판매점, 바로 확정)
+    expect(camp.handover.expectedMin).toBe(2); // 기다림 없음
+  });
+
+  it("거래 시간 학습(T36): 도착 뒤 6분 만에 받은 기록이 2건이면 다음 추천의 거래 시간에 섞인다", async () => {
+    const newSeat = (title: string) =>
+      park.call("POST", "/v1/seller/listings", { title, category: "car_seat", price: 30000, condition: "good", sizeCm: { w: 45, d: 55, h: 68 }, sizeSource: "seller_measured", pickupPoint: { lat: 37.3889, lng: 127.1046, label: "백현동" }, availability: [], autoAccept: false });
+    const buyOnce = async () => {
+      const b = await car.call<{ items: { categoryLabel: string; listingId: string; exclusions: string[] }[] }>("POST", "/v1/drive/briefing", { ctx: ctx(s, 0) });
+      const seat = b.items.find((i) => i.categoryLabel === "카시트" && i.exclusions.length === 0)!;
+      s.clock.advance(13 * 60_000);
+      const req = await car.call<{ trade: { id: string } }>("POST", "/v1/drive/request", { ctx: ctx(s, 13), listingId: seat.listingId });
+      await park.call("POST", `/v1/seller/trades/${req.trade.id}/accept`);
+      await car.call("POST", `/v1/buyer/trades/${req.trade.id}/waypoint-confirmed`);
+      await car.call("POST", `/v1/buyer/trades/${req.trade.id}/arrived`);
+      s.clock.advance(6 * 60_000);
+      await park.call("POST", `/v1/seller/trades/${req.trade.id}/handed`);
+      await car.call("POST", `/v1/buyer/trades/${req.trade.id}/received`);
+      await car.call("POST", "/v1/drive/end", {});
+    };
+    await buyOnce();
+    let sum = await park.call<{ trust: { handoverSumS: number; handoverCount: number } }>("GET", "/v1/seller/summary");
+    expect(sum.trust).toMatchObject({ handoverSumS: 360, handoverCount: 1 });
+    // 기록 1건은 아직 규칙대로
+    await newSeat("회전형 카시트 두 번째");
+    const one = await car.call<{ items: { categoryLabel: string; handover: { expectedMin: number; source: string } }[] }>("POST", "/v1/drive/briefing", { ctx: ctx(s, 0) });
+    expect(one.items.find((i) => i.categoryLabel === "카시트")!.handover.source).toBe("rule");
+    await buyOnce();
+    sum = await park.call<{ trust: { handoverSumS: number; handoverCount: number } }>("GET", "/v1/seller/summary");
+    expect(sum.trust).toMatchObject({ handoverSumS: 720, handoverCount: 2 });
+    await newSeat("회전형 카시트 세 번째");
+    const two = await car.call<{ items: { categoryLabel: string; handover: { expectedMin: number; source: string } }[] }>("POST", "/v1/drive/briefing", { ctx: ctx(s, 0) });
+    const seat3 = two.items.find((i) => i.categoryLabel === "카시트")!;
+    expect(seat3.handover.source).toBe("history");
+    expect(seat3.handover.expectedMin).toBe(4); // (평균 360 + 규칙 150) / 2 = 255초
+  });
+
+  it("'아직 있어요'(T37): 7일 넘게 확인하지 않은 매물은 차에 보이지 않고, 판매자가 확인하면 다시 보인다. 수락도 확인이다", async () => {
+    const seatOf = (items: { categoryLabel: string; listingId: string; exclusions: string[] }[]) => items.find((i) => i.categoryLabel === "카시트")!;
+    const fresh = await car.call<{ items: { categoryLabel: string; listingId: string; exclusions: string[] }[] }>("POST", "/v1/drive/briefing", { ctx: ctx(s, 0) });
+    expect(seatOf(fresh.items).exclusions).not.toContain("stale");
+    const ls0 = await park.call<{ listings: { title: string; freshness: { needsConfirm: boolean; stale: boolean; hiddenInDays: number } }[] }>("GET", "/v1/seller/listings");
+    expect(ls0.listings.find((l) => l.title.includes("카시트"))!.freshness).toMatchObject({ needsConfirm: false, stale: false, hiddenInDays: 7 });
+    s.clock.advance(5 * 86_400_000 + 60_000);
+    const ls5 = await park.call<{ listings: { title: string; freshness: { needsConfirm: boolean; stale: boolean } }[] }>("GET", "/v1/seller/listings");
+    expect(ls5.listings.find((l) => l.title.includes("카시트"))!.freshness).toMatchObject({ needsConfirm: true, stale: false });
+    s.clock.advance(2 * 86_400_000 + 60_000);
+    const old = await car.call<{ items: { categoryLabel: string; listingId: string; exclusions: string[] }[] }>("POST", "/v1/drive/briefing", { ctx: ctx(s, 0) });
+    expect(seatOf(old.items).exclusions).toContain("stale");
+    const ls7 = await park.call<{ listings: { id: string; title: string; freshness: { stale: boolean } }[] }>("GET", "/v1/seller/listings");
+    const seatListing = ls7.listings.find((l) => l.title.includes("카시트"))!;
+    expect(seatListing.freshness.stale).toBe(true);
+    await park.call("PATCH", `/v1/seller/listings/${seatListing.id}`, { confirm: true });
+    const again = await car.call<{ items: { categoryLabel: string; listingId: string; exclusions: string[] }[] }>("POST", "/v1/drive/briefing", { ctx: ctx(s, 0) });
+    expect(seatOf(again.items).exclusions).not.toContain("stale");
+  });
+
+  it("차 세우기(T39): 등록 때 표시하면 차 목록과 조수 답에 보이고, 다음 등록 기본값이 된다", async () => {
+    await park.call("POST", "/v1/seller/listings", { title: "아기 의자", category: "etc", price: 10000, condition: "good", sizeCm: { w: 40, d: 40, h: 50 }, sizeSource: "category", pickupPoint: { lat: 37.3889, lng: 127.1046, label: "백현동 놀이터 앞" }, availability: [], autoAccept: true, pickupAccess: "hard" });
+    const me = await park.call<{ user: { sellerDefaults: { pickupAccess: string | null } } }>("GET", "/v1/me");
+    expect(me.user.sellerDefaults.pickupAccess).toBe("hard");
+    const a = await car.call<{ text: string }>("POST", "/v1/assist", { ctx: ctx(s, 0), question: "카시트 얼마나 돌아가?" });
+    expect(a.text).toMatch(/더 걸려요/);
+    expect(a.text).toContain("차 세우기 쉬운 곳이에요");
   });
 });
 

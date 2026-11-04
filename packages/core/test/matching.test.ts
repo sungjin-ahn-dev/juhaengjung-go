@@ -5,7 +5,9 @@ import {
   DEMO_PLACES,
   emptyTrust,
   evaluate,
+  EXCLUSION_KO,
   fitItem,
+  handoverEstimate,
   kstToMs,
   sellerReliability,
   vehicleByModel,
@@ -107,8 +109,40 @@ describe("T3 우회 시간 = 갈림 지점→매물 + 매물→목적지 − 갈
     const l = demoListings().find((x) => x.id === "carseat")!;
     const branch = pointAtAlong(base.line, c.branchAlongM!).point;
     const toListing = router.route([branch, l.pickupPoint])!.durationS;
-    const expected = Math.max(0, toListing + c.tListingToDestS - (base.durationS - timeAtAlong(base, c.branchAlongM!))) + 90;
+    // 거래 시간(T36): 길가 건네받기 90초 + 판매자 나오기 60초(바로 확정·판매점이 아니면). 카시트는 트렁크에 들어가는 작은 물건
+    expect(c.handover).toMatchObject({ expectedS: 150, slackS: 120, big: false, source: "rule" });
+    const expected = Math.max(0, toListing + c.tListingToDestS - (base.durationS - timeAtAlong(base, c.branchAlongM!))) + c.handover.expectedS;
     expect(Math.abs(c.detourS - expected)).toBeLessThanOrEqual(1);
+    // '길면 N분' = 기대 + 주차·대기 여유
+    expect(c.detourMaxMin).toBe(Math.max(c.detourMin, Math.round((c.detourS + c.handover.slackS) / 60)));
+  });
+
+  it("거래 시간 추정(T36): 큰 물건·기다림·주차 난이도에 따라 늘고, 판매자 실제 기록이 2건 이상이면 섞는다", () => {
+    const small = { sizeCm: { w: 45, d: 55, h: 68 }, fitKind: "trunk" as const };
+    expect(handoverEstimate({ ...small, ready: true })).toMatchObject({ expectedS: 90, slackS: 120, big: false });
+    expect(handoverEstimate({ ...small, ready: false })).toMatchObject({ expectedS: 150 });
+    expect(handoverEstimate({ sizeCm: { w: 125, d: 68, h: 22 }, fitKind: "folded", ready: false })).toMatchObject({ expectedS: 240, slackS: 180, big: true });
+    expect(handoverEstimate({ ...small, ready: true, pickupAccess: "hard" }).slackS).toBe(180);
+    // 실제 기록: 평균 6분(360초) 2건 → 규칙 150초와 평균 → 255초
+    expect(handoverEstimate({ ...small, ready: false, trust: { handoverSumS: 720, handoverCount: 2 } })).toMatchObject({ expectedS: 255, source: "history" });
+    expect(handoverEstimate({ ...small, ready: false, trust: { handoverSumS: 360, handoverCount: 1 } }).source).toBe("rule");
+  });
+
+  it("판매점(T38)·바로 확정 매물은 기다리는 시간을 더하지 않는다", () => {
+    const ev = evaluate(input({ ignoreWindow: true, sellerShops: new Set(["seller_carseat"]) }));
+    const c = ev.candidates.find((x) => x.listingId === "carseat")!;
+    expect(c.shop).toBe(true);
+    expect(c.handover.expectedS).toBe(90);
+  });
+
+  it("판매자가 7일 넘게 확인하지 않은 매물은 'stale'로 제외된다(T37)", () => {
+    const old = demoListings().map((l) => (l.id === "carseat" ? { ...l, confirmedAt: FRI_1805 - 8 * 86_400_000 } : l));
+    const ev = evaluate(input({ ignoreWindow: true, listings: old }));
+    const c = ev.candidates.find((x) => x.listingId === "carseat")!;
+    expect(c.exclusions).toContain("stale");
+    expect(EXCLUSION_KO.stale).toContain("7일");
+    const fresh = evaluate(input({ ignoreWindow: true })).candidates.find((x) => x.listingId === "carseat")!;
+    expect(fresh.exclusions).not.toContain("stale");
   });
 
   it("주행 중 차가 움직여도 우회 시간이 흔들리지 않는다(갈림 지점 전까지)", () => {

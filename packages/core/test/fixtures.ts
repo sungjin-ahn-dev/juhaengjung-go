@@ -45,6 +45,7 @@ export function listing(id: string, nodeId: string, over: Partial<Listing> = {})
     autoAccept: false,
     status: "active",
     createdAt: 0,
+    confirmedAt: FRI_1805, // 시험은 금요일 18:05 기준 — 방금 확인한 매물
     ...over,
   };
 }

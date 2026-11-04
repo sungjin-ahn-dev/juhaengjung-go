@@ -13,7 +13,7 @@ export interface Me {
   role: string;
   homePlace?: Place;
   /** 마지막 등록의 장소·시간·자동 수락(서버가 기억) */
-  sellerDefaults?: { pickupPoint: Place; availability: Availability[]; autoAccept: boolean };
+  sellerDefaults?: { pickupPoint: Place; availability: Availability[]; autoAccept: boolean; pickupAccess?: "easy" | "hard" | null };
   /** 쉬는 중이면 until(없으면 직접 켤 때까지) */
   pause?: { until: number | null; at: number };
 }
@@ -73,7 +73,8 @@ export interface Catalog {
   tradeConfig?: { sellerWaitMin: number; autoConfirmMin: number; settleAfterMin: number; comeOutBeforeMin: number };
 }
 
-export type SellerListing = Listing;
+/** 판매자 목록의 매물: 서버가 확인 상태(T37)를 붙여 준다 */
+export type SellerListing = Listing & { freshness?: { ageDays: number; needsConfirm: boolean; stale: boolean; hiddenInDays: number } };
 
 export const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 

@@ -22,6 +22,7 @@ import {
   type ListingBrief,
   createTrade,
   DEFAULT_GO_SETTING,
+  DEFAULT_MATCH_CONFIG,
   DEFAULT_TRADE_CONFIG,
   emptyPersonalization,
   emptyTrust,
@@ -59,6 +60,7 @@ import {
   type Listing,
   type MatchConfig,
   type PersonalizationState,
+  type PickupAccess,
   type Route,
   type RoutingProvider,
   type SellerPause,
@@ -87,9 +89,11 @@ export interface User {
   /** 판매자 기본 거래 지점 */
   homePlace?: { lat: number; lng: number; label: string };
   /** 판매자가 마지막으로 정한 거래 장소·시간·자동 수락 — 다음 등록의 기본값(T27) */
-  sellerDefaults?: { pickupPoint: { lat: number; lng: number; label: string }; availability: Availability[]; autoAccept: boolean };
+  sellerDefaults?: { pickupPoint: { lat: number; lng: number; label: string }; availability: Availability[]; autoAccept: boolean; pickupAccess?: PickupAccess | null };
   /** 판매자 쉬기(T27): 이 동안은 지나가는 차에 매물을 보이지 않는다 */
   pause?: SellerPause;
+  /** 판매점(T38): 영업시간 동안 반복 응대하는 중고 판매점. 구매자 화면에 '판매점'으로 보이고 기다리는 시간을 더하지 않는다 */
+  shop?: { name: string };
   /**
    * 구매자 결제 수단(T23). 실서비스는 결제 대행사(PG) 결제창에서 카드를 등록하고 우리는 빌링 키만 받는다.
    * 시연은 실제 결제가 없는 테스트 수단만 쓴다. 카드 번호는 이 앱 어디에도 받지 않는다.
@@ -211,6 +215,8 @@ export interface ListingInput {
   pickupPoint: { lat: number; lng: number; label: string };
   availability?: Availability[];
   autoAccept?: boolean;
+  /** 차 세우기 쉬운지(T39) */
+  pickupAccess?: PickupAccess | null;
 }
 
 const keyOf = (p: LatLng) => `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`;
@@ -322,13 +328,15 @@ export class Service {
       autoAccept: !!i.autoAccept,
       status: "active",
       createdAt: this.now(),
+      confirmedAt: this.now(),
+      pickupAccess: i.pickupAccess === "easy" || i.pickupAccess === "hard" ? i.pickupAccess : undefined,
     };
     // 물건 요약 브리핑(T33): 글 요약은 바로(규칙), 사진 분석은 AI가 있고 실제 사진이 있을 때 뒤이어 갱신
     listing.brief = ruleBrief({ title, description: listing.description, condition: listing.condition, categoryLabel: categoryLabel(category) }, this.now());
     this.d.store.put("listings", listing);
     void this.refreshBriefAI(listing.id);
     // 다음 등록 때 다시 고르지 않게 — 장소·시간·자동 수락을 판매자 기본값으로 둔다
-    this.d.store.put("users", { ...this.user(seller.id), sellerDefaults: { pickupPoint: listing.pickupPoint, availability, autoAccept: listing.autoAccept } });
+    this.d.store.put("users", { ...this.user(seller.id), sellerDefaults: { pickupPoint: listing.pickupPoint, availability, autoAccept: listing.autoAccept, pickupAccess: listing.pickupAccess ?? null } });
     return listing;
   }
 
@@ -410,7 +418,7 @@ export class Service {
     };
   }
 
-  updateListing(seller: User, id: string, patch: Partial<Pick<Listing, "status" | "autoAccept" | "availability" | "price">>): Listing {
+  updateListing(seller: User, id: string, patch: Partial<Pick<Listing, "status" | "autoAccept" | "availability" | "price" | "pickupAccess">> & { confirm?: boolean }): Listing {
     const l = this.d.store.get<Listing>("listings", id);
     if (!l || l.sellerId !== seller.id) throw new ApiError(404, "listing_not_found", "매물을 찾을 수 없어요");
     const busy = this.d.store.list<Trade>("trades", (t) => t.listingId === id && ACTIVE_STATUSES.includes(t.status)).length > 0;
@@ -420,12 +428,32 @@ export class Service {
     if (patch.autoAccept !== undefined) next.autoAccept = !!patch.autoAccept;
     if (patch.availability) next.availability = patch.availability;
     if (patch.price !== undefined && Number.isFinite(patch.price) && patch.price >= 0) next.price = Math.round(patch.price);
+    if (patch.pickupAccess === "easy" || patch.pickupAccess === "hard") next.pickupAccess = patch.pickupAccess;
+    else if (patch.pickupAccess === null) delete next.pickupAccess;
+    // '아직 있어요'(T37): 판매자가 확인한 시각을 새로 찍는다 → 다시 7일 동안 지나가는 차에 보인다
+    if (patch.confirm) next.confirmedAt = this.now();
     this.d.store.put("listings", next);
     return next;
   }
 
-  sellerListings(seller: User): Listing[] {
-    return this.d.store.list<Listing>("listings", (l) => l.sellerId === seller.id).sort((a, b) => b.createdAt - a.createdAt);
+  /** 판매자 물건 줄에 붙는 확인 상태(T37): 5일이 지나면 '아직 있어요?'를 묻고, 7일이 지나면 차에 보이지 않는다 */
+  listingFreshness(l: Listing, now = this.now()): { ageDays: number; needsConfirm: boolean; stale: boolean; hiddenInDays: number } {
+    const age = now - (l.confirmedAt ?? l.createdAt);
+    const freshMs = this.cfg.match.freshMs ?? DEFAULT_MATCH_CONFIG.freshMs;
+    return {
+      ageDays: Math.floor(age / 86_400_000),
+      needsConfirm: age >= freshMs - 2 * 86_400_000,
+      stale: age > freshMs,
+      hiddenInDays: Math.max(0, Math.ceil((freshMs - age) / 86_400_000)),
+    };
+  }
+
+  /** 판매자 물건 목록 + 확인 상태(T37). 폰이 '아직 있어요'를 보여 줄지 정한다 */
+  sellerListings(seller: User): (Listing & { freshness: ReturnType<Service["listingFreshness"]> })[] {
+    return this.d.store
+      .list<Listing>("listings", (l) => l.sellerId === seller.id)
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .map((l) => ({ ...l, freshness: this.listingFreshness(l) }));
   }
 
   // ───────────────────────── 구매자: 차·설정·관심사 ─────────────────────────
@@ -581,7 +609,11 @@ export class Service {
     const paused = new Set(this.d.store.list<User>("users", (u) => u.role === "seller" && pauseActive(u.pause, ctx.now)).map((u) => u.id));
     const listings = this.d.store.list<Listing>("listings", (l) => l.status === "active" && l.sellerId !== buyer.id && !paused.has(l.sellerId));
     const sellerTrust: Record<string, Trust> = {};
-    for (const l of listings) sellerTrust[l.sellerId] ??= this.trust(l.sellerId, "seller");
+    const sellerShops = new Set<string>();
+    for (const l of listings) {
+      sellerTrust[l.sellerId] ??= this.trust(l.sellerId, "seller");
+      if (this.d.store.get<User>("users", l.sellerId)?.shop) sellerShops.add(l.sellerId);
+    }
     return evaluate({
       ctx,
       vehicle: buyer.vehicle ?? vehicleByModel("아이오닉 5")!,
@@ -590,6 +622,7 @@ export class Service {
       settings: buyer.settings ?? DEFAULT_GO_SETTING,
       multipliers: buyer.personalization?.multipliers ?? {},
       sellerTrust,
+      sellerShops,
       router: this.d.router,
       baseRoute: s?.baseRoute ?? null,
       currentAlongM: s?.currentAlongM ?? 0,
@@ -627,6 +660,9 @@ export class Service {
       goLevel: c.goLevel,
       interestType: c.interestType,
       detourMin: c.detourMin,
+      detourMaxMin: c.detourMaxMin,
+      handover: { expectedMin: Math.round(c.handover.expectedS / 60), big: c.handover.big, source: c.handover.source },
+      pickupAccess: c.pickupAccess,
       detourS: c.detourS,
       timeToBranchS: c.timeToBranchS === null ? null : Math.round(c.timeToBranchS / 10) * 10,
       aheadM,
@@ -639,7 +675,7 @@ export class Service {
       inWindow: c.inWindow,
       score: c.score,
       speech: c.speech,
-      seller: { completed: seller.completed, rating: seller.rating },
+      seller: { completed: seller.completed, rating: seller.rating, shop: c.shop },
     };
   }
 
@@ -676,6 +712,8 @@ export class Service {
         price: v.price,
         referencePrice: v.referencePrice,
         detourMin: v.detourMin,
+        detourMaxMin: v.detourMaxMin,
+        pickupAccess: v.pickupAccess,
         fit: v.fit,
         energy: { ok: v.energy.ok, arrivalSocPct: v.energy.arrivalSocPct, rangeAfterKm: v.energy.rangeAfterKm },
         condition: v.condition,
@@ -923,7 +961,13 @@ export class Service {
     const allowed = ["SELLER_ACCEPT", "SELLER_DECLINE", "SELLER_HANDED", "SELLER_CANCEL", "SELLER_COMING", "RATE"];
     if (!allowed.includes(ev.type)) throw new ApiError(403, "forbidden", "판매자가 할 수 없는 동작이에요");
     if (ev.type === "RATE") ev = { ...ev, by: "seller" };
-    return this.sellerTradeView(this.applyEvent(t, ev, this.now()));
+    const next = this.applyEvent(t, ev, this.now());
+    // 요청을 수락했다는 건 물건이 아직 있다는 확인(T37)
+    if (ev.type === "SELLER_ACCEPT") {
+      const l = this.d.store.get<Listing>("listings", t.listingId);
+      if (l) this.d.store.put("listings", { ...l, confirmedAt: this.now() });
+    }
+    return this.sellerTradeView(next);
   }
 
   applyEvent(t: Trade, ev: TradeEvent, now: number): Trade {
@@ -971,6 +1015,14 @@ export class Service {
           this.bumpTrust(userId, e.who, (x) => {
             x.ratingSum += e.stars;
             x.ratingCount += 1;
+          });
+          break;
+        }
+        case "handover": {
+          // 거래 시간 학습(T36): 다음 추천의 우회 시간에 이 판매자의 실제 기록을 섞는다
+          this.bumpTrust(e.sellerId, "seller", (x) => {
+            x.handoverSumS = (x.handoverSumS ?? 0) + e.seconds;
+            x.handoverCount = (x.handoverCount ?? 0) + 1;
           });
           break;
         }

@@ -22,6 +22,8 @@ import {
   type Interest,
   type Listing,
   type NavStatus,
+  type PickupAccess,
+  type SizeCm,
   type Trust,
   type VehicleProfile,
 } from "./types.ts";
@@ -35,8 +37,20 @@ export interface MatchConfig {
   aheadMaxS: number;
   /** 지역 매칭(목적지 없음) 반경 */
   regionRadiusM: number;
-  /** 거래에 드는 정차 시간 — 우회 시간에 더한다 */
+  /** 거래에 드는 정차 시간의 바탕(길가에서 건네받기) — 우회 시간에 더한다. 물건·판매자·주차에 따라 handoverEstimate가 더한다 */
   handoverS: number;
+  /** 큰 물건(접어야 하거나 한 변 100cm 이상)을 싣는 데 더 드는 시간 */
+  handoverLoadBigS: number;
+  /** 판매자가 나오기를 기다리는 시간(바로 확정·판매점은 0) */
+  handoverWaitS: number;
+  /** 주차·대기가 길어질 때를 위한 여유 — '길면 N분'에 더한다 */
+  slackS: number;
+  /** 큰 물건일 때 여유에 더하는 시간 */
+  slackBigS: number;
+  /** 차 세우기 어려운 지점일 때 여유에 더하는 시간 */
+  slackHardParkS: number;
+  /** 판매자 확인(confirmedAt)이 이보다 오래되면 보이지 않는다(T37) */
+  freshMs: number;
   /** 1·2위 점수 차가 이보다 작으면 경합 질문 */
   contentionGap: number;
   /** 경합 상대는 알림 창보다 이만큼 더 앞(초)에 있는 매물까지 본다 — 곧 나올 비슷한 매물과 함께 묻기 위해 */
@@ -51,6 +65,12 @@ export const DEFAULT_MATCH_CONFIG: MatchConfig = {
   aheadMaxS: 540,
   regionRadiusM: 3000,
   handoverS: 90,
+  handoverLoadBigS: 90,
+  handoverWaitS: 60,
+  slackS: 120,
+  slackBigS: 60,
+  slackHardParkS: 60,
+  freshMs: 7 * 24 * 3600 * 1000,
   contentionGap: 0.1,
   contentionLookaheadS: 300,
   minSellerResponseRate: 0.3,
@@ -75,7 +95,8 @@ export type Exclusion =
   | "waypoints"
   | "passed"
   | "dismissed"
-  | "trust";
+  | "trust"
+  | "stale";
 
 export const EXCLUSION_KO: Record<Exclusion, string> = {
   detour: "우회 시간이 설정보다 길어요",
@@ -88,7 +109,39 @@ export const EXCLUSION_KO: Record<Exclusion, string> = {
   passed: "이미 지나쳤어요",
   dismissed: "이번 주행에서 '아니요'라고 했어요",
   trust: "판매자 응답률이 낮아요",
+  stale: "판매자가 7일 넘게 '아직 있어요'를 확인하지 않았어요",
 };
+
+/** 거래 시간 추정(T36): 길가 건네받기 + 큰 물건 적재 + 판매자 나오기 기다림. 판매자별 실제 기록이 2건 이상이면 그 평균을 기대값으로 */
+export interface HandoverInput {
+  sizeCm: SizeCm;
+  fitKind: FitResult["kind"];
+  /** 바로 확정(판매자가 그 시간에 준비돼 있음) 또는 판매점 */
+  ready: boolean;
+  pickupAccess?: PickupAccess;
+  trust?: Pick<Trust, "handoverSumS" | "handoverCount">;
+}
+export interface HandoverEstimate {
+  /** 기대 거래 시간(초) — 우회 시간에 더한다 */
+  expectedS: number;
+  /** 주차·대기가 길어질 때 더 드는 시간(초) — '길면 N분' */
+  slackS: number;
+  /** 큰 물건(접어야 하거나 한 변 100cm 이상) */
+  big: boolean;
+  source: "rule" | "history";
+}
+export function handoverEstimate(h: HandoverInput, cfg: Pick<MatchConfig, "handoverS" | "handoverLoadBigS" | "handoverWaitS" | "slackS" | "slackBigS" | "slackHardParkS"> = DEFAULT_MATCH_CONFIG): HandoverEstimate {
+  const big = h.fitKind !== "trunk" || Math.max(h.sizeCm.w, h.sizeCm.d, h.sizeCm.h) >= 100;
+  let expectedS = cfg.handoverS + (big ? cfg.handoverLoadBigS : 0) + (h.ready ? 0 : cfg.handoverWaitS);
+  let source: HandoverEstimate["source"] = "rule";
+  const n = h.trust?.handoverCount ?? 0;
+  if (n >= 2 && (h.trust?.handoverSumS ?? 0) > 0) {
+    expectedS = Math.round((h.trust!.handoverSumS! / n + expectedS) / 2); // 실제 기록과 규칙의 평균 — 한두 번의 특이값에 끌리지 않게
+    source = "history";
+  }
+  const slackS = cfg.slackS + (big ? cfg.slackBigS : 0) + (h.pickupAccess === "hard" ? cfg.slackHardParkS : 0);
+  return { expectedS, slackS, big, source };
+}
 
 export const GO_WEIGHT: Record<GoLevel, number> = { must: 1.0, likely: 0.6, near: 0.3 };
 export const GO_LABEL: Record<GoLevel, string> = { must: "무조건 GO", likely: "웬만하면 GO", near: "가까우면 GO" };
@@ -135,6 +188,12 @@ export interface Candidate {
   tListingToDestS: number;
   detourS: number;
   detourMin: number;
+  /** 주차·대기가 길어질 때 — "길면 N분"(T36) */
+  detourMaxMin: number;
+  handover: HandoverEstimate;
+  pickupAccess: PickupAccess | null;
+  /** 판매점(영업시간 동안 반복 응대) 매물 */
+  shop: boolean;
   fit: FitResult;
   energy: EnergyResult;
   etaAtListing: number;
@@ -156,6 +215,8 @@ export interface EvalInput {
   settings: GoSetting;
   multipliers?: Record<string, number>;
   sellerTrust?: Record<string, Trust>;
+  /** 판매점 판매자 id — 영업시간 동안 바로 응대하므로 기다리는 시간을 더하지 않는다 */
+  sellerShops?: Set<string>;
   router: RoutingProvider;
   /** 이번 주행의 기준 경로(출발 또는 마지막 재탐색 기준) */
   baseRoute?: Route | null;
@@ -244,24 +305,28 @@ export function evaluate(input: EvalInput): Evaluation {
     const cl = trip?.pointIsExact ? { t: trip.etaS, d: trip.distanceM } : legTime(router, ctx.location, point);
     const ld = mode === "route" ? legTime(router, point, dest!) : { t: 0, d: 0 };
 
+    const fit = fitItem(l.sizeCm, vehicle);
+    const shop = input.sellerShops?.has(l.sellerId) ?? false;
+    // 거래 시간(T36): 길가 건네받기 + 큰 물건 적재 + 판매자 나오기 기다림(바로 확정·판매점은 0). 판매자별 실제 기록이 있으면 섞는다
+    const handover = handoverEstimate({ sizeCm: l.sizeCm, fitKind: fit.kind, ready: l.autoAccept || shop, pickupAccess: l.pickupAccess, trust: input.sellerTrust?.[l.sellerId] }, cfg);
     let detourS: number;
     if (mode === "route") {
       if (trip?.pointIsExact) {
         // 정확한 지점으로 잰 requestTrip: (지금→매물 ETA) + (매물→목적지) − (지금→목적지 남은 시간)
         const curToDestS = navRemainS ?? legTime(router, ctx.location, dest!).t;
-        detourS = Math.max(0, cl.t + ld.t - curToDestS) + cfg.handoverS;
+        detourS = Math.max(0, cl.t + ld.t - curToDestS) + handover.expectedS;
       } else {
         // 기준 경로에서 갈라지는 지점부터 비교한다. 거기까지는 들르든 안 들르든 같은 길이라
         // 차가 움직여도 값이 흔들리지 않는다(같은 경로 계산기 값끼리만 뺀다).
         const branchPt = pointAtAlong(base!.line, branchAlongM!).point;
         const bl = legTime(router, branchPt, point);
         const baseRemainS = base!.durationS - timeAtAlong(base!, branchAlongM!);
-        detourS = Math.max(0, bl.t + ld.t - baseRemainS) + cfg.handoverS;
+        detourS = Math.max(0, bl.t + ld.t - baseRemainS) + handover.expectedS;
       }
-    } else detourS = cl.t + cfg.handoverS;
+    } else detourS = cl.t + handover.expectedS;
     const detourMin = Math.max(1, Math.round(detourS / 60));
+    const detourMaxMin = Math.max(detourMin, Math.round((detourS + handover.slackS) / 60));
 
-    const fit = fitItem(l.sizeCm, vehicle);
     const row3 = vehicle.seatRows === 3 && ctx.seats.row3Occupied === true;
     const energy = checkEnergy({
       powertrain: vehicle.powertrain,
@@ -289,6 +354,7 @@ export function evaluate(input: EvalInput): Evaluation {
     if (ctx.waypointCount >= 2) exclusions.push("waypoints");
     const rr = responseRate(input.sellerTrust?.[l.sellerId]);
     if (rr !== null && rr < cfg.minSellerResponseRate) exclusions.push("trust");
+    if (ctx.now - (l.confirmedAt ?? l.createdAt) > cfg.freshMs) exclusions.push("stale");
 
     const parts: ScoreParts = {
       G: GO_WEIGHT[goLevel],
@@ -327,6 +393,10 @@ export function evaluate(input: EvalInput): Evaluation {
       tListingToDestS: Math.round(ld.t),
       detourS: Math.round(detourS),
       detourMin,
+      detourMaxMin,
+      handover,
+      pickupAccess: l.pickupAccess ?? null,
+      shop,
       fit,
       energy,
       etaAtListing,

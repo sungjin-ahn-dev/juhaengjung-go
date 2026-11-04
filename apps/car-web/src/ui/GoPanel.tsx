@@ -46,7 +46,7 @@ function AlertCard({ s, c }: { s: CarState; c: CarController }) {
               {x.photo && <img src={x.photo} alt="" />}
               <b>{x.categoryLabel}</b>
               <span>
-                {x.detourMin}분 더, {x.fit.label}
+                {x.detourMaxMin > x.detourMin ? `${x.detourMin}~${x.detourMaxMin}분` : `${x.detourMin}분`} 더, {x.fit.label}
               </span>
             </button>
           ))}
@@ -69,13 +69,16 @@ function AlertCard({ s, c }: { s: CarState; c: CarController }) {
         </div>
         <div className="c-alert-detour">
           {s.mode === "region" ? `${x.detourMin}분` : `+${x.detourMin}분`}
-          <small>{s.mode === "region" ? "여기서" : "더 걸려요"}</small>
+          <small>{x.detourMaxMin > x.detourMin ? `길면 ${x.detourMaxMin}분` : s.mode === "region" ? "여기서" : "더 걸려요"}</small>
         </div>
       </div>
       <div className="c-facts">
         <span className={`c-fact ${x.fit.kind === "trunk" ? "good" : ""}`}>{x.fit.label}</span>
         <span className="c-fact">{cheaper > 0 ? `기준가보다 ${fmtWon(cheaper)} 싸요` : fmtWon(x.price)}</span>
         {x.energy.arrivalSocPct !== undefined && <span className="c-fact">도착 배터리 {Math.round(x.energy.arrivalSocPct)}%</span>}
+        {x.seller.shop && <span className="c-fact">판매점</span>}
+        {x.pickupAccess === "easy" && <span className="c-fact good">차 세우기 쉬움</span>}
+        {x.pickupAccess === "hard" && <span className="c-fact">주차 어려울 수 있음</span>}
         {/* 사진에서 본 상태(T33): AI가 봤을 때만 '사진:'이라고 쓴다 */}
         {x.brief?.condition.photoChecked ? (
           <span className={`c-fact ${x.brief.condition.findings.length ? "" : "good"}`}>사진: {x.brief.condition.findings[0] ?? "흠집 안 보임"}</span>

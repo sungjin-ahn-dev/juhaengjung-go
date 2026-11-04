@@ -72,6 +72,8 @@ async function waitHealth() {
     // AI 추정 크기(45×55×68)는 60cm 이상 → 실측 확인 전에는 올릴 수 없다
     check(await phone.getByTestId("submit").isDisabled(), "큰 물건은 실측 확인 전 '올리기' 비활성");
     await phone.getByTestId("measured").click();
+    // 차 세우기(T39): 등록 때 표시 → 구매자 차 목록·알림에 '차 세우기 쉬움'
+    await phone.getByTestId("pickup-access").getByRole("radio", { name: /쉬워요/ }).click();
     await snapP("compose");
     check((await phone.getByTestId("submit").innerText()).includes("35,000원에 올리기"), "확인할 것이 끝나면 '35,000원에 올리기'");
     await phone.getByTestId("submit").click();
@@ -110,7 +112,10 @@ async function waitHealth() {
     check(briefText.includes("회전형 카시트") && briefText.includes("아이가 커서 정리해요"), "브리핑: 방금 올린 카시트가 사진·판매자 설명과 함께 목록에");
     const rows = await brief.locator(".c-item:not(.out) .c-rank").allInnerTexts();
     check(rows.join(",") === "1,2,3", "알릴 수 있는 매물 3개가 추천순 번호 1·2·3");
-    check(/km 앞/.test(briefText) && /\+\d+분/.test(briefText), "목록에 경로상 거리와 우회 시간");
+    check(/km 앞/.test(briefText) && /\+\d+(~\d+)?분/.test(briefText), "목록에 경로상 거리와 우회 시간");
+    check(/\+\d+~\d+분/.test(briefText), "우회 시간은 범위로(T36): 거래 시간 + 주차·대기 여유 '길면 N분'");
+    check(briefText.includes("판매점"), "판매점(T38) 매물엔 '판매점' 표시(이캠핑 = 캠핑마켓 영통점, 영업시간 바로 확정)");
+    check(briefText.includes("차 세우기 쉬움"), "차 세우기(T39): 판매자가 표시한 '차 세우기 쉬움'이 차 목록에");
     await car.getByTestId("pin-카시트").click();
     check(await car.locator('[data-testid="go-row-카시트"].on').count() === 1, "지도 핀을 누르면 목록의 같은 매물이 표시됨");
     // 물건 요약 브리핑(T33): 고른 매물 아래에 글 요약 + 사진 분석 여부, 들려주기
@@ -319,6 +324,21 @@ async function waitHealth() {
     const sheet = bphone.getByTestId("trade-sheet");
     check((await sheet.innerText()).includes("전액 환불됐어요"), "거래 상세: 대금 흐름(전액 환불)과 시간순 기록");
     await bphone.screenshot({ path: path.join(OUT, `${String(++shot).padStart(2, "0")}-buyer-trade.png`) });
+
+    // ── 4부: '아직 있어요'(T37) — 7일 넘게 확인하지 않은 매물은 차에 안 보이고, 판매자가 확인하면 다시 보인다 ──
+    const clk2 = await fetch(BASE + "/v1/clock").then((r) => r.json());
+    await post("/v1/demo/clock", { now: clk2.now + 8 * 86_400_000, rate: 1 });
+    const sphone = await phoneCtx.newPage();
+    await sphone.goto(BASE + "/seller/", { waitUntil: "load" });
+    await sphone.getByTestId("login-정유진").click();
+    await sphone.getByTestId("listing-stale").first().waitFor({ timeout: 10000 });
+    check(true, "8일 뒤 판매자 홈: '7일 넘게 확인하지 않아 차에 안 보여요'");
+    await sphone.screenshot({ path: path.join(OUT, `${String(++shot).padStart(2, "0")}-seller-stale.png`) });
+    await sphone.getByTestId("listing-row").first().click();
+    await sphone.getByTestId("confirm-listing").click();
+    await sphone.getByTestId("listing-sheet").getByRole("button", { name: "닫기" }).last().click();
+    await sphone.waitForFunction(() => !document.querySelector('[data-testid="listing-stale"]'), null, { timeout: 10000 });
+    check(true, "'아직 있어요' → 확인 시각 갱신, 경고 사라짐(다시 7일 동안 차에 보임)");
     log("E2E 통과");
   } finally {
     await browser?.close();

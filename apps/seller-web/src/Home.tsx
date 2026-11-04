@@ -203,6 +203,18 @@ export function ListingRow({ l, onOpen }: { l: SellerListing; onOpen: () => void
             {shown ? `지나간 차 ${shown}대에 보였어요${alerted ? `, 음성 알림 ${alerted}번` : ""}` : "아직 지나간 차가 없어요"}
           </span>
         )}
+        {l.status === "active" && l.freshness?.stale && (
+          <span className="s-listing-stats warn" data-testid="listing-stale">
+            <Icon name="alert" size={15} stroke={2.1} />
+            7일 넘게 확인하지 않아 차에 안 보여요. 아직 있으면 눌러서 확인해 주세요
+          </span>
+        )}
+        {l.status === "active" && !l.freshness?.stale && l.freshness?.needsConfirm && (
+          <span className="s-listing-stats warn" data-testid="listing-confirm">
+            <Icon name="alert" size={15} stroke={2.1} />
+            아직 팔아요? {l.freshness.hiddenInDays}일 안에 확인하지 않으면 차에 안 보여요
+          </span>
+        )}
       </span>
       <Icon name="chevron" />
     </button>
@@ -244,6 +256,18 @@ export function ListingSheet({
         </div>
       )}
       {busy && <p className="s-help">거래 중이라 판매 상태는 바꿀 수 없어요. 가격과 시간은 다음 요청부터 적용돼요.</p>}
+      {l.status === "active" && l.freshness && (l.freshness.stale || l.freshness.needsConfirm) && (
+        <div className="s-confirm" data-testid="confirm-box">
+          <p>
+            {l.freshness.stale
+              ? "7일 넘게 확인하지 않아 지나가는 차에 보이지 않아요. 다른 데서 팔렸으면 '다른 데서 팔렸어요'를 눌러 주세요."
+              : `${l.freshness.hiddenInDays}일 안에 확인하지 않으면 지나가는 차에 보이지 않아요.`}
+          </p>
+          <button className="s-btn primary lg block" onClick={() => void patch(l.id, { confirm: true }, undefined, "확인했어요. 7일 동안 지나가는 차에 보여요")} data-testid="confirm-listing">
+            아직 있어요
+          </button>
+        </div>
+      )}
       {l.status === "active" || busy ? (
         <>
           <div className="s-label">가격</div>
@@ -277,6 +301,20 @@ export function ListingSheet({
               label="그 시간엔 바로 확정"
               sub="요청을 기다리지 않고 수락돼요"
             />
+          </div>
+          <div className="s-label">거래 지점에 차 세우기</div>
+          <div className="s-chips" data-testid="sheet-pickup-access">
+            {(
+              [
+                ["easy", "쉬워요"],
+                ["hard", "어려워요"],
+                [null, "모르겠어요"],
+              ] as const
+            ).map(([v, label]) => (
+              <button key={String(v)} className={(l.pickupAccess ?? null) === v ? "on" : ""} onClick={() => void patch(l.id, { pickupAccess: v }, { pickupAccess: l.pickupAccess ?? null }, v === "easy" ? "차 세우기 쉬움으로 표시했어요" : v === "hard" ? "주차가 어려울 수 있다고 표시했어요" : "표시하지 않아요")}>
+                {label}
+              </button>
+            ))}
           </div>
           {!busy && (
             <div className="s-sheet-actions">

@@ -32,11 +32,11 @@ async function shrinkImage(file: File): Promise<string> {
   }
 }
 
-function defaultsOf(me: Me, catalog: Catalog | null): { place: Place | null; availability: Availability[]; autoAccept: boolean } {
+function defaultsOf(me: Me, catalog: Catalog | null): { place: Place | null; availability: Availability[]; autoAccept: boolean; pickupAccess: "easy" | "hard" | null } {
   const d = me.sellerDefaults;
-  if (d) return { place: d.pickupPoint, availability: d.availability, autoAccept: d.autoAccept };
+  if (d) return { place: d.pickupPoint, availability: d.availability, autoAccept: d.autoAccept, pickupAccess: d.pickupAccess ?? null };
   const first = catalog?.pickupPlaces[0];
-  return { place: me.homePlace ?? (first ? { lat: first.lat, lng: first.lng, label: first.label } : null), availability: PRESETS[0].windows, autoAccept: false };
+  return { place: me.homePlace ?? (first ? { lat: first.lat, lng: first.lng, label: first.label } : null), availability: PRESETS[0].windows, autoAccept: false, pickupAccess: null };
 }
 
 /** 어디를 재야 하는지 — 상자 하나 */
@@ -74,6 +74,8 @@ export function Compose({ client, catalog, me, onClose, onPosted }: { client: Ap
   const [availability, setAvailability] = useState<Availability[]>(d0.availability);
   const [preset, setPreset] = useState(() => presetOf(d0.availability));
   const [autoAccept, setAutoAccept] = useState(d0.autoAccept);
+  // 차 세우기(T39): 구매자 차 목록·알림에 '차 세우기 쉬움/주차 어려울 수 있음'으로 보이고, 어려우면 우회 시간 여유를 더한다
+  const [pickupAccess, setPickupAccess] = useState<"easy" | "hard" | null>(d0.pickupAccess);
   const [placeOpen, setPlaceOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [estimating, setEstimating] = useState(false);
@@ -178,6 +180,7 @@ export function Compose({ client, catalog, me, onClose, onPosted }: { client: Ap
         pickupPoint: place,
         availability: preset === "anytime" ? [] : availability,
         autoAccept,
+        pickupAccess,
       });
       onPosted(r.listing);
     } catch (e) {
@@ -488,6 +491,23 @@ export function Compose({ client, catalog, me, onClose, onPosted }: { client: Ap
             )}
             <div style={{ marginTop: 6 }}>
               <Toggle checked={autoAccept} onChange={setAutoAccept} label="이 시간엔 바로 확정" sub="요청을 기다리지 않고 수락돼요. 그 시간에 집에 있을 때만 켜 주세요" testid="auto-accept" />
+            </div>
+            <div className="s-label" style={{ marginTop: 10 }}>
+              거래 지점에 차 세우기 <small>구매자 차에 그대로 보여요</small>
+            </div>
+            <div className="s-cond" role="radiogroup" aria-label="차 세우기" data-testid="pickup-access">
+              {(
+                [
+                  ["easy", "쉬워요", "길가·주차장에 바로 댈 수 있어요"],
+                  ["hard", "어려워요", "골목이라 잠깐 세우기도 번거로워요"],
+                  [null, "모르겠어요", "표시하지 않아요"],
+                ] as const
+              ).map(([v, short, text]) => (
+                <button key={String(v)} role="radio" aria-checked={pickupAccess === v} className={pickupAccess === v ? "on" : ""} onClick={() => setPickupAccess(v)}>
+                  <b>{short}</b>
+                  <span>{text}</span>
+                </button>
+              ))}
             </div>
           </section>
         </>

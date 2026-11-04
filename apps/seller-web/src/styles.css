@@ -493,6 +493,25 @@
   color: var(--g500);
   font-weight: 500;
 }
+/* 확인 필요(T37): 5일 지나면 묻고, 7일 지나면 차에 안 보인다 */
+.s-listing-stats.warn {
+  color: var(--kraft-deep);
+  align-items: flex-start;
+  text-align: left;
+}
+.s-confirm {
+  margin: 10px 0 4px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--kraft-soft);
+  border: 1px solid var(--kraft-line);
+  color: var(--kraft-ink);
+}
+.s-confirm p {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 1.45;
+}
 .s-listing.dim > img {
   opacity: 0.55;
 }

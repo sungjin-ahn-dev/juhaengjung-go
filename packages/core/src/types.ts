@@ -23,6 +23,9 @@ export interface Availability {
   to: string;
 }
 
+/** 차 세우기: easy = 길가·주차장에 바로 댈 수 있음, hard = 골목·주차 어려움 */
+export type PickupAccess = "easy" | "hard";
+
 export interface PickupPoint extends LatLng {
   label: string;
 }
@@ -53,6 +56,13 @@ export interface Listing {
   autoAccept: boolean;
   status: ListingStatus;
   createdAt: number;
+  /**
+   * 판매자가 마지막으로 "아직 있어요"라고 확인한 시각(T37) — 등록·요청 수락·'아직 있어요' 버튼이 갱신한다.
+   * 7일이 지나면 지나가는 차에 보이지 않는다(다른 채널에서 팔린 물건이 계속 뜨는 것을 막는다)
+   */
+  confirmedAt: number;
+  /** 거래 지점에 차를 세우기 쉬운지(T39). 판매자가 등록 때 표시. 모르면 없음 */
+  pickupAccess?: PickupAccess;
   /** 판매자에게만 보이는 노출 수(T29): 지나가는 차의 추천 목록에 든 주행 수, 음성 알림 수. 구매자 정보는 남기지 않는다 */
   stats?: { shown: number; alerted: number };
   /** 물건 요약 브리핑(T33): 글 요약 + 사진에서 본 상태. 차에서 고르면 보여 주고 읽어 준다 */
@@ -144,10 +154,13 @@ export interface Trust {
   mismatch: number;
   ratingSum: number;
   ratingCount: number;
+  /** 판매자: 구매자 도착 → 받았어요까지 걸린 시간의 합·횟수(T36). 거래 시간을 판매자별로 배운다 */
+  handoverSumS?: number;
+  handoverCount?: number;
 }
 
 export function emptyTrust(userId: string, role: "buyer" | "seller"): Trust {
-  return { userId, role, requests: 0, responded: 0, completed: 0, canceled: 0, noShow: 0, mismatch: 0, ratingSum: 0, ratingCount: 0 };
+  return { userId, role, requests: 0, responded: 0, completed: 0, canceled: 0, noShow: 0, mismatch: 0, ratingSum: 0, ratingCount: 0, handoverSumS: 0, handoverCount: 0 };
 }
 
 export function responseRate(t: Trust | undefined): number | null {
