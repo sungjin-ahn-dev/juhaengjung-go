@@ -17,7 +17,17 @@ const OUT = path.resolve(process.argv[3] ?? SRC.replace(/\.md$/, ".pdf"));
 const md = fs.readFileSync(SRC, "utf8");
 const title = (md.match(/^# (.+)$/m)?.[1] ?? path.basename(SRC, ".md")).trim();
 // CommonMark는 "**주행중GO!**는"처럼 닫는 **가 문장부호 뒤·글자 앞에 오면 굵게로 안 본다(한국어 조사). 먼저 바꿔 둔다
-const strong = md.replace(/\*\*([^*\n]+?)\*\*/g, "<strong>$1</strong>");
+// "1~8장면 … 9~10장면"처럼 한 문단에 범위 물결표가 둘이면 GFM이 그 사이를 취소선으로 그린다 → 코드 밖의 ~는 글자 그대로(엔티티)
+let fence = false;
+const noStrike = md
+  .split("\n")
+  .map((line) => {
+    if (/^\s*```/.test(line)) { fence = !fence; return line; }
+    if (fence) return line;
+    return line.split(/(`+[^`]*`+)/).map((part, i) => (i % 2 ? part : part.replace(/~/g, "&#126;"))).join("");
+  })
+  .join("\n");
+const strong = noStrike.replace(/\*\*([^*\n]+?)\*\*/g, "<strong>$1</strong>");
 const body = marked.parse(strong, { gfm: true, breaks: false }) as string;
 
 const fontsDir = process.env.JHGO_FONTS;
