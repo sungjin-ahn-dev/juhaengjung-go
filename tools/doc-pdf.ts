@@ -33,7 +33,7 @@ const body = marked.parse(strong, { gfm: true, breaks: false }) as string;
 const fontsDir = process.env.JHGO_FONTS;
 const doHyeon = fontsDir && fs.existsSync(path.join(fontsDir, "do-hyeon/400.css")) ? `<link rel="stylesheet" href="file://${path.join(fontsDir, "do-hyeon/400.css")}">` : "";
 const html = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${title}</title>${doHyeon}<style>
-@font-face{font-family:"JHGO Sans";src:url("file://${path.join(ROOT, "apps/seller-web/src/assets/JHGOSans.woff2")}") format("woff2");font-weight:100 900}
+@font-face{font-family:"JHGO Sans";src:url("file://${path.join(ROOT, "apps/seller-web/src/assets/AstaSans-subset.woff2")}") format("woff2");font-weight:300 800}
 @page{size:A4;margin:18mm 16mm 20mm}
 html{font-size:10.6pt}
 body{font-family:"JHGO Sans","Apple SD Gothic Neo","Malgun Gothic","Noto Sans CJK KR",sans-serif;color:#18202b;line-height:1.62;margin:0;word-break:keep-all;overflow-wrap:anywhere}

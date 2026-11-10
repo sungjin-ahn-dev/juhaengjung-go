@@ -257,7 +257,7 @@ function BriefCard({ x, s, c }: { x: RankedItem; s: CarState; c: CarController }
         </>
       ) : (
         <p className="c-brief-none">
-          사진 분석 없음(서버에 AI 키가 없을 때). 판매자 표시: {x.condition ? CONDITION_KO[x.condition] : "상태 미정"}
+          사진 분석 없음 · 판매자 표시: {x.condition ? CONDITION_KO[x.condition] : "상태 미정"}
         </p>
       )}
       <p className="c-brief-hint">

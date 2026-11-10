@@ -43,7 +43,14 @@ declare global {
 }
 
 export function hasNativeBridge(): boolean {
-  return typeof window !== "undefined" && !!window.PleosBridge;
+  if (typeof window === "undefined" || !window.PleosBridge) return false;
+  // ?sim: 차량 앱 안에서도 시뮬레이터로 돈다(시작 화면의 '자동 시연 보기' — 에뮬레이터 위치·목적지를 맞추지 않아도 흐름을 보게)
+  try {
+    if (new URLSearchParams(window.location.search).has("sim")) return false;
+  } catch {
+    /* 무시 */
+  }
+  return true;
 }
 
 export function createBridgePlatform(voice: VoicePort, now: () => number = () => Date.now()): CarPlatform {

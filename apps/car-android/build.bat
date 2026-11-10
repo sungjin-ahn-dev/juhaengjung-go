@@ -38,19 +38,7 @@ set "ADB=%ANDROID_HOME%\platform-tools\adb.exe"
 if /i "%~1"=="install" goto :install
 if /i "%~1"=="release" goto :release
 
-rem --- 1) build the car web screen so the app can also run without the PC server ---
-echo. >> "%LOG%"
-echo ===== npm run build:web ===== >> "%LOG%"
-pushd "%ROOT%"
-where npm >> "%LOG%" 2>&1
-if errorlevel 1 (
-  echo [WARN] npm not found - skipping web build; the app will load the screen from the server >> "%LOG%"
-) else (
-  if not exist node_modules call npm install >> "%LOG%" 2>&1
-  call npm run build:web >> "%LOG%" 2>&1
-  echo EXIT_WEB=!ERRORLEVEL! >> "%LOG%"
-)
-popd
+call :web
 
 rem --- 2) build the app: demo (no SDK) then pleos (real Pleos SDK) ---
 pushd "%HERE%"
@@ -83,6 +71,7 @@ echo Installed. Keep the PC server running: npm start (repo root). Log: %LOG%
 
 :release
 rem submission APK: pleosRelease (signed with the debug key so it installs on the emulator; see README) -> <repo>\apk\
+call :web
 pushd "%HERE%"
 echo. >> "%LOG%"
 echo ===== assemblePleosRelease ===== >> "%LOG%"
@@ -98,6 +87,25 @@ if exist "%RAPK%" (
 findstr /b /c:"EXIT_" "%LOG%"
 echo Log: %LOG%
 goto :done
+
+:web
+rem --- build the car web screen and the demo page so the app runs without the PC server ---
+echo. >> "%LOG%"
+echo ===== npm run build:web ===== >> "%LOG%"
+pushd "%ROOT%"
+where npm >> "%LOG%" 2>&1
+if errorlevel 1 (
+  echo [WARN] npm not found - skipping web build; the app will load the screen from the server >> "%LOG%"
+) else (
+  if not exist node_modules call npm install >> "%LOG%" 2>&1
+  call npm run build:web >> "%LOG%" 2>&1
+  echo EXIT_WEB=!ERRORLEVEL! >> "%LOG%"
+  rem demo page (one file) for the start screen "auto demo"
+  call npm run build:demo >> "%LOG%" 2>&1
+  echo EXIT_DEMOPAGE=!ERRORLEVEL! >> "%LOG%"
+)
+popd
+exit /b 0
 
 :done
 endlocal

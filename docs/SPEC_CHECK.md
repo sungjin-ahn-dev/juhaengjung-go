@@ -18,14 +18,14 @@
 | 브리핑에서 고르면 미리 요청, 수락되면 목적지·경유지를 한 번에 설정 | 차 목록 '미리 요청' | 판폰 요청 전체 화면 | `requestRouteWithWaypoints`(RouteInfo를 실제 SDK에서 확인, 11-04부터 셸이 부름) → 안 되면 `addWaypoint` | API | ✅ ↪ |
 | 경로 매칭과 우회 시간 | 차 목록 '+N분', 알림 'N분 더' | — | `core/matching.ts`(갈림 지점 기준), 서버 경로 계산기(시연 도로망) | T3 테스트 | ✅ 🧪(외부 길찾기 API 대신 시연 도로망) |
 | 지역 매칭: 현재 위치가 매물 반경에 들어오면 '여기서 N분' | 차 목록 '여기서 N분' | — | `evaluate` region 모드 | T1·T2 테스트 | ✅ |
-| 에너지 확인: 전기차 도착 배터리 15% 이상, 내연기관은 주행 가능 거리 | 차 알림 '도착 배터리 N%', 제외 이유 '배터리·연료가 부족해요' | — | `core/energy.ts`, `requestTrip` `estimatedSocAtDest` | T4 테스트, API, 브리지 | ✅ ↪(Fuel 미확인 → 내연기관은 확인 생략) |
+| 에너지 확인: 전기차 도착 배터리 15% 이상, 내연기관은 주행 가능 거리 | 도착 배터리가 기준 이상일 때만 알림(알림 카드의 '도착 배터리 N%' 칩은 11-10에 뺌 — 주행 중 카드는 사실 둘까지), 제외 이유 '배터리·연료가 부족해요' | — | `core/energy.ts`, `requestTrip` `estimatedSocAtDest` | T4 테스트, API, 브리지 | ✅ ↪(Fuel 미확인 → 내연기관은 확인 생략) |
 | 적재 판단: 트렁크에 쏙 / 2열 접으면 가능 / 안 들어감, 2열 착석이면 접기 제외 | 차 목록 적재 칩, 제외 이유 | 판폰 요청 화면 '실을 수 있나요' | `core/load.ts`, Seat(row2) | T5 테스트, E2E | ✅ |
 | 3열 차의 적재(11-3 Seat ROW_1~ROW_3) | 차 목록 '3열 접으면 가능', 제외 이유 '3열에 사람이 있어…', 콘솔 '3열 착석' | — | `fitItem` 3열 단계, Seat row3(ROW_3_LEFT·RIGHT) | 매칭 테스트, API T26, 브리지 | ✅ ⏳(ROW_3_CENTER 이름 미확인) |
 | 말할 때 고르기: 회전 직전·방향지시등·큰 조향·제동 중에는 미루기 | 차 목록 '알림 대기: 방향지시등…' | — | `core/timing.ts AlertGate` | T8 테스트, E2E | ✅ ⏳ |
 | (v8) 우회 시간에 거래 시간을 넣고 "길면 N분", 판매자별 학습 | 차 목록 "+7~9분", 알림 카드 "길면 9분", 조수 "주차·대기까지 길면 N분" | — | `core/matching.ts handoverEstimate`, `trade.ts` handover 효과, `service.applyEffects` | core 2, API 2, E2E | ✅ |
 | (v8) 7일 넘게 확인하지 않은 매물은 차에 안 보임, '아직 있어요' | 판매자 홈 줄 경고·시트 버튼; 차 제외 이유 | 판매자 홈·물건 시트 | `Listing.confirmedAt`, `stale`, `PATCH … {confirm}` | core 1, API 1, E2E 4부 | ✅ |
-| (v8) 판매점: 영업시간 바로 응대, 기다리는 시간 0 | 차 목록·알림 '판매점' 칩, 조수 "판매점이고" | — | `User.shop`, `Candidate.shop`, 시드 이캠핑 | core 1, API 1, E2E | ✅ |
-| (v8) 거래 지점에 차 세우기 표시 | 차 칩 '차 세우기 쉬움'/'주차 어려울 수 있음', 조수 한마디 | 같이 올리기 선택, 물건 시트 | `Listing.pickupAccess` | API 1, E2E | ✅ |
+| (v8) 판매점: 영업시간 바로 응대, 기다리는 시간 0 | 차 목록 '판매점' 칩(알림 카드에서는 11-10에 뺌), 조수 "판매점이고" | — | `User.shop`, `Candidate.shop`, 시드 이캠핑 | core 1, API 1, E2E | ✅ |
+| (v8) 거래 지점에 차 세우기 표시 | 차 목록 칩 '차 세우기 쉬움'/'주차 어려울 수 있음'(알림 카드에는 어려울 때만), 조수 한마디 | 같이 올리기 선택, 물건 시트 | `Listing.pickupAccess` | API 1, E2E | ✅ |
 | (v6) 대화로 고르기: 말로 묻고(흠집·가격·우회·적재·배터리·판매자·비교·추천) 말로 고른다(요청·고르기·거절) | 차 레일 '말하기' → 자막에 질문·답, 행동은 기존 흐름(요청·경합 고르기·아니요) 그대로. 시뮬레이터는 콘솔 '말하기' | — | `core/assistant.ts`, `assist-ai.ts`, `assistFor`(quick: Gleo 7초), `/v1/assist`, `listenFree` → Pleos SpeechToText(안 되면 SpeechRecognizer) | core 6, API 3, E2E 4, 스텁 컴파일 | ✅ ⏳(Pleos STT 에뮬레이터·실제 마이크·AI 키) |
 | (v6) 물건 요약 브리핑: 고르면 글 요약 + 사진에서 본 상태를 보여 주고 읽어 준다 | 차 목록·핀을 고르면 바로 읽기 + 정차 중 카드, 알림 칩, 판매자 물건 판 '차에서 이렇게 들려요' | 판매자 물건 판 | `core/brief.ts`, `brief-ai.ts`, `briefOf`, `/v1/listings/:id/brief` | core 5, API 2, E2E 3 | ✅ ⏳(실제 사진·AI 키) |
 | (v6) 차량 음성 비서(Gleo AI)로 관심 추가·알림 답하기·가는 길 요약 | 차 — Gleo가 앱 Intent를 부르고 앱이 Callback Schema로 답함. 시뮬레이터는 콘솔 'Gleo AI 음성 기능' | — | `gleo.ts`·`GleoBridge.kt`·`assets/schema.json`(공식 작성 규칙: 영어·예시 없이·1~2문장, invokeWord) | E2E 3개, 브리지 시험 2개 | ✅ 🧪(에뮬레이터 Gleo) |

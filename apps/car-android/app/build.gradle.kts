@@ -37,7 +37,7 @@ android {
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
 
-    // 서버 없이 체험할 때 쓰는 차량 화면(웹 빌드 결과)을 앱 안에 넣는다: ../car-web/dist → assets/car
+    // 서버 없이 쓰는 화면(웹 빌드 결과)을 앱 안에 넣는다: ../car-web/dist → assets/car, ../demo/dist/index.html → assets/demo
     sourceSets { getByName("main") { assets.srcDir(layout.buildDirectory.get().asFile.resolve("generated/carweb")) } }
 }
 
@@ -46,7 +46,13 @@ val copyCarWeb by tasks.registering(Copy::class) {
     from(rootProject.file("../car-web/dist"))
     into(layout.buildDirectory.dir("generated/carweb/car"))
 }
-tasks.named("preBuild") { dependsOn(copyCarWeb) }
+// 시작 화면의 '자동 시연 보기'가 여는 체험 페이지(한 파일): ../demo/dist/index.html → assets/demo (없으면 건너뜀 — npm run build:demo)
+val copyDemo by tasks.registering(Copy::class) {
+    description = "apps/demo/dist/index.html을 앱 assets/demo로 복사"
+    from(rootProject.file("../demo/dist")) { include("index.html") }
+    into(layout.buildDirectory.dir("generated/carweb/demo"))
+}
+tasks.named("preBuild") { dependsOn(copyCarWeb, copyDemo) }
 
 dependencies {
     implementation(libs.androidx.core.ktx)

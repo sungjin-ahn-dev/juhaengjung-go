@@ -170,7 +170,7 @@ interface Mark {
     await page.waitForTimeout(2500);
     const alert = page.getByTestId("alert");
     await alert.waitFor({ timeout: 40000 });
-    await cap("주행 중", "갈림길이 가까워지면 한 번에 하나만 묻고 음성으로도 말해요. 우회 시간·적재·기준가·도착 배터리");
+    await cap("주행 중", "갈림길이 가까워지면 한 번에 하나만 묻고 음성으로도 말해요. 화면엔 우회 시간·실리는지·이유 하나만");
     await page.waitForTimeout(3800);
     await alert.getByRole("button", { name: "아니요" }).click();
     await page.waitForTimeout(1200);

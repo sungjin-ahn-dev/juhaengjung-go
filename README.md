@@ -3,8 +3,44 @@
 차로 가는 길에, 평소 관심 둔 중고 매물이 경로 근처에 있으면 알려 주고 경유지로 들러 바로 사 오게 하는 Pleos Connect 앱.
 구매자는 차 안에서(내비 화면), 판매자는 폰 웹에서 쓴다.
 
-![차 화면 — 출발 전 브리핑과 경합 질문을 듣는 중](docs/img/car.jpg)
+![차 화면 — 출발 전 브리핑(정차)과 주행 중 알림 카드](docs/img/car.jpg)
 ![판매자 홈, 요청 전체 화면, 구매자 홈](docs/img/phones.jpg)
+
+## 빠른 실행 (심사용)
+
+| | |
+|---|---|
+| 앱 이름 | **주행중GO!** — 가는 길에, 한 번에 하나씩. Pleos 내비 경로 가까이 올라온 중고 물건을 차가 골라 묻고, 판매자가 수락하면 경유지로 넣어 들렀다 가는 차량 앱 |
+| APK | [`apk/`](apk/) 폴더의 `팀명_주행중GO_release.apk` (pleosRelease, 실제 Pleos SDK 포함, 약 28 MB) |
+| 테스트 환경 | Pleos Connect Emulator 2.1.0 (Android API 34, Automotive) · Android Studio · 서버를 같이 쓸 때만 Node 22 |
+| 시연 영상 | (제출할 때 링크) |
+| 브라우저 체험 | (제출할 때 링크) — 설치 없이 판매자 폰·차 화면·가상 콘솔이 한 페이지에서 움직인다 |
+
+**실행 방법 — 서버 없이 3단계**
+
+1. Pleos Connect 에뮬레이터를 켠다(만드는 법: [`apps/car-android/README.md`](apps/car-android/README.md)).
+2. `adb install -r apk/팀명_주행중GO_release.apk` 로 설치하고 앱 '주행중GO!'를 연다.
+3. 시작 화면에서 **자동 시연 보기**를 누른다 — 판매자가 물건을 올린 상태에서 출발 전 브리핑 → 주행 중 알림 → 경합("카시트? 유모차?") → 판매자 수락·경유지 → 만남·현장 확인 → 정산·평가까지 7단계가 2분 동안 저절로 진행된다.
+
+시작 화면의 나머지 두 길:
+
+- **실제 차 신호로 쓰기** — 앱 안의 차량 화면이 Pleos NaviHelper·Vehicle·TTS·STT 신호로 돈다(서버는 앱 안). 시연 매물이 수원~송파 도로망 위에 있어서, 에뮬레이터 위치를 수원시청 근처에 두고 Pleos 내비 목적지를 송파로 정하면 출발 전 브리핑이 열린다. 오른쪽 아래 'SDK 기록'에 호출·이벤트가 남는다.
+- **서버에 연결** — PC에서 `npm install && npm run build:web && npm start` 뒤 주소(에뮬레이터에서 PC는 `http://10.0.2.2:8787`)를 넣는다. 판매자 폰(`/seller/`)·구매자 폰(`/buyer/`)과 같은 서버로 양쪽을 함께 시연할 때.
+
+**Pleos SDK를 어디에 쓰나** (전체 판정표: [`docs/API_MATRIX.md`](docs/API_MATRIX.md))
+
+| 여정 | Pleos SDK / API | 쓰는 곳 |
+|---|---|---|
+| 모드·후보 | NaviHelper `onNavigationStatus`, `getDestinationInfo`, `getCurrentLocationInfo` | 경로 안내 중이면 경로 매칭, 아니면 지역 매칭 |
+| 우회·에너지 | NaviHelper `requestTrip`(거리·도착 예정·도착 배터리), Vehicle EvBattery | "+6분", 들렀다 가도 배터리 15% 이상일 때만 |
+| 적재 | Vehicle CarInfo, Seat 착석(2열·3열) | 차종 트렁크 치수, 사람이 앉은 열은 접지 않음 |
+| 말할 때 | NaviHelper TBT, Vehicle TurnSignal·SteeringWheel·Brake, AAOS CarUxRestrictions | 회전·방향지시등·조향·제동 중엔 알림을 미룸, 상세 화면은 정차 뒤 |
+| 약속·만남 | NaviHelper `addWaypoint` → `getWaypointInfo` 재확인, `onWayPointArrived`, `onDestinationArrived` | 수락 뒤 경유지, 도착 3분 전 "나와 주세요", 도착 알림 |
+| 음성 | TextToSpeech·SpeechToText(ON_DEVICE, ko-KR), Gleo AI App Schema 기능 3개 | 알림 말하기, "응/아니"·품목 듣기, 말로 묻고 고르기 |
+
+화면은 Pleos Connect UI 디자인 가이드에 맞췄다: 주행 중 카드는 1~2초에 읽히게 사실 둘·버튼 둘, 글꼴은 Pleos 기본 글꼴 Asta Sans, 글자 대비 4.5:1 이상. 확인한 것: 단위·API 테스트 125개, 시뮬레이터 E2E, 브리지 계약 시험, 자동 시연(아래 '확인'). 실제 SDK로 빌드는 성공했고 에뮬레이터에서의 SDK 동작 확인은 진행 중이다([`docs/STATUS.md`](docs/STATUS.md)). 쓰는 글꼴·아이콘·라이브러리의 라이선스는 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+
+## 문서
 
 - 기획: `docs/01_기획서.md`(PDF는 `node node_modules/tsx/dist/cli.mjs tools/doc-pdf.ts docs/01_기획서.md <출력.pdf>`), 접수 양식에 옮길 글: `docs/02_접수양식_초안.md`, 결정과 공모전 정보: `docs/00_가이드.md`
 - 기능별 구현 위치: `docs/TASKS.md`, 기획서 문장별 대조: `docs/SPEC_CHECK.md`, 현재 상태: `docs/STATUS.md`
@@ -47,7 +83,7 @@ npm start              # http://localhost:8787
 
 판매자·구매자 폰은 같은 디자인 시스템(`apps/seller-web/src/styles.css`, 조각은 `kit.tsx`)을 쓴다. 흰 바탕과 굵은 문장으로 조용하게 두고, 크라프트는 차가 오는 순간(요청·만남 전체 화면)에만 쓴다.
 
-- 글꼴: JHGO Sans(`apps/seller-web/src/assets/JHGOSans.woff2`) — Pretendard Variable을 앱 글자와 KS X 1001 한글 2,350자로 줄인 판. OFL 예약 이름 규정 때문에 이름을 바꿨다(`JHGOSans-OFL.txt`). 상표 글자 '주행중GO!'만 도현.
+- 글꼴: 앱 글꼴(CSS 이름 `JHGO Sans`)은 Asta Sans(`apps/seller-web/src/assets/AstaSans-subset.woff2`) — Pleos Connect UI 가이드의 기본 글꼴을 앱 글자와 KS X 1001 한글 2,350자로 줄인 부분집합(OFL 1.1, `AstaSans-OFL.txt`). 상표 글자 '주행중GO!'만 도현.
 - 아이콘: lucide-react 0.469.0. 매물 사진 자리: `packages/core/src/art.ts`의 평면 물건 그림(실제 사진이 아니라는 게 보이게).
 - 화면 문장에는 조사를 `josa()`로 붙이고, 한국어 줄바꿈은 `word-break: keep-all`.
 

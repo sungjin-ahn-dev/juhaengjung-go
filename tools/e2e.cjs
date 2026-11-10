@@ -96,7 +96,11 @@ async function waitHealth() {
     const carCtx = await browser.newContext({ viewport: { width: 1720, height: 860 } });
     const car = await carCtx.newPage();
     car.on("pageerror", (e) => log("차량 페이지 오류:", e.message));
-    const snapC = async (name) => car.screenshot({ path: path.join(OUT, `${String(++shot).padStart(2, "0")}-car-${name}.png`) });
+    // 카드가 떠오르는 애니메이션(0.3초)이 끝난 뒤에 찍는다 — 도중에 찍으면 알림 카드가 흐리게 나온다
+    const snapC = async (name) => {
+      await car.waitForTimeout(500);
+      return car.screenshot({ path: path.join(OUT, `${String(++shot).padStart(2, "0")}-car-${name}.png`) });
+    };
     await car.goto(BASE + "/car/", { waitUntil: "load" });
     await car.getByTestId("car-screen").waitFor();
     await car.waitForTimeout(1200);

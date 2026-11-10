@@ -1,8 +1,9 @@
-/* JHGO Sans — Pretendard Variable을 앱 글자와 KS X 1001 한글로 줄인 판(OFL, assets/JHGOSans-OFL.txt). 폰 화면과 차 화면이 같이 쓴다 */
+/* 앱 글꼴(CSS 이름 "JHGO Sans") = Asta Sans — Pleos Connect UI 가이드의 기본 글꼴(42dot, OFL 1.1 · assets/AstaSans-OFL.txt).
+   앱 글자와 KS X 1001 한글만 남긴 부분집합(가변 굵기 300~800). 폰 화면과 차 화면이 같이 쓴다 */
 @font-face {
   font-family: "JHGO Sans";
-  src: url("./assets/JHGOSans.woff2") format("woff2");
-  font-weight: 45 930;
+  src: url("./assets/AstaSans-subset.woff2") format("woff2");
+  font-weight: 300 800;
   font-style: normal;
   font-display: swap;
 }

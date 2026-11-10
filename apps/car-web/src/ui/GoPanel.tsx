@@ -72,19 +72,16 @@ function AlertCard({ s, c }: { s: CarState; c: CarController }) {
           <small>{x.detourMaxMin > x.detourMin ? `길면 ${x.detourMaxMin}분` : s.mode === "region" ? "여기서" : "더 걸려요"}</small>
         </div>
       </div>
+      {/* 주행 중에만 뜨는 카드라 한눈에(1~2초) 읽히게 사실은 둘만: 실리는지 + 가장 큰 이유 하나. 나머지(배터리·판매점·상태)는 음성과 정차 화면 목록이 맡는다 */}
       <div className="c-facts">
         <span className={`c-fact ${x.fit.kind === "trunk" ? "good" : ""}`}>{x.fit.label}</span>
-        <span className="c-fact">{cheaper > 0 ? `기준가보다 ${fmtWon(cheaper)} 싸요` : fmtWon(x.price)}</span>
-        {x.energy.arrivalSocPct !== undefined && <span className="c-fact">도착 배터리 {Math.round(x.energy.arrivalSocPct)}%</span>}
-        {x.seller.shop && <span className="c-fact">판매점</span>}
-        {x.pickupAccess === "easy" && <span className="c-fact good">차 세우기 쉬움</span>}
-        {x.pickupAccess === "hard" && <span className="c-fact">주차 어려울 수 있음</span>}
-        {/* 사진에서 본 상태(T33): AI가 봤을 때만 '사진:'이라고 쓴다 */}
-        {x.brief?.condition.photoChecked ? (
-          <span className={`c-fact ${x.brief.condition.findings.length ? "" : "good"}`}>사진: {x.brief.condition.findings[0] ?? "흠집 안 보임"}</span>
-        ) : x.condition ? (
-          <span className="c-fact">{CONDITION_KO[x.condition]}(판매자 표시)</span>
-        ) : null}
+        {x.pickupAccess === "hard" ? (
+          <span className="c-fact">주차 어려울 수 있음</span>
+        ) : cheaper > 0 ? (
+          <span className="c-fact">기준가보다 {fmtWon(cheaper)} 싸요</span>
+        ) : (
+          <span className="c-fact">{fmtWon(x.price)}</span>
+        )}
       </div>
       <div className="c-answer">
         <button className="c-yes" onClick={() => void c.answer(true)}>

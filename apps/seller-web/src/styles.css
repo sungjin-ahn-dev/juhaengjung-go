@@ -2,7 +2,7 @@
  * 주행중GO! 폰 화면 디자인 시스템 — 판매자·구매자 폰이 같이 쓴다.
  * 평소 화면은 흰 바탕, 굵은 문장, 회색 단계 하나로 조용하게.
  * 크라프트(골판지 색)는 '차가 오고 있다'는 순간에만 화면 전체에 쓴다.
- * 글꼴: JHGO Sans(Pretendard Variable 줄인 판, OFL — assets/JHGOSans-OFL.txt). 상표 글자만 도현.
+ * 글꼴: 앱 글꼴 "JHGO Sans" = Asta Sans 부분집합(Pleos 기본 글꼴, OFL — assets/AstaSans-OFL.txt). 상표 글자만 도현.
  */
 
 .s-root {

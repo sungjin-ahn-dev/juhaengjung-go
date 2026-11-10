@@ -47,7 +47,7 @@ const SEGS: Seg[] = [
   { file: "07-settle-result.mp4", start: 8, dur: 8, title: "목적지에 도착", sub: "따로 다녀왔다면 40분, 실제로 늘어난 시간 7분" },
 ];
 
-const fontCss = `@font-face{font-family:"JHGO Sans";src:url("file://${path.join(ROOT, "apps/seller-web/src/assets/JHGOSans.woff2")}") format("woff2");font-weight:100 900}`;
+const fontCss = `@font-face{font-family:"JHGO Sans";src:url("file://${path.join(ROOT, "apps/seller-web/src/assets/AstaSans-subset.woff2")}") format("woff2");font-weight:300 800}`;
 const fontsDir = process.env.JHGO_FONTS;
 const doHyeon = fontsDir && fs.existsSync(path.join(fontsDir, "do-hyeon/400.css")) ? `<link rel="stylesheet" href="file://${path.join(fontsDir, "do-hyeon/400.css")}">` : "";
 const base = `<!doctype html><html><head><meta charset="utf-8">${doHyeon}<style>
