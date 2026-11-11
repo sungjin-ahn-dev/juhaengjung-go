@@ -1,7 +1,8 @@
 node_modules/
 dist/
 *.tsbuildinfo
-data/
+# 서버가 쓰는 실행 데이터(저장소 루트의 data/jhgo.sqlite)만 — 'data/'로 쓰면 packages/core/src/data(시연 도로망 소스)까지 빠진다
+/data/
 *.sqlite
 *.sqlite-*
 tools/out/
