@@ -1,5 +1,5 @@
 /** 정차 중에만 여는 화면 — 목적지, 관심사, 현장 확인, 결과, 차종 고르기 (출발 전 브리핑은 오른쪽 추천 목록) */
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { DEMO_PLACES, VEHICLE_TABLE, type GoLevel, type VehicleProfile } from "@jhgo/core";
 import { Car, Check, CircleAlert, CreditCard, Minus, Plus, Star, Trash2, X } from "lucide-react";
 import type { CarController, CarState, TradeView } from "../controller.ts";
@@ -360,33 +360,50 @@ function ResultSheet({ s, c }: { s: CarState; c: CarController }) {
   const r = s.result;
   if (!r) return null;
   const first = r.items[0];
+  // 따로 다녀왔을 때(경로 계산)와 실제로 늘어난 시간(이번 주행에서 잰 값)을 같은 눈금의 막대 둘로 견준다
+  const apart = first?.separateTripMin ?? null;
+  // 주행 기록이 없어 실제 값을 못 구했으면 요청할 때의 예상 값을 보여 주고, 이름도 그렇게 부른다
+  const measured = r.addedMin !== null;
+  const added = first ? (r.addedMin ?? first.detourMin) : null;
+  const saved = measured && apart !== null && added !== null && apart > added ? apart - added : null;
+  const scale = Math.max(apart ?? 0, added ?? 0, 1);
+  const bar = (v: number | null) => ({ "--r": String(Math.max(0, v ?? 0) / scale) }) as CSSProperties;
   return (
     <div className="c-sheet" data-testid="sheet-result">
       <Head title={r.items.length ? "가는 길에 챙겼어요" : "도착했어요"} sub={r.items.length ? r.items.map((i) => `${i.categoryLabel} ${fmtWon(i.price)}`).join(", ") : "이번 길엔 들른 곳이 없어요"} onClose={() => c.dismissResult()} />
       <div className="c-sheet-body">
         {first && (
-          <div className="c-result-grid">
-            <div>
-              <span>따로 다녀왔다면</span>
-              <div className="c-result-num">
-                {first.separateTripMin ?? "-"}
-                <small>분</small>
+          <div className={`c-result${saved === null ? " plain" : ""}`}>
+            {saved !== null && (
+              <p className="c-result-lead" data-testid="result-saved">
+                <span>따로 다녀오는 것보다</span>
+                <b>
+                  <small>약</small>
+                  {saved}
+                  <small>분</small>
+                </b>
+                <span>덜 걸렸어요</span>
+              </p>
+            )}
+            <dl className="c-result-bars">
+              <div className="was">
+                <dt>따로 다녀왔다면</dt>
+                <dd>
+                  {apart !== null && <i style={bar(apart)} />}
+                  <b>{apart === null ? "계산하지 못했어요" : `${apart}분`}</b>
+                </dd>
               </div>
-            </div>
-            <div>
-              <span>실제로 늘어난 시간</span>
-              <div className="c-result-num">
-                {r.addedMin ?? first.detourMin}
-                <small>분</small>
+              <div className="now">
+                <dt>{measured ? "실제로 늘어난 시간" : "예상했던 추가 시간"}</dt>
+                <dd>
+                  <i style={bar(added)} />
+                  <b>{added}분</b>
+                </dd>
               </div>
-            </div>
-            <div>
-              <span>더 달린 거리</span>
-              <div className="c-result-num">
-                {r.extraKm ?? "-"}
-                <small>km</small>
-              </div>
-            </div>
+            </dl>
+            <p className="c-result-km">
+              더 달린 거리 <b>{r.extraKm === null ? "재지 못했어요" : `${r.extraKm}km`}</b>
+            </p>
           </div>
         )}
         {r.items.map((i) => (
@@ -401,11 +418,13 @@ function ResultSheet({ s, c }: { s: CarState; c: CarController }) {
             )}
           </div>
         ))}
-        {r.notes.map((n) => (
-          <div className="c-banner" key={n}>
-            {n}
-          </div>
-        ))}
+        {r.notes.length > 0 && (
+          <ul className="c-result-notes">
+            {r.notes.map((n) => (
+              <li key={n}>{n}</li>
+            ))}
+          </ul>
+        )}
         <p className="c-note">더 달린 거리는 이번 주행에서 잰 거리와 원래 경로의 차이예요. 따로 다녀왔다면 걸렸을 시간은 목적지에서 판매자까지 왕복 경로로 계산했어요.</p>
         <button className="c-btn primary lg" style={{ marginTop: 14 }} onClick={() => c.dismissResult()}>
           닫기

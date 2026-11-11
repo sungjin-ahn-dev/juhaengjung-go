@@ -45,7 +45,7 @@ const fontsDir = process.env.JHGO_FONTS;
 const doHyeon = fontsDir && fs.existsSync(path.join(fontsDir, "do-hyeon/400.css")) ? `<link rel="stylesheet" href="file://${path.join(fontsDir, "do-hyeon/400.css")}">` : "";
 const base = `<!doctype html><html><head><meta charset="utf-8">${doHyeon}<style>
 ${fontCss}
-html,body{margin:0;width:1280px;height:720px;overflow:hidden;background:#141a23;color:#eef2f6;font-family:"JHGO Sans","Apple SD Gothic Neo","Malgun Gothic",sans-serif;-webkit-font-smoothing:antialiased}
+html,body{margin:0;width:1280px;height:720px;overflow:hidden;background:#141a23;color:#eef2f6;font-family:"JHGO Sans","Apple SD Gothic Neo","Malgun Gothic",sans-serif;-webkit-font-smoothing:antialiased;word-break:keep-all}
 .route{position:absolute;left:-40px;right:-40px;top:596px;height:7px;background:#57d2e6;opacity:.6;transform:rotate(-3.5deg);border-radius:99px;box-shadow:0 0 0 10px rgba(87,210,230,.07)}
 .mark{position:absolute;left:72px;top:56px;font-family:"Do Hyeon","JHGO Sans",sans-serif;font-size:30px;color:#d8ae74;letter-spacing:-.01em}
 .mark b{color:#eef2f6;font-weight:400}
@@ -75,10 +75,10 @@ const closing = `${base}
 <div class="mark">주행중<b>GO!</b></div>
 <div class="t" style="top:170px">검증한 것과 남은 것</div>
 <div class="cols">
-  <div><b>통과</b><span>핵심 로직·서버 테스트 102개, 타입 검사, 시뮬레이터 E2E 3부, 브리지 계약 시험, 체험 페이지 자동 시연</span></div>
-  <div><b>확인</b><span>차 화면 1280×720·1920×720, 폰 390×844 장면 캡처. Kotlin 셸은 레퍼런스 시그니처 스텁으로 컴파일</span></div>
-  <div><b>미실행</b><span>Pleos Connect 에뮬레이터·실차, 폰 웹 푸시(HTTPS), 사진 크기 추정 실제 API, 실제 결제</span></div>
-  <div><b>원칙</b><span>공식 레퍼런스에서 확인한 SDK만 쓰고, 미확인은 확인된 API로 대체하거나 거절</span></div>
+  <div><b>통과</b><span>단위·API 테스트 125개, 타입 검사, 시뮬레이터 E2E(전체·분할 화면), 브리지 계약 시험, 체험 페이지 자동 시연</span></div>
+  <div><b>확인</b><span>차 화면 1280×720·1920×720·분할(1:1), 폰 390×844 캡처. 차량 앱은 실제 Pleos SDK로 릴리스 APK 빌드, 시그니처는 SDK 바이너리에서 확인</span></div>
+  <div><b>미실행</b><span>Pleos Connect 에뮬레이터·실차에서 실행, 폰 웹 푸시(HTTPS), 사진 크기 추정 실제 API, 실제 결제</span></div>
+  <div><b>원칙</b><span>확인한 SDK 시그니처만 쓰고, 미확인은 확인된 API로 대체하거나 거절</span></div>
 </div>
 <div class="foot">주행중GO! — 차를 움직이기보다 차를 읽는다</div>
 </body></html>`;

@@ -44,7 +44,7 @@ const SEGS: Seg[] = [
   { file: "04-contention.mp4", start: 3, dur: 8, title: "\"카시트? 유모차?\"", sub: "말로 답하면 돼요" },
   { file: "05-accept-waypoint.mp4", start: 1, dur: 8, title: "판매자가 수락하면", sub: "대금을 보관하고 내비에 경유지를 넣어요" },
   { file: "06-meet-inspect.mp4", start: 2, dur: 8, title: "도착하면 현장 확인", sub: "받았어요 또는 안 살게요(전액 환불)" },
-  { file: "07-settle-result.mp4", start: 8, dur: 8, title: "목적지에 도착", sub: "따로 다녀왔다면 40분, 실제로 늘어난 시간 7분" },
+  { file: "07-settle-result.mp4", start: 9.4, dur: 8, title: "목적지에 도착", sub: "따로 다녀왔을 때보다 얼마나 덜 걸렸는지 보여 줘요" },
 ];
 
 const fontCss = `@font-face{font-family:"JHGO Sans";src:url("file://${path.join(ROOT, "apps/seller-web/src/assets/AstaSans-subset.woff2")}") format("woff2");font-weight:300 800}`;
@@ -52,7 +52,7 @@ const fontsDir = process.env.JHGO_FONTS;
 const doHyeon = fontsDir && fs.existsSync(path.join(fontsDir, "do-hyeon/400.css")) ? `<link rel="stylesheet" href="file://${path.join(fontsDir, "do-hyeon/400.css")}">` : "";
 const base = `<!doctype html><html><head><meta charset="utf-8">${doHyeon}<style>
 ${fontCss}
-html,body{margin:0;width:${W}px;height:${H}px;overflow:hidden;background:#141a23;color:#eef2f6;font-family:"JHGO Sans","Apple SD Gothic Neo","Malgun Gothic",sans-serif;-webkit-font-smoothing:antialiased}
+html,body{margin:0;width:${W}px;height:${H}px;overflow:hidden;background:#141a23;color:#eef2f6;font-family:"JHGO Sans","Apple SD Gothic Neo","Malgun Gothic",sans-serif;-webkit-font-smoothing:antialiased;word-break:keep-all}
 .mark{position:absolute;left:56px;top:54px;font-family:"Do Hyeon","JHGO Sans",sans-serif;font-size:40px;color:#d8ae74}
 .mark b{color:#eef2f6;font-weight:400}
 .t{position:absolute;left:56px;top:122px;width:968px;font-size:58px;font-weight:800;letter-spacing:-.03em;line-height:1.15}

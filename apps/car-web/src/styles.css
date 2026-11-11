@@ -142,6 +142,10 @@ select:focus-visible {
   backdrop-filter: blur(14px) saturate(1.3);
   -webkit-backdrop-filter: blur(14px) saturate(1.3);
 }
+/* 차량 WebView(번짐 없음)에서는 판을 불투명하게 — 90% 판 뒤로 지도 글자가 그대로 비치지 않게 */
+.c-shell.device .c-card {
+  background: #10161f;
+}
 
 /* ───── 위쪽: 회전 안내 · 상태 ───── */
 .c-tbt {
@@ -392,7 +396,8 @@ select:focus-visible {
   max-width: 100%;
   padding: 12px 18px 12px 14px;
   border-radius: 18px;
-  background: rgba(9, 13, 19, 0.9);
+  /* 불투명하게 — 반투명이면 뒤의 핀·지명이 글자 사이로 비쳐 보인다 */
+  background: #0c1118;
   border: 1px solid var(--line-2);
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
   font-size: 19px;
@@ -559,7 +564,7 @@ select:focus-visible {
 .c-item {
   display: grid;
   grid-template-columns: 26px 72px minmax(0, 1fr);
-  gap: 12px;
+  gap: 10px 12px;
   padding: 14px 16px 14px 14px;
   border-bottom: 1px solid var(--line);
   cursor: pointer;
@@ -630,28 +635,79 @@ select:focus-visible {
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
-.c-item-desc {
-  margin: 3px 0 8px;
+/* 둘째 줄: 판매자 한마디(한 줄) + 경로상 거리 */
+.c-item-sub {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 4px;
   color: var(--muted);
   font-size: 13.5px;
   line-height: 1.45;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+}
+.c-item-desc {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c-item-dist {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+/* 셋째 줄: 값과 기준가 대비 */
+.c-item-buy {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 9px;
+  white-space: nowrap;
+}
+.c-item-price {
+  font-size: 16px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+.c-item-save {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ok);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+/* 아랫줄: 사실 칩 한 줄(넘치는 칩은 쉰다) + 단추 */
+.c-item-foot {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
 }
 .c-item-chips {
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 6px;
+  height: 25px;
+  overflow: hidden;
+}
+/* 고른 줄은 칩을 다 펴서 보여 준다 */
+.c-item.on .c-item-chips {
+  height: auto;
 }
 .c-item-chips span {
+  flex: none;
   font-size: 12.5px;
   font-weight: 600;
+  line-height: 19px;
   padding: 3px 8px;
   border-radius: 8px;
   background: var(--raised);
   color: var(--text-2);
+  white-space: nowrap;
 }
 .c-item-chips .go-must {
   background: var(--kraft-soft);
@@ -660,32 +716,17 @@ select:focus-visible {
 .c-item-chips .fit-trunk {
   color: var(--ok);
 }
-.c-item-why {
-  margin-top: 6px;
-  color: var(--warn);
-  font-size: 13px;
-  font-weight: 600;
-}
-.c-item-foot {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 10px;
-  margin-top: 8px;
-  font-size: 14px;
-}
-.c-item-price {
-  font-weight: 750;
-  font-variant-numeric: tabular-nums;
-}
-.c-item-dist {
-  color: var(--muted);
-}
 .c-item-foot .c-btn {
-  margin-left: auto;
+  flex: none;
   height: 36px;
   padding: 0 13px;
   font-size: 14px;
+}
+.c-item-why {
+  grid-column: 1 / -1;
+  color: var(--warn);
+  font-size: 13px;
+  font-weight: 600;
 }
 /* 물건 요약 브리핑(T33): 고른 매물 아래 */
 .c-brief {
@@ -1553,36 +1594,124 @@ select:focus-visible {
   font-weight: 500;
 }
 
-/* 결과 카드 */
-.c-result-grid {
+/* 결과 카드 — 숫자 셋을 나란히 두지 않는다. 덜 걸린 시간 하나를 앞에, 근거 둘은 같은 눈금의 막대로 */
+.c-result {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin: 8px 0 18px;
-}
-.c-result-grid div {
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 26px;
+  align-items: center;
   background: var(--panel-2);
   border-radius: 18px;
-  padding: 16px 18px;
+  padding: 20px 22px 14px;
+  margin: 8px 0 12px;
 }
-.c-result-grid span {
-  color: var(--muted);
-  font-size: 14.5px;
+.c-result.plain {
+  grid-template-columns: minmax(0, 1fr);
+}
+.c-result-lead {
+  margin: 0;
+  padding-right: 26px;
+  border-right: 1px solid var(--line-2);
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: 15.5px;
   font-weight: 600;
+  white-space: nowrap;
 }
-.c-result-num {
-  margin-top: 6px;
-  font-size: 40px;
+.c-result-lead b {
+  color: var(--text);
+  font-size: 46px;
   font-weight: 800;
   letter-spacing: -0.04em;
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
-.c-result-num small {
-  font-size: 20px;
+.c-result-lead b small {
+  font-size: 22px;
   font-weight: 700;
   margin-left: 2px;
   letter-spacing: 0;
+}
+.c-result-lead b small:first-child {
+  margin: 0 6px 0 0;
+  color: var(--text-2);
+}
+.c-result-bars {
+  margin: 0;
+  display: grid;
+  gap: 14px;
+}
+.c-result-bars > div {
+  display: grid;
+  gap: 6px;
+}
+.c-result-bars dt {
+  color: var(--muted);
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.c-result-bars dd {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+/* 막대 끝에 값을 바로 붙인다(오른쪽 끝에 값 자리 76px을 남긴다) */
+.c-result-bars i {
+  flex: 0 0 auto;
+  width: calc((100% - 76px) * var(--r, 0));
+  min-width: 4px;
+  height: 14px;
+  border-radius: 0 4px 4px 0;
+  background: #4a586c;
+}
+.c-result-bars .now i {
+  background: var(--route);
+}
+.c-result-bars b {
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.c-result-km {
+  grid-column: 1 / -1;
+  margin: 16px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 600;
+}
+.c-result-km b {
+  color: var(--text-2);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+/* 다음 알림이 어떻게 달라지는지: 알약을 쌓지 않고 한 묶음의 줄로 */
+.c-result-notes {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 2px 18px;
+  border: 1px solid var(--line-2);
+  border-radius: 18px;
+}
+.c-result-notes li {
+  padding: 12px 0;
+  color: var(--text-2);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.c-result-notes li + li {
+  border-top: 1px solid var(--line);
 }
 .c-rate {
   display: flex;

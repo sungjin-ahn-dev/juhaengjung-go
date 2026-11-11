@@ -172,63 +172,69 @@ function Row({
           <div className="c-item-title">{x.title}</div>
           <div className="c-item-detour">{detourText(x, s.mode)}</div>
         </div>
-        {x.description && <div className="c-item-desc">{x.description}</div>}
+        <div className="c-item-sub">
+          <span className="c-item-desc">{x.description}</span>
+          <span className="c-item-dist">{distText(x, s.mode)}</span>
+        </div>
+        <div className="c-item-buy">
+          <span className="c-item-price">{fmtWon(x.price)}</span>
+          {cheaper > 0 && <span className="c-item-save">기준가보다 {fmtWon(cheaper)} 싸요</span>}
+        </div>
+      </div>
+      <div className="c-item-foot">
+        {/* 칩은 한 줄만: 내 등급 → 실리는지 → 판매점 → 차 세우기 → 상태 → 판매자 거래 수. 자리가 모자라면 뒤의 것부터 쉬고, 줄을 고르면 다 펴진다 */}
         <div className="c-item-chips">
           <span className={`go-${x.goLevel}`}>{GO_KO[x.goLevel]}</span>
           <span className={x.fit.kind === "trunk" ? "fit-trunk" : ""}>{x.fit.label}</span>
-          {cheaper > 0 && <span>기준가보다 {fmtWon(cheaper)} 싸요</span>}
-          {x.condition && <span>{CONDITION_KO[x.condition]}</span>}
           {x.seller.shop && <span data-testid="chip-shop">판매점</span>}
           {x.pickupAccess && <span data-testid={`chip-park-${x.pickupAccess}`}>{PARK_KO[x.pickupAccess]}</span>}
-        </div>
-        {out && <div className="c-item-why">{x.exclusions.map((e) => EXCLUSION_KO[e] ?? e).join(" / ")}</div>}
-        <div className="c-item-foot">
-          <span className="c-item-price">{fmtWon(x.price)}</span>
-          <span className="c-item-dist">{distText(x, s.mode)}</span>
+          {x.condition && <span>{CONDITION_KO[x.condition]}</span>}
           {x.seller.completed > 0 && (
-            <span className="c-item-dist">
+            <span>
               거래 {x.seller.completed}회{x.seller.rating ? `, 평점 ${x.seller.rating}` : ""}
             </span>
           )}
-          {mine ? (
-            <span className="c-item-mine" data-testid="go-row-mine">
-              거래 중
-            </span>
-          ) : !out ? (
-            <button
-              className="c-btn kraft"
-              disabled={!!s.trade || !!s.block}
-              onClick={(e) => {
-                e.stopPropagation();
-                void c.request(x.listingId, "briefing");
-              }}
-            >
-              미리 요청
-            </button>
-          ) : x.interestType !== "wish" ? (
-            <button
-              className="c-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                void c.addWish(x.listingId, x.goLevel);
-              }}
-            >
-              찜해 두기
-            </button>
-          ) : null}
         </div>
+        {mine ? (
+          <span className="c-item-mine" data-testid="go-row-mine">
+            거래 중
+          </span>
+        ) : !out ? (
+          <button
+            className="c-btn kraft"
+            disabled={!!s.trade || !!s.block}
+            onClick={(e) => {
+              e.stopPropagation();
+              void c.request(x.listingId, "briefing");
+            }}
+          >
+            미리 요청
+          </button>
+        ) : x.interestType !== "wish" ? (
+          <button
+            className="c-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              void c.addWish(x.listingId, x.goLevel);
+            }}
+          >
+            찜해 두기
+          </button>
+        ) : null}
       </div>
+      {out && <div className="c-item-why">{x.exclusions.map((e) => EXCLUSION_KO[e] ?? e).join(" / ")}</div>}
       {on && <BriefCard x={x} s={s} c={c} />}
     </div>
   );
 }
 
-/** 물건 요약 브리핑(T33) — 고른 매물 아래에: 사진 몇 장, 판매자 글 요약, 사진에서 본 상태, 들려주기 */
+/** 물건 요약 브리핑(T33) — 고른 매물 아래에: 판매자가 올린 실제 사진(있을 때), 판매자 글 요약, 사진에서 본 상태, 들려주기 */
 function BriefCard({ x, s, c }: { x: RankedItem; s: CarState; c: CarController }) {
   useEffect(() => {
     void c.loadBriefPhotos(x.listingId);
   }, [c, x.listingId]);
-  const photos = s.briefPhotos[x.listingId] ?? (x.photo ? [x.photo] : []);
+  // 시연용 평면 그림(SVG)은 목록 줄에 이미 있다 — 여기에는 판매자가 올린 실제 사진만 크게 보여 준다
+  const photos = (s.briefPhotos[x.listingId] ?? (x.photo ? [x.photo] : [])).filter((p) => !p.startsWith("data:image/svg"));
   const b = x.brief;
   return (
     <div className="c-brief" data-testid={`brief-${x.categoryLabel}`} onClick={(e) => e.stopPropagation()}>
@@ -256,12 +262,10 @@ function BriefCard({ x, s, c }: { x: RankedItem; s: CarState; c: CarController }
           {b.condition.grade && <p className="c-brief-grade">사진과 글로 본 상태: {CONDITION_KO[b.condition.grade]}</p>}
         </>
       ) : (
-        <p className="c-brief-none">
-          사진 분석 없음 · 판매자 표시: {x.condition ? CONDITION_KO[x.condition] : "상태 미정"}
-        </p>
+        <p className="c-brief-none">{x.condition ? `사진 분석 없음. 판매자 표시는 ${CONDITION_KO[x.condition]}이에요.` : "사진 분석 없음. 판매자가 상태를 표시하지 않았어요."}</p>
       )}
       <p className="c-brief-hint">
-        <Volume2 size={15} strokeWidth={2.2} aria-hidden="true" /> 읽어 드렸어요. 더 궁금하면 마이크를 누르고 물어보세요 — "흠집 있어?", "얼마나 돌아가?", "이걸로 할게"
+        <Volume2 size={15} strokeWidth={2.2} aria-hidden="true" /> 읽어 드렸어요. 더 궁금하면 '말하기'를 누르고 "흠집 있어?", "얼마나 돌아가?", "이걸로 할게"처럼 물어보세요.
       </p>
     </div>
   );

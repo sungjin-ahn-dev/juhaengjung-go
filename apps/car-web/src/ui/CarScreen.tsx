@@ -10,7 +10,7 @@ import type { SimCar } from "../pleos/sim.ts";
 import { GoList, rankItems } from "./GoList.tsx";
 import { GoPanel } from "./GoPanel.tsx";
 import { BatteryIcon, RailIcon, TurnIcon, UI } from "./icons.tsx";
-import { MapView, type MapSnapshot } from "./MapView.tsx";
+import { MapView, type Box, type MapSnapshot } from "./MapView.tsx";
 import { fmtClock, fmtKm, fmtMin } from "./format.ts";
 import { Sheet } from "./Sheets.tsx";
 
@@ -185,6 +185,29 @@ export function CarScreen({ c, sim, now }: { c: CarController; sim: SimCar | nul
     : sheetOpen
       ? { x: RAIL_W + SHEET_W, y: 70, w: W - RAIL_W - SHEET_W, h: 560 }
       : { x: RAIL_W, y: 70, w: W - RAIL_W - SIDE_W - 28, h: 600 };
+  // 정차 중 경로 전체를 맞출 때 비울 여백: 넓은 화면은 아래 도착 정보 카드 위까지만, 분할 화면은 왼쪽 위 안내 카드 묶음 오른쪽에
+  const mapPad = split ? { t: 56, r: 64, b: 56, l: 286 } : sheetOpen ? undefined : { t: 64, r: 60, b: 104, l: 60 };
+  // 지도 위에 얹힌 판의 자리 — 지명이 판 가장자리에 걸쳐 잘려 보이지 않게 지도에 알려 준다(0.4초마다 다시 잰다)
+  const screenEl = useRef<HTMLDivElement>(null);
+  const [occluders, setOccluders] = useState<Box[]>([]);
+  useEffect(() => {
+    const measure = () => {
+      const el = screenEl.current;
+      if (!el) return;
+      const base = el.getBoundingClientRect();
+      const k = base.width / W || 1;
+      const next: Box[] = [];
+      el.querySelectorAll<HTMLElement>(".c-tbt, .c-eta, .c-zoom, .c-status, .c-voice-pill, .c-banner, .c-toast, .c-sheet, .c-side > *").forEach((n) => {
+        const r = n.getBoundingClientRect();
+        if (r.width < 2 || r.height < 2) return;
+        next.push([(r.left - base.left) / k, (r.top - base.top) / k, (r.right - base.left) / k, (r.bottom - base.top) / k]);
+      });
+      setOccluders((prev) => (prev.length === next.length && prev.every((b, i) => b.every((v, j) => Math.abs(v - next[i][j]) < 1.5)) ? prev : next));
+    };
+    measure();
+    const id = setInterval(measure, 400);
+    return () => clearInterval(id);
+  }, [W, H, split, sheetOpen]);
   const arrival = s.destination ? clockMs + s.destination.remainTime * 1000 : null;
   const ranked = rankItems(s);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -206,6 +229,7 @@ export function CarScreen({ c, sim, now }: { c: CarController; sim: SimCar | nul
     <div className="c-stage" ref={wrap}>
       <div className="c-stage-inner">
         <div
+          ref={screenEl}
           className={`c-screen ${split ? "split" : ""}`}
           style={{ transform: `scale(${fit.scale})`, width: W, height: H, top: fit.top, ["--split-panel" as string]: `${Math.round(splitPanel * 100)}%` }}
           data-testid="car-screen"
@@ -228,6 +252,8 @@ export function CarScreen({ c, sim, now }: { c: CarController; sim: SimCar | nul
               overview={overview}
               viewport={viewport}
               zoom={zoom}
+              pad={mapPad}
+              occluders={occluders}
             />
           ) : (
             <div className="c-map" style={{ background: "var(--map)" }} />
