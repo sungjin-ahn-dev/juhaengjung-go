@@ -227,8 +227,10 @@ def annex(figs):
     """별지 XML과 넣을 그림 목록[(rid, zip 안 경로, 파일)]"""
     ko = '<w:lang w:eastAsia="ko-KR"/>'
     xml = [
-        f'<w:p><w:pPr><w:pStyle w:val="21"/><w:pageBreakBefore/>{NO_AUTOSPACE}<w:rPr>{ko}</w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:hint="eastAsia"/>{ko}</w:rPr><w:t>별지 · 02 앱 프로젝트 소개에 딸린 그림</w:t></w:r></w:p>',
-        f'<w:p><w:pPr>{NO_AUTOSPACE}<w:spacing w:before="60" w:after="60" w:line="280" w:lineRule="exact"/></w:pPr><w:r><w:rPr><w:rFonts w:hint="eastAsia"/><w:color w:val="595959"/><w:sz w:val="19"/><w:szCs w:val="19"/>{ko}</w:rPr>'
+        # 쪽을 강제로 넘기지 않는다 — 02장 끝의 안내 두 줄이 다음 쪽으로 넘어가면 그 두 줄만 남은 빈 쪽이 생긴다.
+        # 대신 제목·설명·첫 그림 제목·첫 그림을 '다음 문단과 함께'로 묶어, 자리가 모자라면 묶음째 다음 쪽으로 간다.
+        f'<w:p><w:pPr><w:pStyle w:val="21"/><w:keepNext/>{NO_AUTOSPACE}<w:spacing w:before="480"/><w:rPr>{ko}</w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:hint="eastAsia"/>{ko}</w:rPr><w:t>별지 · 02 앱 프로젝트 소개에 딸린 그림</w:t></w:r></w:p>',
+        f'<w:p><w:pPr><w:keepNext/>{NO_AUTOSPACE}<w:spacing w:before="60" w:after="60" w:line="280" w:lineRule="exact"/></w:pPr><w:r><w:rPr><w:rFonts w:hint="eastAsia"/><w:color w:val="595959"/><w:sz w:val="19"/><w:szCs w:val="19"/>{ko}</w:rPr>'
         "<w:t>그림은 모두 직접 만들었고, 화면은 시뮬레이터에서 찍은 실제 화면이다. 성명·소속·연락처는 들어 있지 않다.</w:t></w:r></w:p>",
     ]
     media = []
