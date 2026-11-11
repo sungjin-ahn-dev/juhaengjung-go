@@ -9,7 +9,7 @@
 
 ## 빌드
 
-방법 1 — Android Studio: 이 폴더(`apps/car-android`)를 열고 빌드 변형에서 `demoDebug` 또는 `pleosDebug`를 고른다. Pleos Maven(`nexus-playground.pleos.ai`)은 계정 없이 받을 수 있다.
+방법 1 — Android Studio: 이 폴더(`apps/car-android`)를 열고 빌드 변형에서 `demoDebug` 또는 `pleosDebug`를 고른다. Pleos Maven(`nexus-playground.pleos.ai`)은 계정 없이 받을 수 있다. 앱 안에 넣는 화면은 `apps/car-web/dist`와 `apps/demo/dist`에서 가져오므로, 저장소를 새로 받았다면 먼저 저장소 루트에서 `npm install && npm run build:web && npm run build -w apps/demo`를 돌린다(방법 2의 `build.bat`은 이 순서를 알아서 한다). 건너뛰면 그 화면 파일 없이 빌드된다.
 
 방법 2 — 명령(탐색기에서 두 번 클릭해도 된다):
 

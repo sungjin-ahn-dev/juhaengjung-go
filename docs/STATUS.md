@@ -25,6 +25,9 @@
 | 브리지 계약 시험 `npm run e2e:bridge` | 통과 — Gleo 기능 이름이 schema.json·매니페스트·GleoBridge.kt·웹에서 같고, window.__jhgoGleo 호출이 Callback Schema로 응답. 실제 SDK 모드(가짜 브리지, Kotlin과 같은 프로토콜): 리스너 등록(트렁크 Door REAR 한 번), 2열·3열 좌석을 줄마다 따로 등록하고 이벤트를 따로 반영, 내비 목적지 → 브리핑, requestTrip, Voice.speak, 경유지 실패 → 취소(신뢰도 제외)·경유지 중복 방지, addWaypoint → getWaypointInfo 확인, onWayPointArrived(이름·순번·지금 위치) → 현장 확인 → 트렁크 열림→닫힘 '실으셨나요?' → onDestinationArrived(DestinationArrivedInfo) → 결과, 목적지 설정 API(requestRoute)는 경유지 실패 대체에서만 |
 | Android 셸 Kotlin | **실제 SDK로 빌드 성공(11-04, PC Android Studio)**: `demoDebug` 6.6 MB · `pleosDebug` 31.0 MB · `pleosRelease` 27.9 MB(`apk/juhaengjung-go_pleos_release.apk`) — 트렁크·주행거리·RouteInfo·도착 콜백을 연결한 코드(b581e49)로 다시 빌드해 셋 다 성공(경고 1: `getRangeRemainingDistance` deprecated). 문서와 다른 곳은 Vehicle 리스너 `onFailed` 하나. 시그니처는 그 바이너리의 Kotlin 메타데이터로 다시 확인(`tools/sdk-dump/`). 스텁 컴파일(Kotlin 2.0.21)도 오류 0. **에뮬레이터 실행은 아직** |
 | Android 셸 11-11 빌드 | **PC에서 실제 SDK로 `pleosRelease` 다시 빌드 성공(11-11 11:31, 23초, 28.1 MB → `apk/JHGO_주행중GO_release.apk`)** — 시작 화면(자동 시연 보기 / 실제 차 신호로 쓰기 / 서버에 연결), 앱에 넣은 체험 페이지(`assets/demo`, `?auto&sim&stage`), 분할 화면 배치가 든 최종 코드. 경고 2: `onBackPressed`·`getRangeRemainingDistance` deprecated. APK를 풀어 확인: 패키지 `ai.jhgo.car` 0.1.0, minSdk 29·targetSdk 34, APK 서명 v2(디버그 키), `assets/car`·`assets/demo`·`schema.json`만 들어 있음(지난 빌드의 옛 파일 없음), `configChanges`에 smallestScreenSize. **실행(에뮬레이터·기기)은 아직** — 시작 화면과 자동 시연이 실제 기기에서 뜨는지는 미실행 |
+| 새로 받은 저장소에서 확인(11-11) | 통과 — 깨끗하게 받은 저장소에서 CI 두 작업과 같은 순서로: `npm ci` → 테스트 125개 → 타입 검사 → 웹 빌드 → 체험 페이지 빌드 → `playwright@1.56.0` 설치 → `e2e`(187초) · `e2e:split`(185초) · `e2e:bridge`(103초) · `e2e:auto`(123초). 처음에는 실패했다 — `.gitignore`의 `data/`가 `packages/core/src/data/demoNet.ts`(시연 도로망)까지 빼고 있어서 받은 사람은 테스트·타입 검사·빌드를 못 돌렸다. 파일을 넣고 규칙을 `/data/`로 좁혔다. **GitHub Actions에서 도는지는 저장소를 올린 뒤 확인(미실행)** |
+| APK에 든 화면 파일(11-11) | 통과 — APK를 풀어 `assets/`를 그대로 서빙하고 앱이 여는 경로(`/assets/demo/index.html?auto&sim&stage`)로 열면 자동 시연이 121초에 끝까지 간다(1920×1080·1280×720, 스크롤 없음, 페이지 오류 없음). WebView처럼 `window.PleosBridge`를 붙여 둬도 `?sim`에서는 한 번도 부르지 않는다. `assets/car/index.html?local`도 오류 없이 뜬다. 들어 있는 파일은 `apps/car-web/dist`·`apps/demo/dist`와 바이트가 같다. 제목 글꼴 하나(도현체)는 Google Fonts에서 받으므로 네트워크가 없으면 기기 글꼴로 보인다. **Android 셸 자체(시작 화면 → WebView)를 에뮬레이터·기기에서 실행하는 것은 미실행** |
+| 한 파일 체험 페이지(11-11) | 통과 — 저장소의 `demo/index.html`을 받은 그대로 브라우저에서 파일로 열고(`file://`) '자동 시연' 단추를 누르면 119초에 끝까지 간다 |
 | 시연 영상 | 체험 페이지 녹화 8개 + 브리지 계약 시험 녹화 2개(H.264, 1280 폭). 녹화 프레임이 밀려도 장면 경계가 맞게 화면 아래 색 띠로 시점을 찾는다 |
 | 화면 크기 | 차량 화면은 1280×720 기준, 1920×720(`?device`)에서 지도만 넓어지고 패널 폭 유지, 창의 가로÷세로가 1.45보다 작으면 분할 화면 배치(폭 860 기준), 그 사이(16:10 등)는 기준 배치를 위아래 가운데에. 체험 페이지는 400px 폭에서 가로 스크롤 없음, 차량 앱 안 자동 시연(`?stage`)은 창에 맞춰 스크롤 없이 |
 | 차 화면 캡처 | 1280×720으로 16장면(대기·관심사·목적지·브리핑·알림 대기·알림·경합·듣는 중·알아들음·요청·가는 중·현장 확인 기다림/건넴·받음·결과·평가)을 찍어 직접 봄, 1920×720 6장면 |
@@ -38,6 +41,7 @@
 4. **사진 크기 추정**: `ANTHROPIC_API_KEY`를 넣고 서버를 켜서 실제 사진으로 한 번 확인(지금은 가짜 추정기 테스트만).
 5. **릴리스 APK 실행**: 11-11에 빌드한 APK를 에뮬레이터나 안드로이드 기기에 설치해 시작 화면이 뜨고 '자동 시연 보기'가 끝까지 가는지(빌드만 확인했고 실행은 아직).
 6. **설문**: `docs/04_설문.md`를 판매 경험자·운전자 각 10명 이상에게 돌려 기획서 16장의 가정을 고친다.
+7. **GitHub에 올린 뒤 확인**: GitHub Actions에서 CI(`.github/workflows/ci.yml`)가 통과하는지, 로그인하지 않은 창에서 저장소·APK·영상이 열리는지. 접수 메일에는 저장소 주소와 최종 커밋 번호를 적는다(11-11 공지).
 
 ## 알려진 한계
 
@@ -53,6 +57,8 @@
 - 실제 SDK 모드의 지도 경로 선은 NaviHelper가 경로 선을 주지 않아 서버와 같은 계산기로 그린 근사다.
 
 ## 기록
+
+- 11-11 공개 전 점검: 공식 공지 두 건을 다시 읽음(비공개 저장소는 11/16까지 공개로 전환·메일에 최종 커밋 번호, 서명은 전자서명·이미지 모두 인정, README에 에뮬레이터 버전과 화면 규격, 제출 서류가 사실과 다르면 선정 취소) → README '테스트 환경'을 "대상 환경, 실행은 아직"으로 고치고 '화면 규격' 줄을 넣음, 접수 양식의 APK 문장을 확인한 범위대로 고침. 새로 받은 저장소에서 CI 순서대로 돌려 빠진 소스 하나(`demoNet.ts`)를 찾아 넣음. APK를 풀어 안의 화면 파일로 자동 시연을 끝까지 돌림. 개발자 실명·이메일·PC 경로가 저장소 파일·커밋 기록·APK 안에 없는지 확인(양식의 주의 문구).
 
 - 11-11 시연 영상 다시 녹화: 지도 단추·알림 문구가 바뀐 화면으로 3분 본편(194초, 5.6 MB)과 숏폼(55초) — `docs/video/`. 1~8장면 브라우저 시뮬레이터, 9~10장면 실제 SDK 모드(가짜 브리지).
 

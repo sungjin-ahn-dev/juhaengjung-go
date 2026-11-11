@@ -11,7 +11,8 @@
 |---|---|
 | 앱 이름 | **주행중GO!** — 가는 길에, 한 번에 하나씩. Pleos 내비 경로 가까이 올라온 중고 물건을 차가 골라 묻고, 판매자가 수락하면 경유지로 넣어 들렀다 가는 차량 앱 |
 | APK | [`apk/JHGO_주행중GO_release.apk`](apk/JHGO_주행중GO_release.apk) — pleosRelease, 실제 Pleos SDK로 빌드(약 28 MB) |
-| 테스트 환경 | Pleos Connect Emulator 2.1.0 (Android API 34, Automotive) · Android Studio · 서버를 같이 쓸 때만 Node 22 |
+| 테스트 환경 | 대상은 Pleos Connect Emulator 2.1.0(기기 정의 'Pleos Connect v2.1.0', Android API 34, Automotive). APK는 Pleos Connect SDK(NaviHelper 3.0.5 · Vehicle 2.3.2 · TextToSpeech 3.3.1 · SpeechToText 3.3.1)로 빌드했고 minSdk 29 · targetSdk 34다. **이 에뮬레이터에서 실행해 본 것은 아직 아니다** — 지금까지의 확인은 브라우저 시뮬레이터(Chromium)와 자동 시험으로 했다. 서버를 같이 쓸 때만 Node 22 |
+| 화면 규격 | 기준은 가로 1280×720. 16:9보다 넓으면(1920×720) 지도만 넓어지고, 다른 앱과 나눠 쓰는 분할 화면·세로 창(창의 가로÷세로가 1.45 미만 — 960×1080 · 853×720 · 720×1280으로 확인)에서는 지도 위·카드 아래 배치로 바뀐다. 화면은 창 크기에 맞춰 통째로 커지고 작아진다 |
 | 시연 영상 | [`docs/video/jhgo-demo-3min.mp4`](docs/video/jhgo-demo-3min.mp4) — 약 3분, 화면 녹화·자막(1~8장면 브라우저 시뮬레이터, 9~10장면 실제 SDK 모드의 가짜 브리지) |
 | 브라우저 체험 | [`demo/index.html`](demo/index.html) — 한 파일이다. 내려받아 브라우저로 열면 설치 없이 판매자 폰·차 화면·가상 콘솔이 한 페이지에서 움직이고, '자동 시연' 버튼을 누르면 7단계가 저절로 진행된다(`npm run build -w apps/demo`로 다시 만든다) |
 
@@ -26,7 +27,7 @@
 - **실제 차 신호로 쓰기** — 앱 안의 차량 화면이 Pleos NaviHelper·Vehicle·TTS·STT 신호로 돈다(서버는 앱 안). 시연 매물이 수원~송파 도로망 위에 있어서, 에뮬레이터 위치를 수원시청 근처에 두고 Pleos 내비 목적지를 송파로 정하면 출발 전 브리핑이 열린다. 오른쪽 아래 'SDK 기록'에 호출·이벤트가 남는다.
 - **서버에 연결** — PC에서 `npm install && npm run build:web && npm start` 뒤 주소(에뮬레이터에서 PC는 `http://10.0.2.2:8787`)를 넣는다. 판매자 폰(`/seller/`)·구매자 폰(`/buyer/`)과 같은 서버로 양쪽을 함께 시연할 때.
 
-확인한 것과 아직 못 한 것: 실제 Pleos SDK로 릴리스 APK를 빌드했고, 단위·API 테스트 125개와 시뮬레이터 끝까지 시험(전체 화면·분할 화면), SDK 브리지 계약 시험, 자동 시연이 통과한다. **Pleos Connect 에뮬레이터·실차에서의 동작 확인은 아직 못 했다**([`docs/STATUS.md`](docs/STATUS.md)).
+확인한 것과 아직 못 한 것: 실제 Pleos SDK로 릴리스 APK를 빌드했고, 단위·API 테스트 125개와 시뮬레이터 끝까지 시험(전체 화면·분할 화면), SDK 브리지 계약 시험, 자동 시연이 통과한다. 새로 받은 저장소에서도 같은 순서(`.github/workflows/ci.yml`)로 통과한다. APK에 든 화면 파일(`assets/demo`, `assets/car`)은 풀어서 브라우저로 확인했다 — 앱이 여는 것과 같은 경로(`assets/demo/index.html?auto&sim&stage`)로 열면 자동 시연이 끝까지 간다. **Pleos Connect 에뮬레이터·실차에서의 동작 확인은 아직 못 했다**([`docs/STATUS.md`](docs/STATUS.md)).
 
 ## 무엇을 푸는가
 
@@ -159,7 +160,7 @@ node node_modules/tsx/dist/cli.mjs tools/video-short.ts <클립 폴더> <출력 
 ## 테스트 환경과 제출용 APK
 
 - 개발·확인: Node 22, npm 10. 차 화면·폰 웹은 Chromium 계열 브라우저(E2E는 Playwright 1.56 Chromium). 서버는 `npm start`(기본 8787, SQLite `data/`), 체험 페이지는 서버 없이 한 파일.
-- 차량 앱 빌드: Android Studio(AGP 8.7.3, Kotlin 2.0.21, API 34, JBR 21) + Pleos SDK Maven(`nexus-playground.pleos.ai`, 계정 없이). `apps/car-android/build.bat`(demo·pleos 디버그), `install.bat`(에뮬레이터 설치·실행), `release.bat`(제출용 APK). 2026-11-04 실제 SDK로 빌드 성공. 에뮬레이터: Pleos Connect Emulator(2.1.0, API 34) + Virtual Console — 만드는 법은 `apps/car-android/README.md`. 앱 안 '연결 설정'에서 PC 서버 주소(기본 `http://10.0.2.2:8787`)를 바꾼다.
+- 차량 앱 빌드: Android Studio(AGP 8.7.3, Kotlin 2.0.21, API 34, JBR 21) + Pleos SDK Maven(`nexus-playground.pleos.ai`, 계정 없이). `apps/car-android/build.bat`(demo·pleos 디버그), `install.bat`(에뮬레이터 설치·실행), `release.bat`(제출용 APK). 2026-11-04 실제 SDK로 빌드 성공, 11-11 최종 코드로 release를 다시 빌드했다. 에뮬레이터: Pleos Connect Emulator(2.1.0, API 34) + Virtual Console — 만드는 법은 `apps/car-android/README.md`(이 에뮬레이터에서의 실행 확인은 아직). 앱 시작 화면의 '서버에 연결'에서 PC 서버 주소(기본 `http://10.0.2.2:8787`)를 넣는다.
 - 폰: 같은 와이파이에서 `http://<PC IP>:8787/seller/`·`/buyer/`. 웹 푸시는 HTTPS 주소에서만.
 - 공모전 제출용 APK: `release.bat`이 `apk/juhaengjung-go_pleos_release.apk`(약 28 MB, pleosRelease, debug 키 서명. 빌드 결과라 git이 무시한다)를 만든다. 제출하는 것만 `apk/JHGO_주행중GO_release.apk`로 복사해 커밋한다(GitHub 100 MB 한도 안).
 - 문서에 넣는 그림: `npm run e2e && npm run e2e:split` 뒤 `node tools/doc-figs.cjs`(→ `docs/img/`). 공식 접수 양식 채우기: `python3 tools/submission-form.py --form <받은 양식.docx> --out <채운 양식.docx>` — 02장의 칸은 `docs/02_접수양식.md`에서, 별지 그림은 `docs/img/fig*.png`에서 온다. 신청자 정보와 양식 파일은 저장소에 두지 않는다.
