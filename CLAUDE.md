@@ -19,7 +19,7 @@ TripRoom(`../triproom`)·멀미예보(`../motioncast`)와 별개 저장소다. �
 - `npm test` · `npm run typecheck` 통과.
 - 화면을 바꾸면 `npm run build:web` 뒤 `npm run e2e`와 `npm run e2e:split`(스크린샷 `tools/out/`을 직접 본다).
 - 차량 앱·브리지를 바꾸면 `npm run e2e:bridge`. Kotlin을 바꾸면 스텁 컴파일(`tools/sdk-dump` 시그니처와 같은 스텁)로 최소 확인하고, 실제 빌드는 PC에서 `apps\car-android\build.bat`(결과 `build_log.txt`).
-- 체험 페이지: `npm run build -w apps/demo` → `npm run e2e:auto`(자동 시연이 끝까지 가는지) → `apps/demo/dist/jhgo-demo.html`을 같은 경로로 다시 게시.
+- 체험 페이지: `npm run build -w apps/demo` → `npm run e2e:auto`(자동 시연이 끝까지 가는지) → `apps/demo/dist/jhgo-demo.html`을 같은 경로로 다시 게시하고, `apps/demo/dist/index.html`을 `demo/index.html`(저장소에 둔 한 파일 체험 페이지)로 복사.
 - 화면이 크게 바뀌면 시연 영상도 다시 만든다(README '시연 영상'). 영상 설명에는 시뮬레이터 녹화인지 SDK 모드(가짜 브리지)인지 적는다.
 - 문서 그림: E2E 둘을 돌린 뒤 `node tools/doc-figs.cjs`(→ `docs/img/`, README·접수 양식 별지가 같이 쓴다). 숫자·SDK 표를 고치면 기획서 16·19장, `docs/API_MATRIX.md`, `docs/02_접수양식.md`를 같이 고친다.
 - 접수 양식: `python3 tools/submission-form.py --form <받은 양식> --out <저장소 밖 경로>`. 02장에는 성명·소속을 쓰지 않고, 저장소·영상·그림·링크에도 개발자 실명을 넣지 않는다(양식의 주의 문구). 신청자 정보·양식 파일은 커밋하지 않는다.

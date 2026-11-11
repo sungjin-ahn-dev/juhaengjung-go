@@ -13,7 +13,7 @@
 | APK | [`apk/JHGO_주행중GO_release.apk`](apk/JHGO_주행중GO_release.apk) — pleosRelease, 실제 Pleos SDK로 빌드(약 28 MB) |
 | 테스트 환경 | Pleos Connect Emulator 2.1.0 (Android API 34, Automotive) · Android Studio · 서버를 같이 쓸 때만 Node 22 |
 | 시연 영상 | [`docs/video/jhgo-demo-3min.mp4`](docs/video/jhgo-demo-3min.mp4) — 약 3분, 화면 녹화·자막(1~8장면 브라우저 시뮬레이터, 9~10장면 실제 SDK 모드의 가짜 브리지) |
-| 브라우저 체험 | `npm run build -w apps/demo` 뒤 `apps/demo/dist/index.html`을 연다 — 설치 없이 판매자 폰·차 화면·가상 콘솔이 한 페이지에서 움직이고, '자동 시연' 버튼을 누르면 7단계가 저절로 진행된다 |
+| 브라우저 체험 | [`demo/index.html`](demo/index.html) — 한 파일이다. 내려받아 브라우저로 열면 설치 없이 판매자 폰·차 화면·가상 콘솔이 한 페이지에서 움직이고, '자동 시연' 버튼을 누르면 7단계가 저절로 진행된다(`npm run build -w apps/demo`로 다시 만든다) |
 
 **실행 방법 — 서버 없이 3단계**
 
