@@ -316,3 +316,76 @@ body {
 .phone > .phone-screen[hidden] {
   display: none !important;
 }
+
+/* ───── 무대 배치(?stage): 차량 앱 안에서 여는 자동 시연. 창에 맞춰 한 화면, 스크롤 없음 ───── */
+html.stage-root,
+html.stage-root body {
+  height: 100%;
+  overflow: hidden;
+}
+.bench.stage {
+  max-width: none;
+  height: 100vh;
+  box-sizing: border-box;
+  padding: 12px;
+  gap: 10px;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+.bench.stage .bench-head {
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+}
+.bench.stage .bench-head h1 {
+  font-size: 24px;
+  white-space: nowrap;
+}
+.bench.stage .guide {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 8px 12px;
+}
+.bench.stage .bench-actions {
+  flex: none;
+}
+.bench.stage .bench-steps[hidden] {
+  display: none;
+}
+.bench.stage .bench-main {
+  grid-template-columns: auto auto;
+  justify-content: center;
+  align-items: start;
+  gap: 14px;
+  min-height: 0;
+}
+.bench.stage.stack .bench-main {
+  grid-template-columns: auto;
+  justify-items: center;
+}
+.bench.stage.no-phone .bench-main {
+  grid-template-columns: auto;
+}
+.bench.stage.no-phone .phone-wrap {
+  display: none;
+}
+.bench.stage .demo-car {
+  width: var(--car-w, 100%);
+}
+.bench.stage .demo-car .vc,
+.bench.stage .demo-car .c-caption,
+.bench.stage .phone-note {
+  display: none;
+}
+.bench.stage .phone-wrap {
+  position: static;
+  gap: 6px;
+}
+.bench.stage .phone {
+  zoom: var(--phone-zoom, 1);
+  width: 390px;
+  max-width: none;
+  height: 844px;
+  min-height: 0;
+}

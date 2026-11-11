@@ -12,13 +12,15 @@ TripRoom(`../triproom`)·멀미예보(`../motioncast`)와 별개 저장소다. �
 - 주행 중에는 알림 카드와 큰 버튼만. 상세 화면은 정차(CarUxRestrictions 해제) 뒤에만.
 - 기능 완료 = 서버 테스트 + 그 기능을 쓰는 사람(구매자·판매자)의 화면 경로. 화면이 없으면 완료로 치지 않는다. 기획서 문장과 대조는 `docs/SPEC_CHECK.md`에 같이 고친다.
 - 화면 문구는 실제 동작과 맞춘다(예: AI가 안 돌면 'AI 추정'이라 쓰지 않는다, 대체 API로 잰 값을 원래 API 이름으로 부르지 않는다).
-- 차 화면은 `apps/car-web/src/styles.css`의 토큰(어두운 지도, 유리 카드 `.c-card`, 크라프트는 알림·경합·현장 확인에만)과 lucide 아이콘으로 만든다. 글꼴은 폰과 같은 앱 글꼴(CSS 이름 JHGO Sans = Asta Sans 부분집합, `apps/seller-web/src/font.css`를 가져다 쓴다). 주행 중 알림 카드의 사실 칩은 둘까지. 화면을 바꾸면 1280×720과 1920×720 캡처를 직접 본다.
+- 차 화면은 `apps/car-web/src/styles.css`의 토큰(어두운 지도, 유리 카드 `.c-card`, 크라프트는 알림·경합·현장 확인에만)과 lucide 아이콘으로 만든다. 글꼴은 폰과 같은 앱 글꼴(CSS 이름 JHGO Sans = Asta Sans 부분집합, `apps/seller-web/src/font.css`를 가져다 쓴다). 주행 중 알림 카드의 사실 칩은 둘까지. 화면을 바꾸면 1280×720과 1920×720, 분할 화면(`/car/?split`) 캡처를 직접 본다.
 - 폰 화면은 `apps/seller-web/src/styles.css`(디자인 시스템)와 `kit.tsx` 조각으로 만든다. 크라프트는 차가 오는 순간(요청·만남)에만, 나머지는 흰 바탕·회색 단계. 버튼 글자에 화살표(→)를 붙이지 않고, '·'로 잇는 메타 줄을 남발하지 않는다. 화면을 바꾸면 390px 캡처를 직접 본다.
 
 ## 작업 루틴
 - `npm test` · `npm run typecheck` 통과.
-- 화면을 바꾸면 `npm run build:web` 뒤 `npm run e2e`(스크린샷 `tools/out/`을 직접 본다).
+- 화면을 바꾸면 `npm run build:web` 뒤 `npm run e2e`와 `npm run e2e:split`(스크린샷 `tools/out/`을 직접 본다).
 - 차량 앱·브리지를 바꾸면 `npm run e2e:bridge`. Kotlin을 바꾸면 스텁 컴파일(`tools/sdk-dump` 시그니처와 같은 스텁)로 최소 확인하고, 실제 빌드는 PC에서 `apps\car-android\build.bat`(결과 `build_log.txt`).
 - 체험 페이지: `npm run build -w apps/demo` → `npm run e2e:auto`(자동 시연이 끝까지 가는지) → `apps/demo/dist/jhgo-demo.html`을 같은 경로로 다시 게시.
 - 화면이 크게 바뀌면 시연 영상도 다시 만든다(README '시연 영상'). 영상 설명에는 시뮬레이터 녹화인지 SDK 모드(가짜 브리지)인지 적는다.
+- 문서 그림: E2E 둘을 돌린 뒤 `node tools/doc-figs.cjs`(→ `docs/img/`, README·접수 양식 별지가 같이 쓴다). 숫자·SDK 표를 고치면 기획서 16·19장, `docs/API_MATRIX.md`, `docs/02_접수양식.md`를 같이 고친다.
+- 접수 양식: `python3 tools/submission-form.py --form <받은 양식> --out <저장소 밖 경로>`. 02장에는 성명·소속을 쓰지 않고, 저장소·영상·그림·링크에도 개발자 실명을 넣지 않는다(양식의 주의 문구). 신청자 정보·양식 파일은 커밋하지 않는다.
 - 판단은 가이드, 진행은 STATUS에 한 줄씩.

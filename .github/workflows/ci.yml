@@ -1,4 +1,4 @@
-# 저장소를 받는 사람(심사용 계정 포함)이 같은 확인을 돌릴 수 있게 — 테스트·타입 검사·웹 빌드·체험 페이지 빌드, 그리고 Playwright로 끝까지(E2E·브리지·자동 시연)
+# 저장소를 받는 사람이 같은 확인을 돌릴 수 있게 — 테스트·타입 검사·웹 빌드·체험 페이지 빌드, 그리고 Playwright로 끝까지(E2E 전체 화면·분할 화면, 브리지, 자동 시연)
 name: ci
 on:
   push:
@@ -38,6 +38,7 @@ jobs:
       - run: npm run build:web
       - run: npm run build -w apps/demo
       - run: npm run e2e
+      - run: npm run e2e:split
       - run: npm run e2e:bridge
       - run: npm run e2e:auto
       - uses: actions/upload-artifact@v4

@@ -359,6 +359,7 @@ select:focus-visible {
   height: 48px;
   border: 0;
   border-radius: 14px;
+  background: transparent;
   display: grid;
   place-items: center;
   color: var(--text-2);
@@ -1856,6 +1857,75 @@ select:focus-visible {
 }
 .c-shell.device .c-caption {
   display: none;
+}
+
+/* ───── 분할 화면(Pleos Connect 1:1 분할처럼 세로에 가까운 창) ─────
+   CarScreen이 창의 가로÷세로가 1.45보다 작으면 .split을 붙이고 폭 860 기준으로 그린다.
+   지도는 위, 추천 목록·알림·거래 카드는 아래(정차 중 화면 높이의 56%, 주행 중 40%까지 — CarScreen이 --split-panel로 준다).
+   정차 시트는 레일 옆 전체를 덮되, 위쪽 한 줄(시각·연결 상태)은 남긴다. */
+.c-screen.split .c-side {
+  left: calc(var(--rail-w) + 14px);
+  right: 14px;
+  top: auto;
+  bottom: 14px;
+  width: auto;
+  max-height: var(--split-panel, 56%);
+}
+.c-screen.split .c-eta {
+  bottom: auto;
+  top: 18px;
+  gap: 18px;
+  padding: 10px 18px 10px 16px;
+}
+/* 회전 안내가 떠 있으면 그 아래로 */
+.c-screen.split .c-tbt ~ .c-eta {
+  top: 122px;
+}
+.c-screen.split .c-eta-time {
+  font-size: 34px;
+}
+.c-screen.split .c-eta-num {
+  font-size: 22px;
+}
+.c-screen.split .c-eta-dest {
+  display: none;
+}
+.c-screen.split .c-zoom {
+  right: 16px;
+  top: 66px;
+}
+.c-screen.split .c-voice {
+  right: 14px;
+  bottom: calc(var(--split-panel, 56%) + 22px);
+}
+/* 시트가 열려 있으면 자막·토스트는 시트 아래쪽에(위쪽의 닫기 단추와 내용을 가리지 않게) */
+.c-screen.split .c-voice.beside-sheet {
+  left: calc(var(--rail-w) + 16px);
+  right: 16px;
+  bottom: 20px;
+}
+.c-screen.split .c-toasts,
+.c-screen.split .c-toasts.beside-sheet {
+  left: calc(50% + 42px);
+}
+.c-screen.split .c-toasts.beside-sheet {
+  top: auto;
+  bottom: 104px;
+}
+.c-screen.split .c-sheet {
+  width: auto;
+  right: 0;
+  top: 58px;
+  border-top: 1px solid var(--line-2);
+  border-top-left-radius: 18px;
+}
+/* 시뮬레이터에서 분할 화면 미리 보기(?split): 차 화면 창을 8:9로 */
+.c-shell.split-preview .c-stage {
+  flex: 0 0 620px;
+  max-width: 620px;
+}
+.c-shell.split-preview .c-stage-inner {
+  aspect-ratio: 8 / 9;
 }
 
 @media (prefers-reduced-motion: reduce) {

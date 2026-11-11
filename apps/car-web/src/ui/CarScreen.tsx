@@ -1,6 +1,7 @@
 /**
  * 차량 화면 — 기준 1280×720. 창에 맞춰 축소하고, 16:9보다 넓은 차 화면(1920×720)에서는 지도를 그만큼 넓힌다.
  * 왼쪽 레일, 위 회전 안내·상태, 아래 도착 정보, 오른쪽 추천 목록·알림·거래 카드, 정차 중엔 왼쪽 시트.
+ * 분할 화면(Pleos Connect 1:1 분할처럼 세로에 가까운 창)에서는 폭 860 기준으로 다시 배치한다 — 지도는 위, 목록·알림·거래 카드는 아래.
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { DEMO_NET, Graph, GraphRouter, pointAtAlong, projectOnPolyline, type Route } from "@jhgo/core";
@@ -22,6 +23,13 @@ const BASE_H = 720;
 const RAIL_W = 84;
 const SIDE_W = 412;
 const SHEET_W = 760;
+/** 분할 화면 배치의 기준 폭(레일 84 + 시트 760 + 여백) */
+const SPLIT_W = 860;
+/** 창의 가로÷세로가 이보다 작으면 분할 화면 배치(4:3 창부터) */
+const SPLIT_ASPECT = 1.45;
+/** 분할 화면에서 아래 카드 영역이 차지할 수 있는 최대 높이(화면 높이 대비): 정차 중엔 목록이 길고, 주행 중엔 카드 하나라 지도를 더 준다 */
+const SPLIT_PANEL_STOPPED = 0.56;
+const SPLIT_PANEL_DRIVING = 0.4;
 
 function useSimSnapshot(sim: SimCar | null): MapSnapshot | null {
   const [snap, setSnap] = useState<MapSnapshot | null>(sim ? sim.snapshot() : null);
@@ -129,7 +137,7 @@ export function CarScreen({ c, sim, now }: { c: CarController; sim: SimCar | nul
   const bridgeSnap = useBridgeSnapshot(s, !sim);
   const snap = sim ? simSnap : bridgeSnap;
   const wrap = useRef<HTMLDivElement>(null);
-  const [fit, setFit] = useState({ scale: 1, w: BASE_W });
+  const [fit, setFit] = useState({ scale: 1, w: BASE_W, h: BASE_H, split: false, top: 0 });
   const [zoom, setZoom] = useState(1);
   const [clockMs, setClockMs] = useState(now());
   const [wall, setWall] = useState(Date.now());
@@ -140,9 +148,16 @@ export function CarScreen({ c, sim, now }: { c: CarController; sim: SimCar | nul
       const cw = el.clientWidth;
       const ch = el.clientHeight;
       const aspect = ch > 0 ? cw / ch : BASE_W / BASE_H;
-      // 16:9보다 넓으면 화면 폭을 늘려 지도가 넓어지게, 좁으면 기준 폭을 그대로 줄인다
+      if (aspect < SPLIT_ASPECT) {
+        // 분할 화면: 폭 860 기준, 높이는 창 비율대로(창을 꽉 채운다)
+        setFit({ scale: cw / SPLIT_W, w: SPLIT_W, h: Math.max(600, Math.round(SPLIT_W / aspect)), split: true, top: 0 });
+        return;
+      }
+      // 16:9보다 넓으면 화면 폭을 늘려 지도가 넓어지게, 좁으면 기준 폭을 그대로 줄이고 위아래 가운데에 둔다
       const w = Math.max(BASE_W, Math.round(BASE_H * aspect));
-      setFit({ scale: cw / w, w });
+      const scale = cw / w;
+      const gap = ch - BASE_H * scale;
+      setFit({ scale, w, h: BASE_H, split: false, top: gap > 2 ? gap / 2 : 0 });
     };
     const ro = new ResizeObserver(measure);
     ro.observe(el);
@@ -161,7 +176,15 @@ export function CarScreen({ c, sim, now }: { c: CarController; sim: SimCar | nul
   const sheetOpen = s.screen !== "map" && s.screen !== "briefing" && !s.restricted;
   const overview = !s.restricted;
   const W = fit.w;
-  const viewport = sheetOpen ? { x: RAIL_W + SHEET_W, y: 70, w: W - RAIL_W - SHEET_W, h: 560 } : { x: RAIL_W, y: 70, w: W - RAIL_W - SIDE_W - 28, h: 600 };
+  const H = fit.h;
+  const split = fit.split;
+  const splitPanel = s.restricted ? SPLIT_PANEL_DRIVING : SPLIT_PANEL_STOPPED;
+  // 분할 화면: 지도는 아래 카드 영역 위쪽에만 보인다(시트가 열리면 지도는 가려진다)
+  const viewport = split
+    ? { x: RAIL_W, y: 70, w: W - RAIL_W, h: Math.round(H * (1 - splitPanel)) - 70 }
+    : sheetOpen
+      ? { x: RAIL_W + SHEET_W, y: 70, w: W - RAIL_W - SHEET_W, h: 560 }
+      : { x: RAIL_W, y: 70, w: W - RAIL_W - SIDE_W - 28, h: 600 };
   const arrival = s.destination ? clockMs + s.destination.remainTime * 1000 : null;
   const ranked = rankItems(s);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -182,11 +205,18 @@ export function CarScreen({ c, sim, now }: { c: CarController; sim: SimCar | nul
   return (
     <div className="c-stage" ref={wrap}>
       <div className="c-stage-inner">
-        <div className="c-screen" style={{ transform: `scale(${fit.scale})`, width: W }} data-testid="car-screen" data-restricted={s.restricted ? "1" : "0"}>
+        <div
+          className={`c-screen ${split ? "split" : ""}`}
+          style={{ transform: `scale(${fit.scale})`, width: W, height: H, top: fit.top, ["--split-panel" as string]: `${Math.round(splitPanel * 100)}%` }}
+          data-testid="car-screen"
+          data-restricted={s.restricted ? "1" : "0"}
+          data-layout={split ? "split" : "wide"}
+        >
           {snap ? (
             <MapView
               snap={snap}
               width={W}
+              height={H}
               candidates={ranked}
               selectedId={selected}
               onPick={(id) => {

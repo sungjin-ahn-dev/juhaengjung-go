@@ -51,9 +51,12 @@ export function CarApp({ boot, onReset, showConsole = true }: { boot: CarBoot; o
   }, [boot]);
   const now = useMemo(() => () => boot.clock.now(), [boot]);
   // 실기기 배치(화면 가득)는 SDK 모드에서, 시뮬레이터에서는 `?device`로 미리 본다(1920×720 같은 화면 확인용)
-  const device = !boot.sim || (typeof location !== "undefined" && new URLSearchParams(location.search).has("device"));
+  const params = typeof location !== "undefined" ? new URLSearchParams(location.search) : null;
+  const device = !boot.sim || !!params?.has("device");
+  // 시뮬레이터에서 분할 화면(1:1) 배치를 가상 콘솔과 같이 본다: `?split`
+  const splitPreview = !device && !!params?.has("split");
   return (
-    <div className={`c-shell ${device ? "device" : ""}`}>
+    <div className={`c-shell ${device ? "device" : ""} ${splitPreview ? "split-preview" : ""}`}>
       <CarScreen c={boot.controller} sim={boot.sim} now={now} />
       {boot.sim && showConsole && !device && <VirtualConsole sim={boot.sim} clock={boot.clock} controller={boot.controller} hear={(w) => !!boot.platform.voice.hear?.(w)} gleo={boot.gleo} onReset={onReset} />}
       {!boot.sim && <SdkLogDrawer platform={boot.platform} />}

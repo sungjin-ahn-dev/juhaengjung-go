@@ -16,7 +16,10 @@
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|density|uiMode">
+            android:resizeableActivity="true"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|density|uiMode">
+            <!-- resizeableActivity·smallestScreenSize: 분할 화면(1:1)으로 창 크기가 바뀌어도 액티비티를 다시 만들지 않는다(진행 중인 거래 화면 유지).
+                 화면은 창 비율을 보고 분할 화면 배치로 스스로 바뀐다(apps/car-web CarScreen) -->
             <!-- 주행 중에도 화면이 막히지 않게(AAOS 주행 최적화 표시). 실제로 허용되는지는 G0 확인 항목 -->
             <meta-data android:name="distractionOptimized" android:value="true" />
             <intent-filter>

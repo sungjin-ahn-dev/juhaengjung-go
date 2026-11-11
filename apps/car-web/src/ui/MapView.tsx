@@ -17,6 +17,8 @@ interface Props {
   snap: MapSnapshot;
   /** 화면 폭(px). 16:9보다 넓은 차 화면에서는 1280보다 크다 */
   width?: number;
+  /** 화면 높이(px). 분할 화면(세로에 가까운 창)에서는 720보다 크다 */
+  height?: number;
   /** 추천 목록과 같은 순서 — rank가 지도 번호 */
   candidates: RankedItem[];
   selectedId?: string | null;
@@ -29,7 +31,6 @@ interface Props {
   zoom: number;
 }
 
-const H = 720;
 /** 도로: 아래에 어두운 테두리(casing), 위에 밝은 면. 큰길일수록 넓고 밝다 */
 const ROAD_STYLE: Record<string, { w: number; c: string; casing?: string }> = {
   local: { w: 2.5, c: "#2b3646" },
@@ -48,8 +49,9 @@ function angleLerp(a: number, b: number, t: number) {
   return (a + d * t + 360) % 360;
 }
 
-export function MapView({ snap, width = 1280, candidates, selectedId = null, onPick, trade, overview, viewport, zoom }: Props) {
+export function MapView({ snap, width = 1280, height = 720, candidates, selectedId = null, onPick, trade, overview, viewport, zoom }: Props) {
   const W = width;
+  const H = height;
   const headingRef = useRef(snap.heading);
   const [, force] = useState(0);
   // 진행 방향을 부드럽게 따라간다

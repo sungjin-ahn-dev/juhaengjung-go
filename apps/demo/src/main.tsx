@@ -3,7 +3,7 @@
  * 서버 코드(services/api)를 페이지 안에서 메모리 저장소로 돌리고, 두 앱이 같은 서버에 붙는다.
  * 차량 쪽은 브라우저 시뮬레이터 + 가상 콘솔(실제 차에서는 Android 셸의 Pleos SDK 브리지).
  */
-import { StrictMode, useEffect, useRef, useState } from "react";
+import { StrictMode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { DEMO_PLACES } from "@jhgo/core";
 import { createDirectClock, createLocalBackend, type ApiClient, type AppClock } from "@jhgo/api/browser";
@@ -148,8 +148,60 @@ function readAutoFlag(): boolean {
   return false;
 }
 
-function Bench({ boot, seller, buyer, clock, auto }: { boot: CarBoot; seller: ApiClient; buyer: ApiClient; clock: AppClock; auto: boolean }) {
+/**
+ * 무대 배치(?stage): 차량 앱 시작 화면의 '자동 시연 보기'가 여는 모습. 안내 글·순서 목록·가상 콘솔을 접고
+ * 차 화면과 폰을 창 크기에 맞춰 한 화면에 넣는다(스크롤 없음). 가로로 넓으면 나란히, 좁거나 세로면(분할 창) 위아래로.
+ */
+const PHONE_W = 390;
+const PHONE_H = 844;
+function fitStage(bench: HTMLElement, head: HTMLElement) {
+  const pad = 12;
+  const gap = 14;
+  const tabs = 46; // 폰 고르기 버튼 줄
+  const availW = window.innerWidth - pad * 2;
+  const availH = window.innerHeight - pad * 2 - head.offsetHeight - 10;
+  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+  let zoom = clamp((availH - tabs) / PHONE_H, 0.42, 1);
+  let carW = Math.min(availW - gap - PHONE_W * zoom, (availH * 16) / 9);
+  let stack = availW / availH < 1.45 || carW < 520;
+  if (stack) {
+    carW = Math.min(availW, (availH * 0.58 * 16) / 9);
+    const carH = (carW * 9) / 16;
+    zoom = clamp((availH - carH - gap - tabs) / PHONE_H, 0.3, 1);
+    // 폰이 너무 작아지면(낮고 좁은 창) 차 화면만 크게
+    if (zoom < 0.36) {
+      stack = false;
+      zoom = 0;
+      carW = Math.min(availW, (availH * 16) / 9);
+    }
+  }
+  bench.style.setProperty("--car-w", `${Math.floor(carW)}px`);
+  bench.style.setProperty("--phone-zoom", String(Math.round(zoom * 1000) / 1000));
+  bench.classList.toggle("stack", stack);
+  bench.classList.toggle("no-phone", zoom === 0);
+}
+
+function Bench({ boot, seller, buyer, clock, auto, stage }: { boot: CarBoot; seller: ApiClient; buyer: ApiClient; clock: AppClock; auto: boolean; stage: boolean }) {
   const reset = () => location.reload();
+  const benchRef = useRef<HTMLDivElement>(null);
+  const headRef = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    if (!stage || !benchRef.current || !headRef.current) return;
+    const bench = benchRef.current;
+    const head = headRef.current;
+    document.documentElement.classList.add("stage-root");
+    const fit = () => fitStage(bench, head);
+    fit();
+    window.addEventListener("resize", fit);
+    // 진행 줄 글이 두 줄이 되면 머리 높이가 바뀐다
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(fit) : null;
+    ro?.observe(head);
+    return () => {
+      window.removeEventListener("resize", fit);
+      ro?.disconnect();
+      document.documentElement.classList.remove("stage-root");
+    };
+  }, [stage]);
   const [phone, setPhone] = useState<"seller" | "buyer">("seller");
   const [guide, setGuide] = useState<GuideState | null>(null);
   const stopFlag = useRef(false);
@@ -196,12 +248,22 @@ function Bench({ boot, seller, buyer, clock, auto }: { boot: CarBoot; seller: Ap
     [seller],
   );
   return (
-    <div className="bench">
-      <header className="bench-head">
-        <h1>주행중GO! 체험</h1>
-        <p>
-          왼쪽은 구매자 차의 내비 화면과 가상 콘솔, 오른쪽은 카시트를 올린 판매자의 폰이에요. 폰 위 버튼으로 구매자의 폰(결제 수단·거래 내역·평가)으로 바꿔 볼 수 있어요. 모두 이 페이지 안에서 도는 같은 서버에 붙어 있어요. 아래 순서대로 직접 눌러 보거나, <b>자동 시연</b>을 누르면 2분 동안 저절로 진행돼요.
-        </p>
+    <div className={`bench ${stage ? "stage" : ""}`} ref={benchRef}>
+      <header className="bench-head" ref={headRef}>
+        <h1>{stage ? "주행중GO! 자동 시연" : "주행중GO! 체험"}</h1>
+        {!stage && (
+          <p>
+            왼쪽은 구매자 차의 내비 화면과 가상 콘솔, 오른쪽은 카시트를 올린 판매자의 폰이에요. 폰 위 버튼으로 구매자의 폰(결제 수단·거래 내역·평가)으로 바꿔 볼 수 있어요. 모두 이 페이지 안에서 도는 같은 서버에 붙어 있어요. 아래 순서대로 직접 눌러 보거나, <b>자동 시연</b>을 누르면 2분 동안 저절로 진행돼요.
+          </p>
+        )}
+        {stage && guide && (
+          <GuideBar
+            g={guide}
+            onStop={() => {
+              stopFlag.current = true;
+            }}
+          />
+        )}
         <div className="bench-actions">
           {!guide && (
             <button className="bench-auto" onClick={startGuide} data-testid="guide-start">
@@ -213,7 +275,7 @@ function Bench({ boot, seller, buyer, clock, auto }: { boot: CarBoot; seller: Ap
           </button>
         </div>
       </header>
-      {guide && (
+      {!stage && guide && (
         <GuideBar
           g={guide}
           onStop={() => {
@@ -221,7 +283,7 @@ function Bench({ boot, seller, buyer, clock, auto }: { boot: CarBoot; seller: Ap
           }}
         />
       )}
-      <ol className="bench-steps" aria-label="시연 순서">
+      <ol className="bench-steps" aria-label="시연 순서" hidden={stage}>
         <li>
           <span>차 화면 왼쪽 <b>목적지</b>에서 송파 집</span>
         </li>
@@ -279,6 +341,8 @@ async function start() {
   const compose = params.has("compose");
   // ?auto(또는 '자동 시연'을 눌러 새로 고친 뒤): 열리자마자 자동 시연(7단계)을 돌린다
   const auto = params.has("auto") || readAutoFlag();
+  // ?stage: 차량 앱 안에서 여는 무대 배치(창에 맞춰 한 화면, 안내 글·콘솔 접음)
+  const stage = params.has("stage");
   const b = createLocalBackend({ includeCarSeat: !compose });
   const clock = createDirectClock(b.clock as never);
   // 판매자 폰은 카시트를 올려 둔 박서연으로 미리 들어가 있게 한다(로그인 화면에서 다른 판매자로 바꿀 수 있다)
@@ -299,7 +363,7 @@ async function start() {
   const boot = bootCar(b.client(), clock, { storageKey: "jhgo.demo.car" });
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
-      <Bench boot={boot} seller={seller} buyer={buyer} clock={clock} auto={auto} />
+      <Bench boot={boot} seller={seller} buyer={buyer} clock={clock} auto={auto} stage={stage} />
     </StrictMode>,
   );
 }

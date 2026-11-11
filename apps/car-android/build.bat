@@ -68,6 +68,7 @@ rem emulator localhost:8787 -> PC 8787 (the app uses 10.0.2.2:8787 by default; b
 "%ADB%" shell am start -n ai.jhgo.car/.MainActivity >> "%LOG%" 2>&1
 findstr /b /c:"EXIT_" "%LOG%"
 echo Installed. Keep the PC server running: npm start (repo root). Log: %LOG%
+goto :done
 
 :release
 rem submission APK: pleosRelease (signed with the debug key so it installs on the emulator; see README) -> <repo>\apk\

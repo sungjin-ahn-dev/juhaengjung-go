@@ -15,3 +15,8 @@ apps/car-android/hs_err_*.log
 apps/car-android/replay_*.log
 apps/car-android/.kotlin/
 apps/car-android/.idea/
+__pycache__/
+# release.bat이 만드는 빌드 결과 이름 — 제출하는 APK는 apk/팀명_주행중GO_release.apk로 복사해 커밋한다
+apk/juhaengjung-go_pleos_release.apk
+# 내려받은 공식 접수 양식과 채운 양식(신청자 정보가 든다)은 저장소에 두지 않는다
+*.docx

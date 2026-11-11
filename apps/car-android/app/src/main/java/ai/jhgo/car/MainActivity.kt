@@ -139,7 +139,7 @@ class MainActivity : ComponentActivity() {
     private fun loadDemo() {
         offline = true
         hideOverlay()
-        web?.loadUrl("https://appassets.androidplatform.net/assets/demo/index.html?auto&sim")
+        web?.loadUrl("https://appassets.androidplatform.net/assets/demo/index.html?auto&sim&stage")
     }
 
     private fun showConnect(reason: String) = showStart(reason)

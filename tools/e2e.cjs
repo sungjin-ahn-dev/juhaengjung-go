@@ -3,6 +3,7 @@
  * 차량 화면(브리핑 → 주행 → 알림 대기 → 경합 → 요청 → 경유지 → 도착 → 현장 확인 → 결과 카드·판매자 평가)을 함께 돌린다.
  * 2부: 판매자가 안 나올 때(도착 → 다시 알리기 → 5분 뒤 끝내기). 3부: 구매자 폰(결제 수단·거래 내역).
  *   node tools/e2e.cjs            # 서버를 띄우고 실행, 스크린샷은 tools/out/
+ *   node tools/e2e.cjs --split    # 같은 흐름(1·2부)을 분할 화면 배치(/car/?split, 8:9 창)로 — 캡처는 tools/out/split-*.png
  */
 const { chromium } = require("playwright");
 const { spawn } = require("node:child_process");
@@ -11,7 +12,10 @@ const fs = require("node:fs");
 
 const ROOT = path.resolve(__dirname, "..");
 const OUT = path.join(ROOT, "tools/out");
-const PORT = 8790;
+/** 분할 화면(1:1) 배치로 같은 흐름을 돈다 — 단추가 가려지면 누르지 못해 실패한다 */
+const SPLIT = process.argv.includes("--split");
+const TAG = SPLIT ? "split-" : "";
+const PORT = SPLIT ? 8791 : 8790;
 const BASE = `http://localhost:${PORT}`;
 fs.mkdirSync(OUT, { recursive: true });
 
@@ -33,7 +37,7 @@ async function waitHealth() {
 }
 
 (async () => {
-  const db = path.join(OUT, "e2e.sqlite");
+  const db = path.join(OUT, SPLIT ? "e2e-split.sqlite" : "e2e.sqlite");
   for (const f of [db, db + "-wal", db + "-shm"]) fs.rmSync(f, { force: true });
   const server = spawn(process.execPath, [path.join(ROOT, "node_modules/tsx/dist/cli.mjs"), "services/api/src/server.ts"], {
     cwd: ROOT,
@@ -57,7 +61,10 @@ async function waitHealth() {
     await phoneCtx.grantPermissions(["notifications"], { origin: BASE });
     const phone = await phoneCtx.newPage();
     phone.on("pageerror", (e) => log("판매자 페이지 오류:", e.message));
-    const snapP = async (name) => phone.screenshot({ path: path.join(OUT, `${String(++shot).padStart(2, "0")}-seller-${name}.png`) });
+    // 폰 캡처는 화면 내용을 보려는 것이라 잠깐 뜨는 토스트는 가리고 찍는다(동작에는 영향 없음)
+    const NO_TOAST = ".s-toast{visibility:hidden!important}";
+    // 분할 화면 실행에서는 폰 캡처를 남기지 않는다(기본 실행과 같은 화면)
+    const snapP = async (name) => (SPLIT ? null : phone.screenshot({ style: NO_TOAST, path: path.join(OUT, `${String(++shot).padStart(2, "0")}-seller-${name}.png`) }));
     await phone.goto(BASE + "/seller/", { waitUntil: "load" });
     await phone.getByTestId("login-박서연").click();
     await phone.getByTestId("compose").click();
@@ -93,15 +100,16 @@ async function waitHealth() {
     await snapP("listings");
 
     // ── 차량 화면 ──
-    const carCtx = await browser.newContext({ viewport: { width: 1720, height: 860 } });
+    // 분할 화면 실행은 차 화면이 620px로 작게 그려져서 두 배 해상도로 찍는다(그림·문서에 넣을 때 글자가 뭉개지지 않게)
+    const carCtx = await browser.newContext({ viewport: { width: 1720, height: 860 }, deviceScaleFactor: SPLIT ? 2 : 1 });
     const car = await carCtx.newPage();
     car.on("pageerror", (e) => log("차량 페이지 오류:", e.message));
     // 카드가 떠오르는 애니메이션(0.3초)이 끝난 뒤에 찍는다 — 도중에 찍으면 알림 카드가 흐리게 나온다
     const snapC = async (name) => {
       await car.waitForTimeout(500);
-      return car.screenshot({ path: path.join(OUT, `${String(++shot).padStart(2, "0")}-car-${name}.png`) });
+      return car.screenshot({ path: path.join(OUT, `${TAG}${String(++shot).padStart(2, "0")}-car-${name}.png`) });
     };
-    await car.goto(BASE + "/car/", { waitUntil: "load" });
+    await car.goto(BASE + (SPLIT ? "/car/?split" : "/car/"), { waitUntil: "load" });
     await car.getByTestId("car-screen").waitFor();
     await car.waitForTimeout(1200);
     await car.getByTestId("row2").check();
@@ -314,6 +322,12 @@ async function waitHealth() {
     const st = await fetch(BASE + "/v1/seller/trades", { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json());
     check(st.trades[0]?.status === "seller_no_show" && st.trades[0]?.payment.status === "refunded", "5분 뒤 '판매자가 안 나왔어요' → 거래 끝, 전액 환불(판매자 미응대)");
 
+    if (SPLIT) {
+      check((await car.getByTestId("car-screen").getAttribute("data-layout")) === "split", "차 화면이 분할 화면 배치로 그려짐");
+      log("분할 화면 E2E 통과");
+      return;
+    }
+
     // ── 3부: 구매자 폰 — 결제 수단, 거래 내역 ──
     const bphone = await phoneCtx.newPage();
     bphone.on("pageerror", (e) => log("구매자 페이지 오류:", e.message));
@@ -327,6 +341,7 @@ async function waitHealth() {
     await bphone.getByTestId("b-trade-camping_chair").first().click();
     const sheet = bphone.getByTestId("trade-sheet");
     check((await sheet.innerText()).includes("전액 환불됐어요"), "거래 상세: 대금 흐름(전액 환불)과 시간순 기록");
+    await bphone.waitForTimeout(500); // 판이 올라오는 애니메이션이 끝난 뒤
     await bphone.screenshot({ path: path.join(OUT, `${String(++shot).padStart(2, "0")}-buyer-trade.png`) });
 
     // ── 4부: '아직 있어요'(T37) — 7일 넘게 확인하지 않은 매물은 차에 안 보이고, 판매자가 확인하면 다시 보인다 ──

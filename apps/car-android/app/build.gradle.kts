@@ -41,13 +41,14 @@ android {
     sourceSets { getByName("main") { assets.srcDir(layout.buildDirectory.get().asFile.resolve("generated/carweb")) } }
 }
 
-val copyCarWeb by tasks.registering(Copy::class) {
+// Sync: 지난 빌드의 해시 붙은 파일(옛 글꼴·스크립트)이 APK에 남지 않게 대상 폴더를 원본과 같게 맞춘다
+val copyCarWeb by tasks.registering(Sync::class) {
     description = "apps/car-web/dist를 앱 assets/car로 복사(없으면 건너뜀 — 먼저 npm run build:web)"
     from(rootProject.file("../car-web/dist"))
     into(layout.buildDirectory.dir("generated/carweb/car"))
 }
 // 시작 화면의 '자동 시연 보기'가 여는 체험 페이지(한 파일): ../demo/dist/index.html → assets/demo (없으면 건너뜀 — npm run build:demo)
-val copyDemo by tasks.registering(Copy::class) {
+val copyDemo by tasks.registering(Sync::class) {
     description = "apps/demo/dist/index.html을 앱 assets/demo로 복사"
     from(rootProject.file("../demo/dist")) { include("index.html") }
     into(layout.buildDirectory.dir("generated/carweb/demo"))
